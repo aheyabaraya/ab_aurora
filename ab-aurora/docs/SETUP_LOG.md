@@ -1,0 +1,99 @@
+# Setup Log
+
+## 2026-02-17
+- Synced local `develop` with `origin/develop` using fast-forward update.
+- Verified workspace/package state and build readiness for both repo root and `ab-aurora`.
+- Installed dependencies:
+  - root workspace: `pnpm install`
+  - app-local install for `ab-aurora`: `pnpm install --ignore-workspace`
+- Verified app build success:
+  - `pnpm --ignore-workspace --dir /Users/yuminseog/ab_aurora/ab-aurora build`
+- Applied environment updates:
+  - created local runtime file: `ab-aurora/.env` (local only, not committed)
+  - expanded template: `ab-aurora/.env.example`
+  - synchronized env guide: `ab-aurora/docs/ENVIRONMENT.md`
+  - updated default text model in env parser:
+    - `ab-aurora/lib/env.ts`
+    - `OPENAI_MODEL_TEXT` default changed to `gpt-4o`
+- Added optional integration key placeholders for operations:
+  - Vercel runtime/API keys
+  - Supabase console/CLI keys
+  - Redis/Alchemy/Infura/Etherscan/WalletConnect/Sentry/Webhook providers
+- Verified env parser tests:
+  - `pnpm --ignore-workspace --dir /Users/yuminseog/ab_aurora/ab-aurora exec vitest run tests/unit/env/parse-env.test.ts`
+
+## 2026-02-12
+- Initialized project bootstrap files for Next.js + TypeScript + Tailwind.
+- Added base schema file: `lib/brand-spec.schema.ts`.
+- Added operational docs for setup/security/GitHub connection.
+- Installed dependencies using `pnpm install`.
+- Upgraded to patched Next.js line (`16.1.6`) due a security warning on `15.1.7`.
+- Updated scripts to webpack mode for sandbox-safe build execution.
+- Verified quality gates with lint + typecheck.
+- Verified production build success (`pnpm build`).
+- Added unit test baseline with Vitest (`pnpm test`).
+- Added GitHub Actions CI workflow:
+  - `lint`
+  - `typecheck`
+  - `test`
+  - `build`
+- Added internal operating rules: `docs/AGENT_OPERATING_RULES.md`.
+- Updated CI trigger to `develop` branch only.
+- Added API baseline routes:
+  - `GET /api/health`
+  - `POST /api/intent`
+- Added API test gates (`pnpm test:api`) and integrated them into CI.
+- Expanded environment configuration:
+  - added guardrail/env defaults in `.env.example`
+  - added typed env parser `lib/env.ts`
+- Added API skeleton routes:
+  - `POST /api/interview`
+  - `POST /api/spec`
+- Added unit tests for env/interview/spec modules and API route tests.
+- Added setup docs:
+  - `docs/ENVIRONMENT.md`
+  - `docs/API_BASELINE.md`
+- Added decision request tracker: `docs/DECISION_NEEDED_MIN.md`.
+- Refactored tests into split structure:
+  - `tests/unit/*`
+  - `tests/api/*`
+- Added architecture-aligned baseline modules:
+  - `agent/generate`
+  - `agent/score`
+  - `agent/discuss`
+  - `tokens/derive`
+  - `social/generate`
+  - `codegen/plan`
+  - `validate/summary`
+  - `package/provenance`
+  - `pipeline/orchestrator`
+- Added new baseline routes:
+  - `POST /api/candidates`
+  - `POST /api/approve`
+- Added chat-flat create route and app routes:
+  - `/create`
+  - `/create/preview`
+  - `/packs/[id]`
+  - `/admin/jobs`
+- Added job-based execution for approve:
+  - local storage (`.data/jobs`, `.data/packs`)
+  - `GET /api/jobs`
+  - `GET /api/jobs/[jobId]`
+  - `GET /api/packs/[packId]`
+  - `POST /api/revise`
+- Updated `.env.example` with public Monad network values and sensitive-value policy.
+- Added session/chat intent layer:
+  - `POST /api/session/start`
+  - `POST /api/chat`
+  - `GET /api/sessions`
+  - `GET /api/sessions/[sessionId]`
+  - session storage in `.data/sessions`
+
+## Next updates
+- Append one bullet per setup change with command references.
+- Added Supabase-backed storage adapter and removed local file runtime storage (`lib/storage/supabase.ts`, `lib/storage/index.ts`).
+- Added request auth helper with Supabase token validation and optional API token guard (`lib/auth/session.ts`).
+- Added preset snapshot resolver and in-chat config update support (`lib/preset/resolve.ts`, `lib/session/service.ts`).
+- Added ownership transfer API and Monad chain guard (`app/api/auth/transfer-ownership/route.ts`).
+- Added Supabase migration SQL with RLS + RPC (`infra/supabase/migrations/20260216_ab_aurora_supabase.sql`).
+- Updated UI flow to authenticated session/chat pipeline with wallet connect hooks (`app/create/use-agent-flow.ts`, `app/create/create-chat.tsx`).
