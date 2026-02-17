@@ -1,24 +1,167 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
 # dependencies
 /node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+test-results/
+playwright-report/
+blob-report/
+
+# Node
+node_modules/
 
 # next.js
-/.next
-/out
+/.next/
+/out/
 
-# build
-/dist
+# docs
+docs/
+
+# production
+/build
 
 # misc
 .DS_Store
-*.log
+*.pem
 
-# env
-.env
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.eslintcache
+.nyc_output/
+
+# env files (can opt-in for committing if needed)
+.env*
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env
+!.env.example
 
-# tooling
-.turbo
+
+# vercel
+.vercel
+
+# typescript
 *.tsbuildinfo
+next-env.d.ts
+
+# Prisma 마이그레이션 (생성된 SQL 파일들)
+prisma/migrations/
+
+# Editor
+.vscode/
+.DS_Store
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# Solana (Anchor) build output
+solana/target/
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
+
+node_modules
+.env
+
+# IDE
+.idea/
+.fleet/
+
+# pnpm store (if created locally)
+.pnpm-store/
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
+
+/tests
+/tests-results
+
+audit-*.txt
+
+# -----------------------------------------------------------------------------
+# Sensitive files/secrets (global safety)
+# -----------------------------------------------------------------------------
+.envrc
+.direnv/
+.secrets/
+.credentials/
+secrets/
+private/
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+*.crt
+*.cer
+*.der
+*.pkcs8
+*.p8
+*.ovpn
+*.mobileprovision
+*.backup
+*.bak
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+*.rdb
+
+# Local generated/runtime data
+.data/
+ab-aurora/.data/
+
+# -----------------------------------------------------------------------------
+# Strategy/Design/Planning docs (do not track new files)
+# -----------------------------------------------------------------------------
+AGENTS.md
+agent.md
+**/*strategy*.md
+**/*design*.md
+**/*architecture*.md
+**/*decision*.md
+**/*roadmap*.md
+**/*plan*.md
+**/*spec*.md
+**/*proposal*.md
+**/*assessment*.md
+**/*notes*.md
+**/docs/**
