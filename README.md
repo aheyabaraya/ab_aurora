@@ -11,6 +11,8 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
+Canonical source root is this repository root (`ab_aurora`).
+
 ## Quality gates
 ```bash
 pnpm lint
@@ -20,6 +22,8 @@ pnpm typecheck
 ## Docs
 - Product definition: `docs/INTERNAL_SPEC.md`
 - Architecture: `docs/ARCHITECTURE.md`
+- Environment setup: `docs/ENVIRONMENT.md`
+- Workspace roots: `docs/WORKSPACE_ROOTS.md`
 - Interview rules: `docs/INTERVIEW.md`
 - Schemas: `docs/SCHEMAS.md`
 - GitHub setup: `docs/GITHUB_SETUP.md`

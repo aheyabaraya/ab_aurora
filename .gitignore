@@ -1,120 +1,61 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-test-results/
-playwright-report/
-blob-report/
-
-# Node
+# Dependencies
 node_modules/
+.pnpm-store/
+ab-aurora/node_modules/
 
-# next.js
-/.next/
-/out/
+# Next.js / build outputs
+.next/
+out/
+build/
+dist/
+ab-aurora/.next/
 
-# docs
-docs/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.eslintcache
+# Test outputs
+coverage/
+coverage.json
+playwright-report/
+test-results/
+blob-report/
 .nyc_output/
 
-# env files (can opt-in for committing if needed)
-.env*
-.env.local
+# Runtime data
+.data/
+ab-aurora/.data/
+
+# Env / secrets
 .env
+.env.*
 !.env.example
+ab-aurora/.env
+ab-aurora/.env.*
 
+# Vercel
+.vercel/
 
-# vercel
-.vercel
+# Logs / caches
+*.log
+.pnpm-debug.log*
+.eslintcache
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
 
-# Prisma 마이그레이션 (생성된 SQL 파일들)
-prisma/migrations/
-
-# Editor
-.vscode/
-.DS_Store
-node_modules
-.env
-
-# Hardhat files
-/cache
-/artifacts
-
-# Solana (Anchor) build output
+# Tooling outputs
+cache/
+artifacts/
+typechain/
+typechain-types/
 solana/target/
-
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
 
-node_modules
-.env
-
-# IDE
+# IDE / OS
+.DS_Store
+.vscode/
 .idea/
 .fleet/
 
-# pnpm store (if created locally)
-.pnpm-store/
-
-# Hardhat files
-/cache
-/artifacts
-
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
-
-/tests
-/tests-results
-
-audit-*.txt
-
-# -----------------------------------------------------------------------------
-# Sensitive files/secrets (global safety)
-# -----------------------------------------------------------------------------
+# Sensitive files
 .envrc
 .direnv/
 .secrets/
@@ -145,23 +86,5 @@ private/
 *.db
 *.rdb
 
-# Local generated/runtime data
-.data/
-ab-aurora/.data/
-
-# -----------------------------------------------------------------------------
-# Strategy/Design/Planning docs (do not track new files)
-# -----------------------------------------------------------------------------
-AGENTS.md
-agent.md
-**/*strategy*.md
-**/*design*.md
-**/*architecture*.md
-**/*decision*.md
-**/*roadmap*.md
-**/*plan*.md
-**/*spec*.md
-**/*proposal*.md
-**/*assessment*.md
-**/*notes*.md
-**/docs/**
+# Legacy nested workspace (non-source)
+ab-aurora/
