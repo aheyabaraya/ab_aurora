@@ -145,6 +145,24 @@ and ask targeted questions to raise confidence.
 
 ---
 
+## 7.5 Runtime execution semantics (agent-stage)
+
+- Runtime is a stage state machine:
+  - `interview_collect -> intent_gate -> spec_draft -> candidates_generate -> top3_select -> approve_build -> package -> done`
+- Auto-run defaults:
+  - `auto_continue=true`
+  - `auto_pick_top1=true`
+- `wait_user` is mandatory only when:
+  - `intent_confidence < INTENT_CLARIFY_THRESHOLD`
+  - explicit pause / conflict / invalid selection
+  - high-cost action requiring confirmation (mint, large reruns)
+- Chat is a **control channel**, not the execution engine:
+  - chat input is parsed into structured actions
+  - all execution still goes through `run-step` pipeline
+- Every step must produce at least one persisted artifact so intermediate review and follow-up work is possible.
+
+---
+
 ## 8) v0 Code Output Scope (locked)
 
 - **Single page only** (one route `/`)  
@@ -175,6 +193,7 @@ and ask targeted questions to raise confidence.
 - Self-heal: max 3
 - Input length limits + forbidden terms
 - API keys server-side only
+- Single active job per session (`CONCURRENT_JOB_LIMIT`)
 
 ---
 

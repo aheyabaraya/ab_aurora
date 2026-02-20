@@ -7,10 +7,27 @@ const emptyToUndefined = (value: unknown) => {
   return value;
 };
 
+const stringBoolean = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((value) => value === "true");
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.string().url().default("http://localhost:3000"),
-  AGENT_UI_MODE: z.enum(["chat_flat"]).default("chat_flat"),
+  AGENT_UI_MODE: z.enum(["chat_flat", "agent_stage"]).default("agent_stage"),
+  AUTO_CONTINUE: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  AUTO_PICK_TOP1: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  API_TOKEN_REQUIRED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  SECURITY_HEADERS_STRICT: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  ENABLE_AGENT_CHAT_CONTROL: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  OPENAI_FALLBACK_MODE: z.enum(["deterministic_mock", "none"]).default("deterministic_mock"),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("http://127.0.0.1:54321"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("dev-anon-key"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).default("dev-service-role-key"),
@@ -23,10 +40,7 @@ const envSchema = z.object({
   TOP_K: z.coerce.number().int().min(1).max(10).default(3),
   MAX_REVISIONS: z.coerce.number().int().min(0).max(10).default(2),
   MAX_SELF_HEAL_ATTEMPTS: z.coerce.number().int().min(0).max(10).default(3),
-  ENABLE_MONAD_MINT: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
+  ENABLE_MONAD_MINT: stringBoolean,
   MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143),
   MONAD_PUBLIC_RPC_URL: z.string().url().default("https://testnet-rpc.monad.xyz"),
   MONAD_EXPLORER_URL: z.string().url().default("https://testnet.monadexplorer.com"),

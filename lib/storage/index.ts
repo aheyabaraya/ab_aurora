@@ -1,0 +1,27 @@
+import { env } from "../env";
+import { FileStorageRepository } from "./file";
+import { SupabaseStorageRepository } from "./supabase";
+import type { StorageRepository } from "./types";
+
+let singleton: StorageRepository | null = null;
+
+function canUseSupabase(): boolean {
+  if (env.NODE_ENV === "test") {
+    return false;
+  }
+  const hasServiceKey = env.SUPABASE_SERVICE_ROLE_KEY.length > 0;
+  const hasUrl = env.NEXT_PUBLIC_SUPABASE_URL.length > 0;
+  const hasDevKey = env.SUPABASE_SERVICE_ROLE_KEY.startsWith("dev-");
+  const hasPlaceholderKey = env.SUPABASE_SERVICE_ROLE_KEY.includes("replace-with");
+  const hasPlaceholderUrl = env.NEXT_PUBLIC_SUPABASE_URL.includes("replace-with");
+  return hasServiceKey && hasUrl && !hasPlaceholderKey && !hasPlaceholderUrl && !hasDevKey;
+}
+
+export function getStorageRepository(): StorageRepository {
+  if (singleton) {
+    return singleton;
+  }
+
+  singleton = canUseSupabase() ? new SupabaseStorageRepository() : new FileStorageRepository();
+  return singleton;
+}

@@ -14,3 +14,5 @@ These steps involve private credentials or account permissions.
 2. Enable secret scanning and push protection.
 3. Add required status checks (`lint`, `typecheck`) before merge.
 4. Rotate credentials every 60-90 days.
+5. Set `API_TOKEN_REQUIRED=true` in production.
+6. Keep `SECURITY_HEADERS_STRICT=true` in production.

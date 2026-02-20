@@ -10,6 +10,21 @@ Client (Next.js UI)
 
 ---
 
+## Planes
+
+### Control plane
+- Chat command input
+- Intent parser (`chat -> structured action`)
+- Pause/resume/override controls
+
+### Execution plane
+- `run-step` orchestrator (state machine)
+- Job runner
+- Artifact store
+- Packager/mint adapters
+
+---
+
 ## Modules
 
 1) `agent/interview`
@@ -96,6 +111,42 @@ Client (Next.js UI)
 
 ---
 
+## State machine contract
+
+- Steps:
+  - `interview_collect`
+  - `intent_gate`
+  - `spec_draft`
+  - `candidates_generate`
+  - `top3_select`
+  - `approve_build`
+  - `package`
+  - `done`
+- Runtime policies:
+  - `AUTO_CONTINUE=true` => continue automatically until blocked
+  - `AUTO_PICK_TOP1=true` => top1 auto-selection with user override
+  - per session active job limit: `CONCURRENT_JOB_LIMIT` (default 1)
+- Pause points:
+  - confidence gate fail
+  - pause action
+  - conflicting/invalid control action
+  - optional high-cost confirmation point (mint)
+
+---
+
+## APIs (v0.4)
+
+- `POST /api/session/start`
+- `POST /api/agent/run-step`
+- `POST /api/chat`
+- `POST /api/revise`
+- `GET /api/jobs/:jobId`
+- `GET /api/sessions/:sessionId`
+- `GET /api/packs/:packId`
+- `POST /api/mint` (optional)
+
+---
+
 ## Guardrails (v0)
 - candidate_count: 20
 - top_k: 3
@@ -104,3 +155,4 @@ Client (Next.js UI)
 - social assets: 3 sizes + captions
 - self_heal: 3
 - code scope: single page only
+- active_jobs_per_session: 1

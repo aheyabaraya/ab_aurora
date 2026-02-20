@@ -20,7 +20,27 @@ pnpm dev
 - `APP_URL`:
   - local: `http://localhost:3000`
 - `AGENT_UI_MODE`:
-  - default: `chat_flat`
+  - default: `agent_stage`
+  - valid: `agent_stage|chat_flat`
+- `AUTO_CONTINUE`:
+  - default: `true`
+  - if `true`, orchestrator auto-runs until wait conditions
+- `AUTO_PICK_TOP1`:
+  - default: `true`
+  - if `true`, Top-3 selection auto-picks rank 1 unless overridden
+- `API_TOKEN_REQUIRED`:
+  - default: `false`
+  - when `true` in production, `x-api-token` is required for protected APIs
+- `SECURITY_HEADERS_STRICT`:
+  - default: `true`
+  - applies strict security headers via `middleware.ts`
+- `ENABLE_AGENT_CHAT_CONTROL`:
+  - default: `true`
+  - enables chat-to-action control path (`/api/chat`)
+- `OPENAI_FALLBACK_MODE`:
+  - default: `deterministic_mock`
+  - valid: `deterministic_mock|none`
+  - when OpenAI call fails and this is `deterministic_mock`, pipeline continues with mock outputs
 
 ### Supabase (required)
 - `NEXT_PUBLIC_SUPABASE_URL`:
@@ -30,7 +50,8 @@ pnpm dev
 - `SUPABASE_SERVICE_ROLE_KEY`:
   - server-only; required for storage/rpc operations
 - `API_BEARER_TOKEN`:
-  - optional additional API guard (sent as `x-api-token`)
+  - shared token for API guard (sent as `x-api-token`)
+  - required in production when `API_TOKEN_REQUIRED=true`
 - `NEXT_PUBLIC_MONAD_CHAIN_ID`:
   - default: `10143`
   - used for client wallet chain guard (Monad only)
@@ -56,6 +77,18 @@ pnpm dev
   - default: `2`
 - `MAX_SELF_HEAL_ATTEMPTS`:
   - default: `3`
+
+### Agent runtime behavior
+- Auto-run pause points:
+  - `intent_confidence < INTENT_CLARIFY_THRESHOLD`
+  - candidate decision step when auto pick is disabled
+  - explicit user pause action
+- Chat control commands (`/api/chat`):
+  - `select_candidate`
+  - `revise_constraint`
+  - `rerun_candidates`
+  - `pause|resume|proceed`
+  - `generate_followup_asset`
 
 ### Usage limits
 - `REQUEST_LIMIT_PER_DAY`:
@@ -131,6 +164,9 @@ pnpm dev
 - Preview branch: `develop`
 - Add the same environment keys in Vercel Project Settings.
 - Never commit real secrets to git.
+- In production, set:
+  - `API_TOKEN_REQUIRED=true`
+  - `SECURITY_HEADERS_STRICT=true`
 
 ## Public vs sensitive rule
 - Public network values can be committed in `.env.example`.
@@ -138,10 +174,8 @@ pnpm dev
 
 ## Required Supabase SQL
 - Apply migration under:
-  - `infra/supabase/migrations/20260216_ab_aurora_supabase.sql`
+  - `infra/supabase/migrations/20260219_agent_runtime.sql`
 - This migration creates:
-  - sessions/messages/jobs/packs/preset/usage tables
+  - sessions/messages/jobs/artifacts/packs/preset/usage tables
   - RLS policies
-  - RPC functions:
-    - `transfer_ownership`
-    - `upsert_usage_and_check_limit`
+  - active-job concurrency trigger (`jobs`)

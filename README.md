@@ -17,12 +17,15 @@ Canonical source root is this repository root (`ab_aurora`).
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test:agent
 ```
 
 ## Docs
 - Product definition: `docs/INTERNAL_SPEC.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Environment setup: `docs/ENVIRONMENT.md`
+- Operations runbook: `docs/OPERATIONS_RUNBOOK.md`
+- Test plan: `docs/TEST_PLAN.md`
 - Workspace roots: `docs/WORKSPACE_ROOTS.md`
 - Interview rules: `docs/INTERVIEW.md`
 - Schemas: `docs/SCHEMAS.md`

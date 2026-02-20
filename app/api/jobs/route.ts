@@ -1,0 +1,17 @@
+import { getRequestId, jsonError, jsonOk } from "../../../lib/api/http";
+import { getStorageRepository } from "../../../lib/storage";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const requestId = getRequestId(new Headers(request.headers));
+  const { searchParams } = new URL(request.url);
+  const sessionId = searchParams.get("session_id");
+  if (!sessionId) {
+    return jsonError("Invalid request payload", 400, requestId);
+  }
+
+  const storage = getStorageRepository();
+  const jobs = await storage.listJobsBySession(sessionId);
+  return jsonOk({ jobs, request_id: requestId });
+}

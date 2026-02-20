@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm lint && pnpm typecheck"
+    "check": "pnpm lint && pnpm typecheck",
+    "test:build": "rm -rf .tmp-tests && tsc -p tsconfig.tests.json",
+    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/*.test.cjs",
+    "test:api": "pnpm test:build && NODE_ENV=test node --test tests/api/*.test.cjs",
+    "test:integration": "pnpm test:build && NODE_ENV=test node --test tests/integration/*.test.cjs",
+    "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:integration"
   },
   "dependencies": {
     "next": "^16.0.10",

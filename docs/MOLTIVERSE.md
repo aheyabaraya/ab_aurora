@@ -11,9 +11,11 @@ Ship v0 here first:
 - Guided/Reference interview
 - Confidence scoring (1–5) + clarify gate
 - Top-3 candidates
+- Stage timeline + artifact outputs for each step
 - 1 revision
 - Social post images (X/IG/Story)
 - Codegen + lint/typecheck pass (self-heal bounded)
+- Chat-to-action control (override/revise/follow-up)
 - Optional: Brand Pack NFT mint on Monad (provenance)
 
 ### Secondary: Agent + Token Track (optional)

@@ -11,6 +11,37 @@
   - `.env.example`
 - Removed tracked build artifacts and duplicated tracked files under `ab-aurora/` from git index.
 - Hardened `.gitignore` to prevent re-tracking of legacy nested workspace outputs.
+- Added stage-based agent runtime implementation (Top-3 centered):
+  - storage adapters (`lib/storage/*`)
+  - orchestrator and control parser (`lib/agent/*`)
+  - AI provider with deterministic fallback (`lib/ai/openai.ts`)
+  - optional mint adapter (`lib/chain/monad.ts`)
+- Added API surface for agent control and runtime retrieval:
+  - `POST /api/session/start`
+  - `POST /api/agent/run-step`
+  - `POST /api/chat`
+  - `POST /api/revise`
+  - `GET /api/jobs`
+  - `GET /api/jobs/[jobId]`
+  - `GET /api/sessions/[sessionId]`
+  - `GET /api/packs/[packId]`
+  - `POST /api/mint`
+- Replaced homepage with stage-based dashboard for timeline/Top-3/artifact/job/chat controls.
+- Added runtime test suites and scripts:
+  - `tests/unit/*`
+  - `tests/api/*`
+  - `tests/integration/*`
+  - `pnpm test:unit|test:api|test:integration|test:agent`
+- Added Supabase runtime migration:
+  - `infra/supabase/migrations/20260219_agent_runtime.sql`
+- Added operations runbook for release + SQL + env + Vercel + smoke test:
+  - `docs/OPERATIONS_RUNBOOK.md`
+- Applied security hardening baseline:
+  - production token gate controls (`API_TOKEN_REQUIRED`)
+  - strict security header switch (`SECURITY_HEADERS_STRICT`)
+  - timing-safe API token comparison
+  - API error responses with `request_id` and sanitized server logging
+  - middleware security headers
 
 ## 2026-02-17
 - Synced local `develop` with `origin/develop` using fast-forward update.
@@ -108,3 +139,7 @@
 - Added ownership transfer API and Monad chain guard (`app/api/auth/transfer-ownership/route.ts`).
 - Added Supabase migration SQL with RLS + RPC (`infra/supabase/migrations/20260216_ab_aurora_supabase.sql`).
 - Updated UI flow to authenticated session/chat pipeline with wallet connect hooks (`app/create/use-agent-flow.ts`, `app/create/create-chat.tsx`).
+
+## Legacy reference notes
+- Entries that mention files not present in the current root tree are preserved as historical references from older workspace snapshots.
+- Current source of truth for runnable code is repository root (`app/`, `lib/`, `infra/`, `docs/`) and API routes under `app/api/*`.

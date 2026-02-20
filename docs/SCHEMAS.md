@@ -26,6 +26,16 @@
 - `code_plan` (stack/quality gates/self-heal; **single page only in v0**)
 - `scoring` (candidate_count/top_k/rules)
 
+### Runtime split (v0.4)
+- `BrandSpecDraft`:
+  - stage=`draft`
+  - required: version/mode/intent/input/scoring
+  - optional: persona/naming/moodboard/ui_plan/tokens/social_assets/code_plan
+- `BrandSpecFinal`:
+  - stage=`final`
+  - required: selected candidate + finalized moodboard/ui_plan/tokens/social_assets/code_plan
+  - includes Top-3 snapshot and selected candidate id
+
 ---
 
 ## 2) Social Assets (required outputs)
@@ -37,7 +47,74 @@
 
 ---
 
-## 3) TokenURI Metadata Schema (Brand Pack NFT)
+## 3) Runtime state schemas (new)
+
+### `Session`
+- `id`
+- `mode`
+- `product`, `audience`, `style_keywords`
+- `current_step`
+- `status`
+- `auto_continue`, `auto_pick_top1`
+- `intent_confidence`, `variation_width`
+- `latest_top3`, `selected_candidate_id`
+- `draft_spec`, `final_spec`
+- `revision_count`
+
+### `Job`
+- `id`, `session_id`
+- `step`
+- `status` (`pending|running|completed|failed|canceled`)
+- `payload`, `logs`, `error`
+
+### `Artifact`
+- `id`, `session_id`, `job_id`
+- `step`, `kind`, `title`
+- `content`
+- `hash`
+- `created_at`
+
+### `ChatAction`
+- `type`:
+  - `revise_constraint`
+  - `rerun_candidates`
+  - `select_candidate`
+  - `proceed`
+  - `pause`
+  - `resume`
+  - `generate_followup_asset`
+- `payload`
+- `raw`
+
+### `StepRunRequest`
+- `session_id`
+- `step?`
+- `action?`
+- `payload?`
+- `idempotency_key`
+
+### `StepRunResponse`
+- `status`
+- `current_step`
+- `next_step`
+- `wait_user`
+- `job_id?`
+- `artifacts[]`
+- `selected_candidate_id`
+- `latest_top3`
+
+### Top-3 Candidate
+- `id`
+- `rank`
+- `score`
+- `naming`
+- `moodboard`
+- `ui_plan`
+- `rationale`
+
+---
+
+## 4) TokenURI Metadata Schema (Brand Pack NFT)
 
 **Messaging rule:** do NOT claim “ownership/registration.” Use **proof/provenance/origin** only.
 
