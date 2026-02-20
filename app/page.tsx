@@ -385,6 +385,38 @@ export default function HomePage() {
     }
   };
 
+  const handleRuntimeControl = async (message: string) => {
+    if (!sessionId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          message
+        })
+      });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      } else if (runtimeGoalId) {
+        await refreshRuntimeGoal(runtimeGoalId);
+      }
+      await refreshSession(sessionId);
+    } catch (runtimeControlError) {
+      setError(runtimeControlError instanceof Error ? runtimeControlError.message : "Runtime control failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#133B5C_0%,#0D1A2B_48%,#111827_100%)] px-5 py-8 text-slate-100">
       <section className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1.1fr_1.6fr_1.1fr]">
@@ -493,6 +525,20 @@ export default function HomePage() {
                   disabled={busy || !runtimeGoalId}
                 >
                   Force Replan + Step
+                </button>
+                <button
+                  className="w-full rounded-lg border border-rose-300/40 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/10 disabled:opacity-60"
+                  onClick={() => handleRuntimeControl("pause")}
+                  disabled={busy || !sessionId}
+                >
+                  Pause (Chat Control)
+                </button>
+                <button
+                  className="w-full rounded-lg border border-emerald-300/40 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10 disabled:opacity-60"
+                  onClick={() => handleRuntimeControl("resume")}
+                  disabled={busy || !sessionId}
+                >
+                  Resume (Chat Control)
                 </button>
                 {runtimeSnapshot ? (
                   <div className="rounded-md border border-slate-700 bg-slate-950/60 p-2 text-[11px] text-slate-300">
