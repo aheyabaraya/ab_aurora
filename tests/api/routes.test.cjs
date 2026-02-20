@@ -1,4 +1,5 @@
 process.env.NODE_ENV = "test";
+process.env.RUNTIME_ENABLED = "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -62,6 +63,7 @@ test("run-step route executes auto pipeline and stores Top-3", async () => {
   const runBody = await json(runResponse);
   assert.ok(Array.isArray(runBody.latest_top3));
   assert.equal(runBody.latest_top3.length, 3);
+  assert.equal(runBody.runtime_meta.enabled, true);
 
   const sessionResponse = await getSession(new Request("http://localhost"), {
     params: Promise.resolve({ sessionId: sessionPayload.session_id })
@@ -109,4 +111,5 @@ test("chat route parses select action and applies override", async () => {
   const chatBody = await json(chatResponse);
   assert.equal(chatBody.interpreted_action.type, "select_candidate");
   assert.equal(chatBody.applied, true);
+  assert.equal(chatBody.runtime_meta.enabled, true);
 });

@@ -1,158 +1,122 @@
-# docs/ARCHITECTURE.md — AB_Aurora Architecture (v0.3)
+# docs/ARCHITECTURE.md — AB_Aurora Architecture (v0.5)
 
 ## High-level
-Client (Next.js UI)
-→ API (Agent Orchestrator)
-→ OpenAI (text/image)
-→ Validation Runner (eslint/tsc)
-→ Packager (hash/CID)
-→ (Optional) Monad Mint (BrandPackNFT)
+Client (Next.js Agent UI)
+-> API Facade (`/api/agent/run-step`, `/api/chat`, `/api/revise`)
+-> Runtime Control Plane (`observe -> plan -> policy -> act -> evaluate -> memory`)
+-> Tool Backends (current stage orchestrator)
+-> Validation (`eslint`, `tsc`) + Packager (hash/CID)
+-> Optional Monad mint (`/api/mint`)
+
+This release is a runtime-first vertical slice: runtime is the top control loop, while the existing stage orchestrator remains the execution backend.
 
 ---
 
 ## Planes
 
-### Control plane
-- Chat command input
-- Intent parser (`chat -> structured action`)
-- Pause/resume/override controls
+### Control plane (`lib/runtime/*`)
+- `runner`: goal lifecycle, loop execution, idempotency, stop conditions
+- `planner`: rule-first next action planning
+- `policy`: action allow/deny/confirm gate
+- `tool-registry`: runtime tools mapped to orchestrator steps
+- `evaluator`: goal fitness scoring and next hint
+- `memory`: session/brand memory read-write
+- `trace`: structured runtime events
 
-### Execution plane
-- `run-step` orchestrator (state machine)
-- Job runner
-- Artifact store
-- Packager/mint adapters
-
----
-
-## Modules
-
-1) `agent/interview`
-- Mode A/B input collection
-- Includes intent confidence score (1–5)
-- Produces InterviewResult (source of BrandSpec.input)
-
-2) `agent/intent_confidence`
-- Uses:
-  - explicit user score (1–5)
-  - language cues (“must”, “exactly”, “keep this”), reference clarity
-- Outputs:
-  - `intent_confidence` (1–5)
-  - `variation_width` (wide/medium/narrow)
-- **Gate:** if score < threshold, return “need more clarity” with targeted questions.
-
-3) `agent/spec`
-- InterviewResult → BrandSpec (structured)
-- Produces moodboard prompts, UI plan draft
-
-4) `agent/generate`
-- Candidate generation:
-  - moodboard candidates
-  - UI plan candidates
-  - naming candidates
-- Uses `variation_width`:
-  - **wide** = diverse exploration
-  - **medium** = balanced
-  - **narrow** = refinements around user direction
-
-5) `agent/score`
-- Rule-based scoring + top-3 selection
-
-6) `agent/discuss`
-- Presents candidates with rationale (fit to product/audience)
-- Asks user which feels closest; updates constraints and re-runs if needed.
-
-7) `tokens/derive`
-- After moodboard+ui_plan is approved, derive final tokens:
-  - palette + typography + spacing + radius + shadow
-
-8) `social/gen`
-- Generate share-ready images aligned with brand/product:
-  - X (1200×675), IG (1080×1080), Story (1080×1920)
-- Generate captions + hashtags.
-
-9) `codegen`
-- **Components-first** generation
-- Assemble into a **single page** (`/`) for v0
-- Output into brand-pack/code/
-
-10) `validate`
-- eslint + tsc → validation.json
-
-11) `self_heal`
-- bounded auto-fix loop (max 3) if validation fails
-
-12) `package`
-- bundle files + sha256
-- optional IPFS upload → CID
-
-13) `chain/monad` (optional)
-- mint BrandPackNFT
-- TokenURI points to meta/CID
+### Execution plane (`lib/agent/*` + `lib/storage/*`)
+- Existing stage state machine:
+  - `interview_collect -> intent_gate -> spec_draft -> candidates_generate -> top3_select -> approve_build -> package -> done`
+- Artifact persistence (session/job/artifact/pack)
+- Candidate generation/scoring and Top-3 selection
+- Build outputs + packaging + optional mint
 
 ---
 
-## Runtime flow (sequence)
+## Runtime Loop Contract
 
-1) UI: interview (mode A/B) + intent score (1–5) + references
-2) API: intent_confidence module → variation_width 결정
-3) If score < threshold: return targeted questions → loop
-4) API: build spec
-5) API: generate candidates (moodboard + UI plan + naming) n=20 → score → top3
-6) UI: discuss & pick 1 (optional revise)
-7) API: approve
-   - finalize moodboard + ui_plan
-   - derive tokens
-   - generate social images + captions
-   - components-first codegen → **single page** assembly
-   - validate → self-heal loop
-   - package → optional mint
-8) UI: show outputs + validation + tx hash (if any)
+Each runtime step executes this closed loop:
+1. `observe`: read session/jobs/artifacts/memories
+2. `plan`: choose next action (`RuntimeActionSpec`)
+3. `policy`: `allow | deny | confirm_required`
+4. `act`: run tool (`tool.*`)
+5. `evaluate`: score progress and decide pass/wait/replan
+6. `memory`: write session and optional brand memory
 
----
+### Hard limits
+- `RUNTIME_MAX_ITERATIONS` (default `12`)
+- `RUNTIME_REPLAN_LIMIT` (default `2`)
+- `RUNTIME_TOOL_TIMEOUT_MS` (default `30000`)
+- `CONCURRENT_JOB_LIMIT` (default `1`)
+- Goal success condition:
+  - `session.current_step == done`
+  - `pack_meta` artifact exists
+  - Top-3/selection/outputs criteria pass evaluator
 
-## State machine contract
-
-- Steps:
-  - `interview_collect`
-  - `intent_gate`
-  - `spec_draft`
-  - `candidates_generate`
-  - `top3_select`
-  - `approve_build`
-  - `package`
-  - `done`
-- Runtime policies:
-  - `AUTO_CONTINUE=true` => continue automatically until blocked
-  - `AUTO_PICK_TOP1=true` => top1 auto-selection with user override
-  - per session active job limit: `CONCURRENT_JOB_LIMIT` (default 1)
-- Pause points:
-  - confidence gate fail
-  - pause action
-  - conflicting/invalid control action
-  - optional high-cost confirmation point (mint)
+### Wait-user conditions
+- Policy deny/confirm-required
+- `intent_confidence < INTENT_CLARIFY_THRESHOLD`
+- Invalid/ambiguous override action
+- Max-iteration safety stop reached
 
 ---
 
-## APIs (v0.4)
+## Tool Mapping (Vertical Slice)
 
-- `POST /api/session/start`
+- `tool.session.observe`
+  - Reads session/jobs/artifacts snapshot.
+- `tool.brand.ensure_top3`
+  - Progresses pipeline to Top-3.
+  - Fails if Top-3 is still unavailable.
+- `tool.brand.ensure_selection`
+  - Applies auto top1 or user override.
+  - Ensures `selected_candidate_id`.
+- `tool.brand.ensure_outputs`
+  - Ensures `tokens`, `social_assets`, `code_plan`, `validation` artifacts.
+- `tool.brand.ensure_package`
+  - Ensures package creation and `pack_meta` artifact.
+- `tool.chat.apply_override`
+  - Applies chat-derived structured action via orchestrator path.
+
+---
+
+## API Facade Behavior
+
+### New runtime endpoints
+- `POST /api/runtime/start`
+- `POST /api/runtime/step`
+- `GET /api/runtime/goals/:goalId`
+
+### Backward-compatible endpoints
 - `POST /api/agent/run-step`
 - `POST /api/chat`
 - `POST /api/revise`
-- `GET /api/jobs/:jobId`
-- `GET /api/sessions/:sessionId`
-- `GET /api/packs/:packId`
-- `POST /api/mint` (optional)
+
+When `RUNTIME_ENABLED=true`, legacy endpoints execute through runtime and return additive `runtime_meta`. When disabled, they use orchestrator-only behavior.
 
 ---
 
-## Guardrails (v0)
-- candidate_count: 20
-- top_k: 3
-- revisions: 2
-- images: 3
-- social assets: 3 sizes + captions
-- self_heal: 3
-- code scope: single page only
-- active_jobs_per_session: 1
+## Data Layer
+
+### Core runtime tables
+- `sessions`, `messages`, `jobs`, `artifacts`, `packs`, `preset`, `usage`
+
+### Runtime control-plane tables
+- `runtime_goals`
+- `runtime_plans`
+- `runtime_actions`
+- `runtime_tool_calls`
+- `runtime_evals`
+- `runtime_memories`
+- `runtime_events`
+
+All runtime tables use RLS deny-by-default and service-role access path.
+
+---
+
+## Deployment Strategy
+
+- `develop`: runtime canary (`RUNTIME_ENABLED=true`)
+- `main`: phased enablement
+  - phase 1: `RUNTIME_ENABLED=false`
+  - phase 2: `RUNTIME_ENABLED=true` after smoke checks
+- Instant rollback path: set `RUNTIME_ENABLED=false`.

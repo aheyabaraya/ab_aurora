@@ -1,181 +1,155 @@
 # Environment Setup
 
-This project is configured to run with `main` as release branch and `develop` as development branch.
-Canonical workspace root is `/Users/yuminseog/ab_aurora`.
+Canonical workspace root: `/Users/yuminseog/ab_aurora`.
 
-## Local setup
+Branch policy:
+- production: `main`
+- preview/canary: `develop`
+
+---
+
+## 1) Local bootstrap
+
 1. Copy `.env.example` to `.env.local`.
-2. Fill values needed for your environment.
+2. Fill required values.
 3. Run:
 ```bash
 pnpm install
 pnpm dev
 ```
 
-## Variables
+---
 
-### Core runtime
-- `NODE_ENV`:
+## 2) Core runtime variables
+
+- `NODE_ENV`
   - default: `development`
-- `APP_URL`:
+- `APP_URL`
   - local: `http://localhost:3000`
-- `AGENT_UI_MODE`:
+- `AGENT_UI_MODE`
   - default: `agent_stage`
   - valid: `agent_stage|chat_flat`
-- `AUTO_CONTINUE`:
+- `AUTO_CONTINUE`
   - default: `true`
-  - if `true`, orchestrator auto-runs until wait conditions
-- `AUTO_PICK_TOP1`:
+- `AUTO_PICK_TOP1`
   - default: `true`
-  - if `true`, Top-3 selection auto-picks rank 1 unless overridden
-- `API_TOKEN_REQUIRED`:
-  - default: `false`
-  - when `true` in production, `x-api-token` is required for protected APIs
-- `SECURITY_HEADERS_STRICT`:
+- `ENABLE_AGENT_CHAT_CONTROL`
   - default: `true`
-  - applies strict security headers via `middleware.ts`
-- `ENABLE_AGENT_CHAT_CONTROL`:
-  - default: `true`
-  - enables chat-to-action control path (`/api/chat`)
-- `OPENAI_FALLBACK_MODE`:
+- `OPENAI_FALLBACK_MODE`
   - default: `deterministic_mock`
   - valid: `deterministic_mock|none`
-  - when OpenAI call fails and this is `deterministic_mock`, pipeline continues with mock outputs
 
-### Supabase (required)
-- `NEXT_PUBLIC_SUPABASE_URL`:
-  - local example: `http://127.0.0.1:54321`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`:
-  - required for browser anonymous/web3 auth
-- `SUPABASE_SERVICE_ROLE_KEY`:
-  - server-only; required for storage/rpc operations
-- `API_BEARER_TOKEN`:
-  - shared token for API guard (sent as `x-api-token`)
-  - required in production when `API_TOKEN_REQUIRED=true`
-- `NEXT_PUBLIC_MONAD_CHAIN_ID`:
-  - default: `10143`
-  - used for client wallet chain guard (Monad only)
-
-### OpenAI
-- `OPENAI_API_KEY`:
-  - required when actual model calls are enabled
-- `OPENAI_MODEL_TEXT`:
-  - default: `gpt-4o` (recommended quality profile)
-  - lower-cost fallback: `gpt-4.1-mini`
-- `OPENAI_MODEL_IMAGE`:
-  - default: `gpt-image-1`
-
-### Guardrails
-- `INTENT_CLARIFY_THRESHOLD`:
-  - default: `4`
-  - valid: `1-5`
-- `CANDIDATE_COUNT`:
-  - default: `20`
-- `TOP_K`:
-  - default: `3`
-- `MAX_REVISIONS`:
-  - default: `2`
-- `MAX_SELF_HEAL_ATTEMPTS`:
-  - default: `3`
-
-### Agent runtime behavior
-- Auto-run pause points:
-  - `intent_confidence < INTENT_CLARIFY_THRESHOLD`
-  - candidate decision step when auto pick is disabled
-  - explicit user pause action
-- Chat control commands (`/api/chat`):
-  - `select_candidate`
-  - `revise_constraint`
-  - `rerun_candidates`
-  - `pause|resume|proceed`
-  - `generate_followup_asset`
-
-### Usage limits
-- `REQUEST_LIMIT_PER_DAY`:
-  - default: `100`
-- `IMAGE_LIMIT_PER_DAY`:
-  - default: `20`
-- `CONCURRENT_JOB_LIMIT`:
-  - default: `1`
-- `SESSION_RETENTION_DAYS`:
-  - default: `30`
-
-### Optional Monad mint
-- `ENABLE_MONAD_MINT`:
+### Runtime control-plane
+- `RUNTIME_ENABLED`
   - default: `false`
-- `MONAD_CHAIN_ID`:
-  - default: `10143`
-- `MONAD_PUBLIC_RPC_URL`:
-  - default: `https://testnet-rpc.monad.xyz`
-- `MONAD_EXPLORER_URL`:
-  - default: `https://testnet.monadexplorer.com`
-- `MONAD_RPC_URL`:
-  - optional (keep empty in `.env.example` if private)
-- `MONAD_PRIVATE_KEY`:
-  - optional (sensitive, keep empty in `.env.example`)
+- `RUNTIME_MAX_ITERATIONS`
+  - default: `12`
+- `RUNTIME_REPLAN_LIMIT`
+  - default: `2`
+- `RUNTIME_TOOL_TIMEOUT_MS`
+  - default: `30000`
+- `RUNTIME_MEMORY_PERSIST`
+  - default: `true`
+- `RUNTIME_EVAL_MIN_SCORE`
+  - default: `0.8`
 
-### Logging
-- `LOG_LEVEL`:
-  - default: `info`
-  - valid: `debug|info|warn|error`
+### Intent/candidate guardrails
+- `INTENT_CLARIFY_THRESHOLD` (default `4`, valid `1..5`)
+- `CANDIDATE_COUNT` (default `20`)
+- `TOP_K` (default `3`)
+- `MAX_REVISIONS` (default `2`)
+- `MAX_SELF_HEAL_ATTEMPTS` (default `3`)
 
-### Storage
-- `STORAGE_BUCKET_PACKS`:
-  - default: `brand-packs`
+### Limits
+- `CONCURRENT_JOB_LIMIT` (default `1`)
+- `REQUEST_LIMIT_PER_DAY` (default `100`)
+- `IMAGE_LIMIT_PER_DAY` (default `20`)
+- `SESSION_RETENTION_DAYS` (default `30`)
 
-### Vercel integration (optional/manual + runtime)
-- `VERCEL_ENV`:
-  - usually auto-provided by Vercel runtime
-- `VERCEL_URL`:
-  - usually auto-provided by Vercel runtime
-- `VERCEL_PROJECT_PRODUCTION_URL`:
-  - usually auto-provided by Vercel runtime
-- `VERCEL_PROJECT_ID`:
-  - optional for Vercel API/CLI integrations
-- `VERCEL_ORG_ID`:
-  - optional for Vercel API/CLI integrations
-- `VERCEL_TOKEN`:
-  - optional for Vercel API/CLI integrations (sensitive)
+---
 
-### Supabase console/CLI integration (optional)
-- `SUPABASE_ACCESS_TOKEN`:
-  - optional for Supabase CLI automation (sensitive)
-- `SUPABASE_PROJECT_REF`:
-  - optional project identifier
-- `SUPABASE_DB_PASSWORD`:
-  - optional for DB tooling (sensitive)
+## 3) Security variables
 
-### Additional API/console integrations (optional)
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN` (sensitive)
-- `ALCHEMY_API_KEY`
-- `INFURA_API_KEY`
-- `ETHERSCAN_API_KEY`
-- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
-- `SENTRY_DSN`
-- `SLACK_WEBHOOK_URL` (sensitive)
-- `DISCORD_WEBHOOK_URL` (sensitive)
-- `OPENROUTER_API_KEY` (sensitive)
-- `ANTHROPIC_API_KEY` (sensitive)
-- `GOOGLE_API_KEY` (sensitive)
+- `API_BEARER_TOKEN`
+  - shared value used by `x-api-token` header
+- `API_TOKEN_REQUIRED`
+  - default: `false`
+  - production recommendation: `true`
+- `SECURITY_HEADERS_STRICT`
+  - default: `true`
 
-## Vercel setup
-- Production branch: `main`
-- Preview branch: `develop`
-- Add the same environment keys in Vercel Project Settings.
-- Never commit real secrets to git.
-- In production, set:
+Server-only secrets must never use `NEXT_PUBLIC_`.
+
+---
+
+## 4) Supabase variables (required)
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only)
+
+Required migrations:
+1. `infra/supabase/migrations/20260219_agent_runtime.sql`
+2. `infra/supabase/migrations/20260220_runtime_control_plane.sql`
+
+---
+
+## 5) OpenAI variables
+
+- `OPENAI_API_KEY` (optional when fallback mode is active)
+- `OPENAI_MODEL_TEXT` (default `gpt-4o`)
+- `OPENAI_MODEL_IMAGE` (default `gpt-image-1`)
+
+---
+
+## 6) Optional Monad mint
+
+- `ENABLE_MONAD_MINT` (default `false`)
+- `NEXT_PUBLIC_MONAD_CHAIN_ID` (default `10143`)
+- `MONAD_CHAIN_ID` (default `10143`)
+- `MONAD_PUBLIC_RPC_URL` (default `https://testnet-rpc.monad.xyz`)
+- `MONAD_EXPLORER_URL` (default `https://testnet.monadexplorer.com`)
+- `MONAD_RPC_URL` (optional)
+- `MONAD_PRIVATE_KEY` (optional, server-only)
+
+---
+
+## 7) Deployment matrix
+
+### Development (local)
+- `RUNTIME_ENABLED=true`
+- `API_TOKEN_REQUIRED=false`
+- `OPENAI_FALLBACK_MODE=deterministic_mock`
+
+### Preview (`develop`)
+- `RUNTIME_ENABLED=true`
+- `API_TOKEN_REQUIRED=false` (or team policy)
+- `SECURITY_HEADERS_STRICT=true`
+
+### Production (`main`) phase rollout
+- Phase 1:
+  - `RUNTIME_ENABLED=false`
   - `API_TOKEN_REQUIRED=true`
   - `SECURITY_HEADERS_STRICT=true`
+- Phase 2 after smoke:
+  - `RUNTIME_ENABLED=true`
+  - keep token/security strict flags enabled
 
-## Public vs sensitive rule
-- Public network values can be committed in `.env.example`.
-- Secrets (private keys, provider tokens, bearer secrets) must stay empty in `.env.example`.
+Rollback switch:
+- set `RUNTIME_ENABLED=false`
 
-## Required Supabase SQL
-- Apply migration under:
-  - `infra/supabase/migrations/20260219_agent_runtime.sql`
-- This migration creates:
-  - sessions/messages/jobs/artifacts/packs/preset/usage tables
-  - RLS policies
-  - active-job concurrency trigger (`jobs`)
+---
+
+## 8) Vercel setup
+
+Vercel Console path:
+- `Project -> Settings -> Environment Variables`
+
+Set all required keys for scopes:
+- `Development`
+- `Preview`
+- `Production`
+
+Build branch rules:
+- production branch: `main`
+- preview branch: `develop`

@@ -156,4 +156,11 @@ export interface RunStepResponse {
   selected_candidate_id: string | null;
   latest_top3: Candidate[] | null;
   message: string;
+  runtime_meta?: {
+    enabled: boolean;
+    goal_id?: string;
+    goal_status?: string;
+    current_step_no?: number;
+    eval?: Record<string, unknown> | null;
+  };
 }

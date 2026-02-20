@@ -1,5 +1,50 @@
 # Setup Log
 
+## 2026-02-20
+- Implemented runtime-first vertical slice control plane:
+  - `lib/runtime/types.ts`
+  - `lib/runtime/planner.ts`
+  - `lib/runtime/policy.ts`
+  - `lib/runtime/evaluator.ts`
+  - `lib/runtime/memory.ts`
+  - `lib/runtime/trace.ts`
+  - `lib/runtime/tool-registry.ts`
+  - `lib/runtime/runner.ts`
+  - `lib/runtime/schemas.ts`
+- Added runtime APIs:
+  - `POST /api/runtime/start`
+  - `POST /api/runtime/step`
+  - `GET /api/runtime/goals/[goalId]`
+- Added runtime facade integration into existing APIs:
+  - `app/api/agent/run-step/route.ts`
+  - `app/api/chat/route.ts`
+  - `app/api/revise/route.ts`
+- Added runtime storage contracts and adapters:
+  - `lib/storage/types.ts`
+  - `lib/storage/memory.ts`
+  - `lib/storage/file.ts`
+  - `lib/storage/supabase.ts`
+  - `lib/storage/index.ts`
+- Added Supabase runtime control-plane migration:
+  - `infra/supabase/migrations/20260220_runtime_control_plane.sql`
+- Updated UI for runtime goal control and snapshot visibility:
+  - `app/page.tsx`
+- Added runtime-focused tests:
+  - `tests/unit/runtime-core.test.cjs`
+  - `tests/api/runtime-routes.test.cjs`
+  - compatibility updates in `tests/api/routes.test.cjs`
+- Added runtime safety controls:
+  - `RUNTIME_TOOL_TIMEOUT_MS` env and runtime tool timeout enforcement
+  - `force_replan` bypass for runtime-step idempotent replay
+- Synced architecture/spec/environment/demo/test/runbook docs to runtime-first model:
+  - `docs/ARCHITECTURE.md`
+  - `docs/SCHEMAS.md`
+  - `docs/INTERNAL_SPEC.md`
+  - `docs/ENVIRONMENT.md`
+  - `docs/DEMO.md`
+  - `docs/TEST_PLAN.md`
+  - `docs/OPERATIONS_RUNBOOK.md`
+
 ## 2026-02-19
 - Unified workspace to a single source root: `/Users/yuminseog/ab_aurora`.
 - Promoted environment and setup docs from legacy nested path into root docs:

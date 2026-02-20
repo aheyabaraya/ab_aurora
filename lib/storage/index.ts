@@ -1,5 +1,6 @@
 import { env } from "../env";
 import { FileStorageRepository } from "./file";
+import { MemoryStorageRepository } from "./memory";
 import { SupabaseStorageRepository } from "./supabase";
 import type { StorageRepository } from "./types";
 
@@ -19,6 +20,11 @@ function canUseSupabase(): boolean {
 
 export function getStorageRepository(): StorageRepository {
   if (singleton) {
+    return singleton;
+  }
+
+  if (env.NODE_ENV === "test") {
+    singleton = new MemoryStorageRepository();
     return singleton;
   }
 

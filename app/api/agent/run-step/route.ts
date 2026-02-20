@@ -3,6 +3,11 @@ import { runStepRequestSchema } from "../../../../lib/agent/schemas";
 import { runAgentPipeline } from "../../../../lib/agent/orchestrator";
 import { assertApiToken } from "../../../../lib/auth/api-token";
 import { getRequestId, jsonError, jsonOk, jsonRouteError } from "../../../../lib/api/http";
+import { env } from "../../../../lib/env";
+import {
+  ensureRuntimeGoalForSession,
+  stepRuntimeGoal
+} from "../../../../lib/runtime/runner";
 import { getStorageRepository } from "../../../../lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +28,72 @@ export async function POST(request: Request) {
     });
 
     const storage = getStorageRepository();
+    if (env.RUNTIME_ENABLED) {
+      const goal = await ensureRuntimeGoalForSession({
+        storage,
+        session_id: parsed.session_id,
+        idempotency_key: `rt-goal-${parsed.idempotency_key}`
+      });
+      const runtimeResponse = await stepRuntimeGoal({
+        storage,
+        goal_id: goal.id,
+        action_override: parsed.action
+          ? {
+              action_type: parsed.action,
+              payload: parsed.payload
+            }
+          : undefined,
+        idempotency_key: parsed.idempotency_key
+      });
+
+      const session = await storage.getSession(parsed.session_id);
+      if (!session) {
+        throw new Error(`Session not found: ${parsed.session_id}`);
+      }
+
+      const legacyOutput =
+        runtimeResponse.last_action?.output &&
+        typeof runtimeResponse.last_action.output === "object"
+          ? (runtimeResponse.last_action.output as Record<string, unknown>)
+          : {};
+      const nestedRunResponse =
+        legacyOutput.run_response &&
+        typeof legacyOutput.run_response === "object"
+          ? (legacyOutput.run_response as Record<string, unknown>)
+          : null;
+      const artifactsDelta = Array.isArray(nestedRunResponse?.artifacts)
+        ? (nestedRunResponse?.artifacts as unknown[])
+        : [];
+      const nextStepFromTool =
+        typeof nestedRunResponse?.next_step === "string"
+          ? nestedRunResponse.next_step
+          : session.current_step;
+      const toolJobId =
+        typeof nestedRunResponse?.job_id === "string"
+          ? nestedRunResponse.job_id
+          : null;
+
+      return jsonOk({
+        status: session.status,
+        current_step: session.current_step,
+        next_step: nextStepFromTool,
+        wait_user: runtimeResponse.wait_user || session.status === "wait_user",
+        job_id: toolJobId,
+        artifacts: artifactsDelta,
+        selected_candidate_id: session.selected_candidate_id,
+        latest_top3: session.latest_top3,
+        message: runtimeResponse.message,
+        runtime_meta: {
+          enabled: true,
+          goal_id: runtimeResponse.goal.id,
+          goal_status: runtimeResponse.goal_status,
+          current_step_no: runtimeResponse.current_step_no,
+          eval: runtimeResponse.eval
+        },
+        request_id: requestId
+      });
+    }
+
     const response = await runAgentPipeline({
       storage,
       request: {
@@ -36,6 +107,9 @@ export async function POST(request: Request) {
 
     return jsonOk({
       ...response,
+      runtime_meta: {
+        enabled: false
+      },
       request_id: requestId
     });
   } catch (error) {

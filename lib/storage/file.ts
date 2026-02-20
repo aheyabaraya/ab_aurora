@@ -7,6 +7,18 @@ import type {
   PackRecord,
   SessionRecord
 } from "../agent/types";
+import type {
+  RuntimeActionInput,
+  RuntimeActionRecord,
+  RuntimeEvalRecord,
+  RuntimeEventRecord,
+  RuntimeGoalRecord,
+  RuntimeMemoryRecord,
+  RuntimePlanInput,
+  RuntimePlanRecord,
+  RuntimeToolCallInput,
+  RuntimeToolCallRecord
+} from "../runtime/types";
 import { createId } from "../utils/id";
 import { sha256 } from "../utils/hash";
 import type {
@@ -23,6 +35,13 @@ type DbShape = {
   jobs: JobRecord[];
   artifacts: ArtifactRecord[];
   packs: PackRecord[];
+  runtime_goals: RuntimeGoalRecord[];
+  runtime_plans: RuntimePlanRecord[];
+  runtime_actions: RuntimeActionRecord[];
+  runtime_tool_calls: RuntimeToolCallRecord[];
+  runtime_evals: RuntimeEvalRecord[];
+  runtime_memories: RuntimeMemoryRecord[];
+  runtime_events: RuntimeEventRecord[];
 };
 
 function nowIso(): string {
@@ -42,7 +61,14 @@ function ensureRuntimeFile() {
       messages: [],
       jobs: [],
       artifacts: [],
-      packs: []
+      packs: [],
+      runtime_goals: [],
+      runtime_plans: [],
+      runtime_actions: [],
+      runtime_tool_calls: [],
+      runtime_evals: [],
+      runtime_memories: [],
+      runtime_events: []
     };
     writeFileSync(runtimeFile, JSON.stringify(initial), "utf8");
   }
@@ -51,12 +77,30 @@ function ensureRuntimeFile() {
 function loadDb(): DbShape {
   ensureRuntimeFile();
   const text = readFileSync(runtimeFile, "utf8");
-  return JSON.parse(text) as DbShape;
+  const parsed = JSON.parse(text) as Partial<DbShape>;
+  return {
+    sessions: parsed.sessions ?? [],
+    messages: parsed.messages ?? [],
+    jobs: parsed.jobs ?? [],
+    artifacts: parsed.artifacts ?? [],
+    packs: parsed.packs ?? [],
+    runtime_goals: parsed.runtime_goals ?? [],
+    runtime_plans: parsed.runtime_plans ?? [],
+    runtime_actions: parsed.runtime_actions ?? [],
+    runtime_tool_calls: parsed.runtime_tool_calls ?? [],
+    runtime_evals: parsed.runtime_evals ?? [],
+    runtime_memories: parsed.runtime_memories ?? [],
+    runtime_events: parsed.runtime_events ?? []
+  };
 }
 
 function saveDb(db: DbShape): void {
   ensureRuntimeFile();
   writeFileSync(runtimeFile, JSON.stringify(db), "utf8");
+}
+
+function descByCreatedAt<T extends { created_at: string }>(items: T[]): T[] {
+  return [...items].sort((left, right) => (left.created_at < right.created_at ? 1 : -1));
 }
 
 export class FileStorageRepository implements StorageRepository {
@@ -170,9 +214,7 @@ export class FileStorageRepository implements StorageRepository {
 
   async listJobsBySession(sessionId: string): Promise<JobRecord[]> {
     const db = loadDb();
-    return db.jobs
-      .filter((job) => job.session_id === sessionId)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return descByCreatedAt(db.jobs.filter((job) => job.session_id === sessionId));
   }
 
   async getJob(jobId: string): Promise<JobRecord | null> {
@@ -207,9 +249,7 @@ export class FileStorageRepository implements StorageRepository {
 
   async listArtifactsBySession(sessionId: string): Promise<ArtifactRecord[]> {
     const db = loadDb();
-    return db.artifacts
-      .filter((artifact) => artifact.session_id === sessionId)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return descByCreatedAt(db.artifacts.filter((artifact) => artifact.session_id === sessionId));
   }
 
   async createPack(input: CreatePackInput): Promise<PackRecord> {
@@ -254,5 +294,323 @@ export class FileStorageRepository implements StorageRepository {
   async trackUsage(input: { session_id: string; type: string; amount: number }): Promise<void> {
     void input;
     return;
+  }
+
+  async createRuntimeGoal(input: {
+    session_id: string;
+    goal_type: RuntimeGoalRecord["goal_type"];
+    goal_input?: Record<string, unknown> | null;
+    idempotency_key?: string | null;
+  }): Promise<RuntimeGoalRecord> {
+    const db = loadDb();
+    const timestamp = nowIso();
+    const goal: RuntimeGoalRecord = {
+      id: createId("rt_goal"),
+      session_id: input.session_id,
+      goal_type: input.goal_type,
+      goal_input: input.goal_input ?? null,
+      status: "pending",
+      current_plan_id: null,
+      current_step_no: 0,
+      last_action_id: null,
+      last_eval_id: null,
+      idempotency_key: input.idempotency_key ?? null,
+      error: null,
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+    db.runtime_goals.push(goal);
+    saveDb(db);
+    return goal;
+  }
+
+  async getRuntimeGoal(goalId: string): Promise<RuntimeGoalRecord | null> {
+    const db = loadDb();
+    return db.runtime_goals.find((goal) => goal.id === goalId) ?? null;
+  }
+
+  async findRuntimeGoalByIdempotency(idempotencyKey: string): Promise<RuntimeGoalRecord | null> {
+    const db = loadDb();
+    return db.runtime_goals.find((goal) => goal.idempotency_key === idempotencyKey) ?? null;
+  }
+
+  async findActiveRuntimeGoal(
+    sessionId: string,
+    goalType: RuntimeGoalRecord["goal_type"]
+  ): Promise<RuntimeGoalRecord | null> {
+    const db = loadDb();
+    return (
+      db.runtime_goals.find(
+        (goal) =>
+          goal.session_id === sessionId &&
+          goal.goal_type === goalType &&
+          (goal.status === "pending" || goal.status === "running" || goal.status === "wait_user")
+      ) ?? null
+    );
+  }
+
+  async updateRuntimeGoal(
+    goalId: string,
+    patch: Partial<
+      Pick<
+        RuntimeGoalRecord,
+        "status" | "current_plan_id" | "current_step_no" | "last_action_id" | "last_eval_id" | "error"
+      >
+    >
+  ): Promise<RuntimeGoalRecord> {
+    const db = loadDb();
+    const index = db.runtime_goals.findIndex((goal) => goal.id === goalId);
+    if (index < 0) {
+      throw new Error(`Runtime goal not found: ${goalId}`);
+    }
+    const next = {
+      ...db.runtime_goals[index],
+      ...patch,
+      updated_at: nowIso()
+    };
+    db.runtime_goals[index] = next;
+    saveDb(db);
+    return next;
+  }
+
+  async listRuntimeGoalsBySession(sessionId: string): Promise<RuntimeGoalRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_goals.filter((goal) => goal.session_id === sessionId));
+  }
+
+  async createRuntimePlan(input: RuntimePlanInput): Promise<RuntimePlanRecord> {
+    const db = loadDb();
+    const timestamp = nowIso();
+    const plan: RuntimePlanRecord = {
+      id: createId("rt_plan"),
+      goal_id: input.goal_id,
+      version: input.version,
+      rationale: input.rationale,
+      proposed_actions: input.proposed_actions,
+      stop_condition: input.stop_condition,
+      status: input.status ?? "active",
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+    db.runtime_plans.push(plan);
+    saveDb(db);
+    return plan;
+  }
+
+  async listRuntimePlansByGoal(goalId: string): Promise<RuntimePlanRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_plans.filter((plan) => plan.goal_id === goalId));
+  }
+
+  async createRuntimeAction(input: RuntimeActionInput): Promise<RuntimeActionRecord> {
+    const db = loadDb();
+    const timestamp = nowIso();
+    const action: RuntimeActionRecord = {
+      id: createId("rt_act"),
+      goal_id: input.goal_id,
+      plan_id: input.plan_id,
+      step_no: input.step_no,
+      action_type: input.action_type,
+      tool_name: input.tool_name,
+      action_input: input.action_input,
+      policy_result: input.policy_result ?? null,
+      status: input.status ?? "pending",
+      idempotency_key: input.idempotency_key ?? null,
+      output: null,
+      error: null,
+      created_at: timestamp,
+      updated_at: timestamp,
+      finished_at: null
+    };
+    db.runtime_actions.push(action);
+    saveDb(db);
+    return action;
+  }
+
+  async getRuntimeActionByIdempotency(
+    goalId: string,
+    idempotencyKey: string
+  ): Promise<RuntimeActionRecord | null> {
+    const db = loadDb();
+    return (
+      db.runtime_actions.find(
+        (action) => action.goal_id === goalId && action.idempotency_key === idempotencyKey
+      ) ?? null
+    );
+  }
+
+  async updateRuntimeAction(
+    actionId: string,
+    patch: Partial<
+      Pick<RuntimeActionRecord, "status" | "policy_result" | "error" | "output" | "finished_at">
+    >
+  ): Promise<RuntimeActionRecord> {
+    const db = loadDb();
+    const index = db.runtime_actions.findIndex((action) => action.id === actionId);
+    if (index < 0) {
+      throw new Error(`Runtime action not found: ${actionId}`);
+    }
+    const next = {
+      ...db.runtime_actions[index],
+      ...patch,
+      updated_at: nowIso()
+    };
+    db.runtime_actions[index] = next;
+    saveDb(db);
+    return next;
+  }
+
+  async listRuntimeActionsByGoal(goalId: string): Promise<RuntimeActionRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_actions.filter((action) => action.goal_id === goalId));
+  }
+
+  async createRuntimeToolCall(input: RuntimeToolCallInput): Promise<RuntimeToolCallRecord> {
+    const db = loadDb();
+    const call: RuntimeToolCallRecord = {
+      id: createId("rt_tool"),
+      goal_id: input.goal_id,
+      action_id: input.action_id,
+      tool_name: input.tool_name,
+      input: input.input,
+      output: input.output,
+      status: input.status,
+      latency_ms: input.latency_ms,
+      error: input.error,
+      created_at: nowIso()
+    };
+    db.runtime_tool_calls.push(call);
+    saveDb(db);
+    return call;
+  }
+
+  async listRuntimeToolCallsByGoal(goalId: string): Promise<RuntimeToolCallRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_tool_calls.filter((call) => call.goal_id === goalId));
+  }
+
+  async createRuntimeEval(input: {
+    goal_id: string;
+    plan_id: string | null;
+    action_id: string | null;
+    scores: Record<string, number>;
+    pass: boolean;
+    reasons: string[];
+    next_hint: string | null;
+  }): Promise<RuntimeEvalRecord> {
+    const db = loadDb();
+    const evaluation: RuntimeEvalRecord = {
+      id: createId("rt_eval"),
+      goal_id: input.goal_id,
+      plan_id: input.plan_id,
+      action_id: input.action_id,
+      scores: input.scores,
+      pass: input.pass,
+      reasons: input.reasons,
+      next_hint: input.next_hint,
+      created_at: nowIso()
+    };
+    db.runtime_evals.push(evaluation);
+    saveDb(db);
+    return evaluation;
+  }
+
+  async listRuntimeEvalsByGoal(goalId: string): Promise<RuntimeEvalRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_evals.filter((evaluation) => evaluation.goal_id === goalId));
+  }
+
+  async upsertRuntimeMemory(input: {
+    scope: RuntimeMemoryRecord["scope"];
+    session_id: string | null;
+    brand_key: string | null;
+    memory_key: string;
+    memory_value: Record<string, unknown>;
+    weight: number;
+    source_action_id: string | null;
+  }): Promise<RuntimeMemoryRecord> {
+    const db = loadDb();
+    const index = db.runtime_memories.findIndex(
+      (memory) =>
+        memory.scope === input.scope &&
+        memory.session_id === input.session_id &&
+        memory.brand_key === input.brand_key &&
+        memory.memory_key === input.memory_key
+    );
+    if (index >= 0) {
+      const next = {
+        ...db.runtime_memories[index],
+        memory_value: input.memory_value,
+        weight: input.weight,
+        source_action_id: input.source_action_id,
+        updated_at: nowIso()
+      };
+      db.runtime_memories[index] = next;
+      saveDb(db);
+      return next;
+    }
+
+    const timestamp = nowIso();
+    const memory: RuntimeMemoryRecord = {
+      id: createId("rt_mem"),
+      scope: input.scope,
+      session_id: input.session_id,
+      brand_key: input.brand_key,
+      memory_key: input.memory_key,
+      memory_value: input.memory_value,
+      weight: input.weight,
+      source_action_id: input.source_action_id,
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+    db.runtime_memories.push(memory);
+    saveDb(db);
+    return memory;
+  }
+
+  async listRuntimeMemories(input: {
+    scope?: RuntimeMemoryRecord["scope"];
+    session_id?: string;
+    brand_key?: string;
+  }): Promise<RuntimeMemoryRecord[]> {
+    const db = loadDb();
+    const filtered = db.runtime_memories.filter((memory) => {
+      if (input.scope && memory.scope !== input.scope) {
+        return false;
+      }
+      if (input.session_id && memory.session_id !== input.session_id) {
+        return false;
+      }
+      if (input.brand_key && memory.brand_key !== input.brand_key) {
+        return false;
+      }
+      return true;
+    });
+    return descByCreatedAt(filtered);
+  }
+
+  async createRuntimeEvent(input: {
+    session_id: string;
+    goal_id: string;
+    event_type: RuntimeEventRecord["event_type"];
+    payload: Record<string, unknown>;
+  }): Promise<RuntimeEventRecord> {
+    const db = loadDb();
+    const event: RuntimeEventRecord = {
+      id: createId("rt_evt"),
+      session_id: input.session_id,
+      goal_id: input.goal_id,
+      event_type: input.event_type,
+      payload: input.payload,
+      created_at: nowIso()
+    };
+    db.runtime_events.push(event);
+    saveDb(db);
+    return event;
+  }
+
+  async listRuntimeEventsByGoal(goalId: string): Promise<RuntimeEventRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.runtime_events.filter((event) => event.goal_id === goalId));
   }
 }

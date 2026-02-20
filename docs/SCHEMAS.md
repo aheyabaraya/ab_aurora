@@ -1,78 +1,50 @@
-# docs/SCHEMAS.md — AB_Aurora Schemas (v0.3)
+# docs/SCHEMAS.md — AB_Aurora Schemas (v0.5)
 
-> Goal: Lock **BrandSpec** and **TokenURI (BrandPackNFT)** metadata so Codex can implement immediately.
-
-> NOTE (sequence): In v0, **Moodboard is generated/selected before Tokens**.  
-> Tokens are finalized after the user approves moodboard + UI plan.
+Goal: define stable schemas for stage outputs and runtime control-plane records.
 
 ---
 
-## 1) BrandSpec (brand.spec.json)
+## 1) BrandSpec
 
-### Minimal required fields (v0)
-- `version`, `mode`
-- `intent` (confidence-aware):
-  - `has_direction: boolean`
-  - `intent_confidence: 1|2|3|4|5`
-  - `variation_width: "wide"|"medium"|"narrow"`
-  - `direction_source: "user"|"agent"` (optional)
-- `input` (interview answers)
-- `persona` (summary/values/voice) *(can be minimal when confidence high)*
-- `naming` (candidates + recommended) *(optional if user already has naming)*
-- `moodboard` (prompts + outputs)
-- `ui_plan` (IA/components/CTA)
-- `tokens` (finalized after approval)
-- `social_assets` (output URIs + captions)
-- `code_plan` (stack/quality gates/self-heal; **single page only in v0**)
-- `scoring` (candidate_count/top_k/rules)
+### `BrandSpecDraft`
+- `stage`: `draft`
+- Required:
+  - `version`, `mode`
+  - `intent.has_direction`
+  - `intent.intent_confidence` (`1..5`)
+  - `intent.variation_width` (`wide|medium|narrow`)
+  - `input`
+  - `scoring` (`candidate_count`, `top_k`)
+- Optional during draft:
+  - `persona`, `naming`, `moodboard`, `ui_plan`, `tokens`, `social_assets`, `code_plan`
 
-### Runtime split (v0.4)
-- `BrandSpecDraft`:
-  - stage=`draft`
-  - required: version/mode/intent/input/scoring
-  - optional: persona/naming/moodboard/ui_plan/tokens/social_assets/code_plan
-- `BrandSpecFinal`:
-  - stage=`final`
-  - required: selected candidate + finalized moodboard/ui_plan/tokens/social_assets/code_plan
-  - includes Top-3 snapshot and selected candidate id
+### `BrandSpecFinal`
+- `stage`: `final`
+- Required:
+  - `selected_candidate_id`
+  - finalized `moodboard`, `ui_plan`, `tokens`, `social_assets`, `code_plan`
+  - Top-3 snapshot (`candidates[]`, `scores`, `rank`)
 
 ---
 
-## 2) Social Assets (required outputs)
-
-- `post_1200x675` (X/Twitter)
-- `post_1080x1080` (IG square)
-- `post_1080x1920` (Story)
-- `captions.md` (2–3 caption options + 5–10 hashtags)
-
----
-
-## 3) Runtime state schemas (new)
+## 2) Stage Runtime Entities
 
 ### `Session`
-- `id`
-- `mode`
-- `product`, `audience`, `style_keywords`
-- `current_step`
-- `status`
-- `auto_continue`, `auto_pick_top1`
+- `id`, `mode`, `product`, `audience`, `style_keywords`
+- `current_step`, `status`
+- `auto_continue`, `auto_pick_top1`, `paused`
 - `intent_confidence`, `variation_width`
 - `latest_top3`, `selected_candidate_id`
-- `draft_spec`, `final_spec`
-- `revision_count`
+- `draft_spec`, `final_spec`, `revision_count`
 
 ### `Job`
-- `id`, `session_id`
-- `step`
-- `status` (`pending|running|completed|failed|canceled`)
-- `payload`, `logs`, `error`
+- `id`, `session_id`, `step`, `status`
+- `payload`, `logs`, `error`, `created_at`
 
 ### `Artifact`
 - `id`, `session_id`, `job_id`
-- `step`, `kind`, `title`
-- `content`
-- `hash`
-- `created_at`
+- `step`, `kind`, `title`, `content`
+- provenance: `hash`, `created_at`
 
 ### `ChatAction`
 - `type`:
@@ -83,27 +55,134 @@
   - `pause`
   - `resume`
   - `generate_followup_asset`
-- `payload`
-- `raw`
+- `payload`, `raw`
 
-### `StepRunRequest`
-- `session_id`
-- `step?`
-- `action?`
-- `payload?`
-- `idempotency_key`
+---
 
-### `StepRunResponse`
-- `status`
-- `current_step`
-- `next_step`
-- `wait_user`
-- `job_id?`
-- `artifacts[]`
-- `selected_candidate_id`
-- `latest_top3`
+## 3) Runtime Control-Plane Entities
 
-### Top-3 Candidate
+### `RuntimeGoal`
+- `id`, `session_id`, `goal_type` (`deliver_demo_pack`)
+- `goal_input`, `status`
+- `current_plan_id`, `current_step_no`
+- `last_action_id`, `last_eval_id`
+- `idempotency_key`, `error`, `created_at`, `updated_at`
+
+### `RuntimePlan`
+- `id`, `goal_id`, `version`
+- `rationale`, `proposed_actions[]`, `stop_condition`, `status`
+- `created_at`, `updated_at`
+
+### `RuntimeAction`
+- `id`, `goal_id`, `plan_id`, `step_no`
+- `action_type`, `tool_name`, `action_input`
+- `policy_result` (`allow|deny|confirm_required`)
+- `status` (`pending|running|completed|failed|denied|confirm_required`)
+- `idempotency_key`, `output`, `error`, `finished_at`, `created_at`, `updated_at`
+
+### `RuntimeToolCall`
+- `id`, `goal_id`, `action_id`, `tool_name`
+- `input`, `output`, `status`, `latency_ms`, `error`, `created_at`
+
+### `RuntimeEval`
+- `id`, `goal_id`, `plan_id`, `action_id`
+- `scores` (`top3|selection|outputs|package|done|goal_fit`)
+- `pass`, `reasons[]`, `next_hint`, `created_at`
+
+### `RuntimeMemory`
+- `id`, `scope` (`session|brand`)
+- `session_id`, `brand_key`
+- `memory_key`, `memory_value`, `weight`, `source_action_id`
+- `created_at`, `updated_at`
+
+### `RuntimeEvent`
+- `id`, `session_id`, `goal_id`, `event_type`, `payload`, `created_at`
+
+---
+
+## 4) API Payload Contracts
+
+### `POST /api/runtime/start`
+Input:
+```json
+{
+  "session_id": "uuid",
+  "goal_type": "deliver_demo_pack",
+  "goal_input": {},
+  "idempotency_key": "string"
+}
+```
+Output:
+```json
+{
+  "goal_id": "uuid",
+  "status": "running",
+  "initial_plan": {},
+  "current_action": {},
+  "request_id": "string"
+}
+```
+
+### `POST /api/runtime/step`
+Input:
+```json
+{
+  "goal_id": "uuid",
+  "force_replan": false,
+  "action_override": {
+    "action_type": "select_candidate",
+    "payload": {"candidate_id": "..."}
+  },
+  "idempotency_key": "string"
+}
+```
+Output:
+```json
+{
+  "goal_status": "running",
+  "current_step_no": 1,
+  "last_action": {},
+  "eval": {},
+  "next_action": {},
+  "wait_user": false,
+  "message": "Runtime step completed.",
+  "request_id": "string"
+}
+```
+
+### `GET /api/runtime/goals/:goalId`
+Output:
+```json
+{
+  "goal": {},
+  "plans": [],
+  "actions": [],
+  "evals": [],
+  "memories": [],
+  "events": [],
+  "tool_calls": [],
+  "request_id": "string"
+}
+```
+
+### Backward-compatible additive field
+`/api/agent/run-step`, `/api/chat`, `/api/revise` responses may include:
+```json
+{
+  "runtime_meta": {
+    "enabled": true,
+    "goal_id": "uuid",
+    "goal_status": "running",
+    "current_step_no": 1,
+    "eval": {}
+  }
+}
+```
+
+---
+
+## 5) Top-3 Candidate Schema
+
 - `id`
 - `rank`
 - `score`
@@ -112,32 +191,17 @@
 - `ui_plan`
 - `rationale`
 
+`selected_candidate_id` must reference one of `latest_top3[].id`.
+
 ---
 
-## 4) TokenURI Metadata Schema (Brand Pack NFT)
+## 6) TokenURI Metadata (optional mint)
 
-**Messaging rule:** do NOT claim “ownership/registration.” Use **proof/provenance/origin** only.
+Messaging rule: use provenance/origin language, not legal ownership claims.
 
-### Example
-```json
-{
-  "name": "AB_Aurora Brand Pack #0001",
-  "description": "Provenance record for a generated Brand Pack (persona → moodboard → UI plan → tokens → social assets → verified code).",
-  "image": "ipfs://<CID>/moodboard/hero.png",
-  "external_url": "https://<app>/packs/<id>",
-  "attributes": [
-    {"trait_type": "mode", "value": "guided"},
-    {"trait_type": "intent_confidence", "value": 3},
-    {"trait_type": "candidate_count", "value": 20},
-    {"trait_type": "lint", "value": "pass"},
-    {"trait_type": "typecheck", "value": "pass"}
-  ],
-  "properties": {
-    "bundle_uri": "ipfs://<CID>/brand-pack/",
-    "bundle_hash": "<sha256>",
-    "spec_version": "0.3",
-    "models": {"llm": "openai", "image": "openai"},
-    "created_at": "2026-02-12T00:00:00Z"
-  }
-}
-```
+Required properties:
+- `bundle_hash`
+- `bundle_uri` (CID if present)
+- `spec_version`
+- `models`
+- `created_at`

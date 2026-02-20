@@ -68,6 +68,29 @@ type JobsPayload = {
   }>;
 };
 
+type RuntimeGoalSnapshot = {
+  goal: {
+    id: string;
+    status: string;
+    current_step_no: number;
+    error: string | null;
+  };
+  actions: Array<{
+    id: string;
+    action_type: string;
+    tool_name: string;
+    status: string;
+    created_at: string;
+  }>;
+  evals: Array<{
+    id: string;
+    pass: boolean;
+    scores: Record<string, number>;
+    next_hint: string | null;
+    created_at: string;
+  }>;
+};
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -98,6 +121,8 @@ export default function HomePage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionPayload, setSessionPayload] = useState<SessionPayload | null>(null);
   const [jobsPayload, setJobsPayload] = useState<JobsPayload | null>(null);
+  const [runtimeGoalId, setRuntimeGoalId] = useState<string | null>(null);
+  const [runtimeSnapshot, setRuntimeSnapshot] = useState<RuntimeGoalSnapshot | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [reviseInput, setReviseInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +145,11 @@ export default function HomePage() {
     setJobsPayload(jobs);
   };
 
+  const refreshRuntimeGoal = async (goalId: string) => {
+    const snapshot = await requestJson<RuntimeGoalSnapshot>(`/api/runtime/goals/${goalId}`);
+    setRuntimeSnapshot(snapshot);
+  };
+
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -131,6 +161,18 @@ export default function HomePage() {
     }, 2000);
     return () => clearInterval(interval);
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!runtimeGoalId) {
+      return;
+    }
+    const interval = setInterval(() => {
+      refreshRuntimeGoal(runtimeGoalId).catch((runtimeError) => {
+        setError(runtimeError instanceof Error ? runtimeError.message : "Failed to refresh runtime goal");
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [runtimeGoalId]);
 
   const handleStartSession = async () => {
     setBusy(true);
@@ -153,6 +195,8 @@ export default function HomePage() {
         })
       });
       setSessionId(response.session_id);
+      setRuntimeGoalId(null);
+      setRuntimeSnapshot(null);
       await refreshSession(response.session_id);
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Failed to start session");
@@ -168,13 +212,22 @@ export default function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      await requestJson("/api/agent/run-step", {
+      const response = await requestJson<{
+        runtime_meta?: {
+          enabled?: boolean;
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
           idempotency_key: crypto.randomUUID()
         })
       });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
       await refreshSession(sessionId);
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : "Run step failed");
@@ -190,7 +243,12 @@ export default function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      await requestJson("/api/agent/run-step", {
+      const response = await requestJson<{
+        runtime_meta?: {
+          enabled?: boolean;
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
@@ -201,6 +259,10 @@ export default function HomePage() {
           idempotency_key: crypto.randomUUID()
         })
       });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
       await refreshSession(sessionId);
     } catch (selectionError) {
       setError(selectionError instanceof Error ? selectionError.message : "Candidate selection failed");
@@ -216,13 +278,22 @@ export default function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      await requestJson("/api/chat", {
+      const response = await requestJson<{
+        runtime_meta?: {
+          enabled?: boolean;
+          goal_id?: string;
+        };
+      }>("/api/chat", {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
           message: chatInput
         })
       });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
       setChatInput("");
       await refreshSession(sessionId);
     } catch (chatError) {
@@ -239,7 +310,12 @@ export default function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      await requestJson("/api/revise", {
+      const response = await requestJson<{
+        runtime_meta?: {
+          enabled?: boolean;
+          goal_id?: string;
+        };
+      }>("/api/revise", {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
@@ -247,10 +323,63 @@ export default function HomePage() {
           intensity: 60
         })
       });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
       setReviseInput("");
       await refreshSession(sessionId);
     } catch (reviseError) {
       setError(reviseError instanceof Error ? reviseError.message : "Revision failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStartRuntimeGoal = async () => {
+    if (!sessionId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await requestJson<{
+        goal_id: string;
+      }>("/api/runtime/start", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          goal_type: "deliver_demo_pack",
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      setRuntimeGoalId(response.goal_id);
+      await refreshRuntimeGoal(response.goal_id);
+    } catch (runtimeError) {
+      setError(runtimeError instanceof Error ? runtimeError.message : "Failed to start runtime goal");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRuntimeStep = async (forceReplan = false) => {
+    if (!runtimeGoalId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await requestJson("/api/runtime/step", {
+        method: "POST",
+        body: JSON.stringify({
+          goal_id: runtimeGoalId,
+          force_replan: forceReplan,
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      await Promise.all([refreshRuntimeGoal(runtimeGoalId), sessionId ? refreshSession(sessionId) : Promise.resolve()]);
+    } catch (runtimeError) {
+      setError(runtimeError instanceof Error ? runtimeError.message : "Runtime step failed");
     } finally {
       setBusy(false);
     }
@@ -339,6 +468,56 @@ export default function HomePage() {
               >
                 Run / Continue
               </button>
+            ) : null}
+
+            {sessionId ? (
+              <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Runtime Goal</p>
+                <button
+                  className="w-full rounded-lg border border-fuchsia-300/40 px-3 py-2 text-xs font-semibold text-fuchsia-100 hover:bg-fuchsia-400/10 disabled:opacity-60"
+                  onClick={handleStartRuntimeGoal}
+                  disabled={busy}
+                >
+                  Start Runtime Goal
+                </button>
+                <button
+                  className="w-full rounded-lg border border-cyan-300/40 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-60"
+                  onClick={() => handleRuntimeStep(false)}
+                  disabled={busy || !runtimeGoalId}
+                >
+                  Runtime Step
+                </button>
+                <button
+                  className="w-full rounded-lg border border-amber-300/40 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-400/10 disabled:opacity-60"
+                  onClick={() => handleRuntimeStep(true)}
+                  disabled={busy || !runtimeGoalId}
+                >
+                  Force Replan + Step
+                </button>
+                {runtimeSnapshot ? (
+                  <div className="rounded-md border border-slate-700 bg-slate-950/60 p-2 text-[11px] text-slate-300">
+                    <p>
+                      Goal: <span className="text-cyan-200">{runtimeSnapshot.goal.id}</span>
+                    </p>
+                    <p>Status: {runtimeSnapshot.goal.status}</p>
+                    <p>Loop Step: {runtimeSnapshot.goal.current_step_no}</p>
+                    <p>
+                      Last Action:{" "}
+                      {runtimeSnapshot.actions[0]
+                        ? `${runtimeSnapshot.actions[0].action_type} (${runtimeSnapshot.actions[0].status})`
+                        : "n/a"}
+                    </p>
+                    <p>
+                      Eval:{" "}
+                      {runtimeSnapshot.evals[0]
+                        ? runtimeSnapshot.evals[0].pass
+                          ? "pass"
+                          : "fail"
+                        : "n/a"}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
 

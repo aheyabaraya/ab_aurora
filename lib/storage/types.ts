@@ -10,6 +10,19 @@ import type {
   SessionMode,
   SessionRecord
 } from "../agent/types";
+import type {
+  RuntimeActionInput,
+  RuntimeActionRecord,
+  RuntimeEvalRecord,
+  RuntimeEventRecord,
+  RuntimeGoalRecord,
+  RuntimeGoalType,
+  RuntimeMemoryRecord,
+  RuntimePlanInput,
+  RuntimePlanRecord,
+  RuntimeToolCallInput,
+  RuntimeToolCallRecord
+} from "../runtime/types";
 
 export interface CreateSessionInput {
   mode: SessionMode;
@@ -84,6 +97,75 @@ export interface StorageRepository {
   updatePack(packId: string, patch: Partial<Pick<PackRecord, "meta" | "bundle_hash" | "cid" | "mint_tx">>): Promise<PackRecord>;
   getPack(packId: string): Promise<PackRecord | null>;
   trackUsage(input: { session_id: string; type: string; amount: number }): Promise<void>;
+  createRuntimeGoal(input: {
+    session_id: string;
+    goal_type: RuntimeGoalType;
+    goal_input?: Record<string, unknown> | null;
+    idempotency_key?: string | null;
+  }): Promise<RuntimeGoalRecord>;
+  getRuntimeGoal(goalId: string): Promise<RuntimeGoalRecord | null>;
+  findRuntimeGoalByIdempotency(idempotencyKey: string): Promise<RuntimeGoalRecord | null>;
+  findActiveRuntimeGoal(sessionId: string, goalType: RuntimeGoalType): Promise<RuntimeGoalRecord | null>;
+  updateRuntimeGoal(
+    goalId: string,
+    patch: Partial<
+      Pick<
+        RuntimeGoalRecord,
+        "status" | "current_plan_id" | "current_step_no" | "last_action_id" | "last_eval_id" | "error"
+      >
+    >
+  ): Promise<RuntimeGoalRecord>;
+  listRuntimeGoalsBySession(sessionId: string): Promise<RuntimeGoalRecord[]>;
+  createRuntimePlan(input: RuntimePlanInput): Promise<RuntimePlanRecord>;
+  listRuntimePlansByGoal(goalId: string): Promise<RuntimePlanRecord[]>;
+  createRuntimeAction(input: RuntimeActionInput): Promise<RuntimeActionRecord>;
+  getRuntimeActionByIdempotency(
+    goalId: string,
+    idempotencyKey: string
+  ): Promise<RuntimeActionRecord | null>;
+  updateRuntimeAction(
+    actionId: string,
+    patch: Partial<
+      Pick<
+        RuntimeActionRecord,
+        "status" | "policy_result" | "error" | "output" | "finished_at"
+      >
+    >
+  ): Promise<RuntimeActionRecord>;
+  listRuntimeActionsByGoal(goalId: string): Promise<RuntimeActionRecord[]>;
+  createRuntimeToolCall(input: RuntimeToolCallInput): Promise<RuntimeToolCallRecord>;
+  listRuntimeToolCallsByGoal(goalId: string): Promise<RuntimeToolCallRecord[]>;
+  createRuntimeEval(input: {
+    goal_id: string;
+    plan_id: string | null;
+    action_id: string | null;
+    scores: Record<string, number>;
+    pass: boolean;
+    reasons: string[];
+    next_hint: string | null;
+  }): Promise<RuntimeEvalRecord>;
+  listRuntimeEvalsByGoal(goalId: string): Promise<RuntimeEvalRecord[]>;
+  upsertRuntimeMemory(input: {
+    scope: RuntimeMemoryRecord["scope"];
+    session_id: string | null;
+    brand_key: string | null;
+    memory_key: string;
+    memory_value: Record<string, unknown>;
+    weight: number;
+    source_action_id: string | null;
+  }): Promise<RuntimeMemoryRecord>;
+  listRuntimeMemories(input: {
+    scope?: RuntimeMemoryRecord["scope"];
+    session_id?: string;
+    brand_key?: string;
+  }): Promise<RuntimeMemoryRecord[]>;
+  createRuntimeEvent(input: {
+    session_id: string;
+    goal_id: string;
+    event_type: RuntimeEventRecord["event_type"];
+    payload: Record<string, unknown>;
+  }): Promise<RuntimeEventRecord>;
+  listRuntimeEventsByGoal(goalId: string): Promise<RuntimeEventRecord[]>;
 }
 
 export function isActiveJobStatus(status: JobStatus): boolean {

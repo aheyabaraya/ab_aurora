@@ -27,6 +27,12 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
+  RUNTIME_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  RUNTIME_MAX_ITERATIONS: z.coerce.number().int().min(1).max(100).default(12),
+  RUNTIME_REPLAN_LIMIT: z.coerce.number().int().min(0).max(10).default(2),
+  RUNTIME_TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
+  RUNTIME_MEMORY_PERSIST: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  RUNTIME_EVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.8),
   OPENAI_FALLBACK_MODE: z.enum(["deterministic_mock", "none"]).default("deterministic_mock"),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("http://127.0.0.1:54321"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("dev-anon-key"),

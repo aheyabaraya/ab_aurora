@@ -1,37 +1,80 @@
-# Test Plan (v0.4)
+# Test Plan (v0.5 Runtime Vertical Slice)
 
-## Goal
-Validate AB_Aurora as a stage-based agent with Top-3 outputs, auto top1 flow, chat control, and Supabase-compatible runtime contracts.
+Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 
-## Test matrix
+---
 
-### Unit (`tests/unit/*`)
-- intent confidence -> variation width mapping
-- deterministic candidate generation and Top-3 ranking
-- chat action parser mapping (`select/revise/pause/resume`)
-- low-confidence intent gate (`wait_user`)
+## 1) Unit tests (`tests/unit/*`)
 
-### API (`tests/api/*`)
-- `POST /api/session/start` happy path
-- `POST /api/agent/run-step` end-to-end auto run
-- `POST /api/chat` action parse + apply
-- `GET /api/sessions/:sessionId` Top-3 retrieval
+- `planner`
+  - selects action in priority order: top3 -> selection -> outputs -> package
+  - returns no action when goal already satisfied
+- `policy`
+  - denies when active job limit reached
+  - returns confirm-required for high-cost actions
+- `evaluator`
+  - pass/fail threshold with `RUNTIME_EVAL_MIN_SCORE`
+  - `next_hint` correctness
+- `memory`
+  - session memory upsert/read
+  - brand memory merge when `RUNTIME_MEMORY_PERSIST=true`
 
-### Integration (`tests/integration/*`)
-- end-to-end run to `done`
-- revise flow reruns candidates
-- follow-up asset generation after selection
-- artifact persistence across steps
+---
 
-## Failure and recovery scenarios
-- OpenAI failure with `OPENAI_FALLBACK_MODE=deterministic_mock` continues pipeline
-- invalid or unknown chat action does not corrupt state
-- missing selected candidate blocks `approve_build` with `wait_user`
-- active job conflict blocks concurrent heavy step
+## 2) API tests (`tests/api/*`)
 
-## Demo acceptance checklist
-- Top-3 artifact exists with rank + score
-- auto top1 is visible and overrideable
-- chat command changes state (select/revise)
-- follow-up output artifact is generated
-- packaging artifact includes bundle hash and pack id
+- `POST /api/runtime/start`
+  - happy path
+  - idempotency replay
+- `POST /api/runtime/step`
+  - action execution
+  - idempotent replay
+- `GET /api/runtime/goals/:goalId`
+  - trace integrity (`plans/actions/evals/memories/events/tool_calls`)
+- backward compatibility
+  - `/api/agent/run-step` returns legacy shape + optional `runtime_meta`
+  - `/api/chat` returns legacy shape + optional `runtime_meta`
+
+---
+
+## 3) Integration tests (`tests/integration/*`)
+
+- full session progression to `done`
+- Top-3 generation + selected candidate persistence
+- output artifact generation (`tokens/social_assets/code_plan/validation`)
+- packaging artifact existence (`pack_meta`)
+- fallback behavior when OpenAI call is unavailable
+- per-session active job constraint enforcement
+
+---
+
+## 4) Smoke tests (local + preview)
+
+- Start session -> runtime goal -> runtime step loop -> completed
+- Chat override (`select_candidate`) applied and reflected
+- Runtime tables populated and queryable
+- Mint endpoint disabled behavior verified when mint flag off
+
+---
+
+## 5) Quality gates
+
+Run in order:
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test:agent
+pnpm build
+```
+
+All gates must pass before promote to preview/main.
+
+---
+
+## 6) Failure/recovery checks
+
+- runtime max-iteration safety stop
+- replan limit exceeded -> goal failed
+- runtime tool timeout (`RUNTIME_TOOL_TIMEOUT_MS`) -> failed action then replan/fail path
+- invalid action override -> safe error path
+- runtime disable rollback (`RUNTIME_ENABLED=false`) keeps legacy flow working
