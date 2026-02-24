@@ -6,7 +6,7 @@ create table if not exists public.sessions (
   product text not null,
   audience text not null,
   style_keywords jsonb not null default '[]'::jsonb,
-  constraint text,
+  "constraint" text,
   current_step text not null default 'interview_collect',
   status text not null default 'idle',
   auto_continue boolean not null default true,
