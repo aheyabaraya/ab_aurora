@@ -15,11 +15,11 @@ export function assertApiToken(headers: Headers): { ok: true } | { ok: false } {
   const shouldRequireToken = env.NODE_ENV === "production" && env.API_TOKEN_REQUIRED;
   const configuredToken = env.API_BEARER_TOKEN;
 
-  if (!configuredToken && !shouldRequireToken) {
+  if (!shouldRequireToken) {
     return { ok: true };
   }
 
-  if (!configuredToken && shouldRequireToken) {
+  if (!configuredToken) {
     return { ok: false };
   }
 
@@ -27,7 +27,7 @@ export function assertApiToken(headers: Headers): { ok: true } | { ok: false } {
   if (!providedToken) {
     return { ok: false };
   }
-  if (!safeEquals(providedToken, configuredToken!)) {
+  if (!safeEquals(providedToken, configuredToken)) {
     return { ok: false };
   }
 
