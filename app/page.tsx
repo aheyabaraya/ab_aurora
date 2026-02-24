@@ -4,7 +4,7 @@ type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
 
 type HomePageProps = {
-  searchParams?: Promise<SearchParams> | SearchParams;
+  searchParams?: Promise<SearchParams>;
 };
 
 function toSingleValue(value: SearchParamsValue): string | undefined {
@@ -28,7 +28,7 @@ function resolveUiModeFromEnv(raw: string | undefined): "guided" | "pro" {
 }
 
 export default async function HomePage(props: HomePageProps) {
-  const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
+  const resolvedSearchParams = (await props.searchParams) ?? {};
   const queryUi = toSingleValue(resolvedSearchParams.ui);
 
   const initialUiMode = queryUi === "guided" || queryUi === "pro" ? queryUi : resolveUiModeFromEnv(process.env.AGENT_UI_MODE);

@@ -10,6 +10,6 @@
     "incremental": false,
     "isolatedModules": false
   },
-  "include": ["lib/**/*.ts", "app/api/**/*.ts"],
-  "exclude": ["node_modules", ".next", ".tmp-tests", "tests", "app/page.tsx", "app/layout.tsx"]
+  "include": ["lib/**/*.ts", "app/api/**/*.ts", "app/page.tsx", "components/**/*.ts", "components/**/*.tsx"],
+  "exclude": ["node_modules", ".next", ".tmp-tests", "tests", "app/layout.tsx"]
 }

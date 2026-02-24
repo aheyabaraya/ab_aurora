@@ -9,14 +9,16 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck",
+    "ci:verify": "pnpm lint && pnpm typecheck && pnpm test:agent && pnpm build",
     "test:build": "rm -rf .tmp-tests && tsc -p tsconfig.tests.json",
-    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs",
-    "test:api": "pnpm test:build && NODE_ENV=test node --test tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs",
+    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs",
+    "test:api": "pnpm test:build && NODE_ENV=test node --test tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs tests/api/revise-route.test.cjs",
     "test:api:seed": "pnpm test:build && NODE_ENV=test ENABLE_DEV_SEED_API=true DEV_SEED_TOKEN=seed-test-token RUNTIME_ENABLED=true node --test tests/api/session-seed-matrix.test.cjs",
     "test:storage:file:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-file-seed.contract.test.cjs",
     "test:storage:supabase:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-supabase-seed.contract.test.cjs",
     "test:integration": "pnpm test:build && NODE_ENV=test node --test tests/integration/*.test.cjs",
-    "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:api:seed && pnpm test:storage:file:contract && pnpm test:integration"
+    "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:api:seed && pnpm test:storage:file:contract && pnpm test:integration",
+    "test:coverage:agent": "pnpm test:build && NODE_ENV=test node --test --experimental-test-coverage tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs tests/api/revise-route.test.cjs tests/api/session-seed-matrix.test.cjs tests/unit/storage-file-seed.contract.test.cjs tests/integration/pipeline.test.cjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",
