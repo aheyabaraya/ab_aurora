@@ -25,3 +25,8 @@ This repository is `/Users/yuminseog/ab_aurora`.
 - Keep interfaces simple and stable (clear boundaries, low coupling, small change impact).
 - Optimize resource usage first through design (avoid unnecessary API calls, compute, and storage).
 - Treat security as a baseline requirement: least privilege, secret-safe handling, input validation, and safe defaults.
+
+## 6) Secret staging file rule
+- Do not open or read `agent.md` when it is used as a temporary secret staging file.
+- If values from `agent.md` are required for execution, ask the user to export them into environment variables instead of reading the file.
+- Do not open or read `.env.production`. If execution needs it, only load it into process environment without printing or inspecting values.

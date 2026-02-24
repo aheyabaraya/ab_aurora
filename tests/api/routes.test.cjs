@@ -32,6 +32,14 @@ test("session start route returns initial session data", async () => {
   const body = await json(response);
   assert.ok(body.session_id);
   assert.equal(body.current_step, "interview_collect");
+
+  const sessionResponse = await getSession(new Request("http://localhost"), {
+    params: Promise.resolve({ sessionId: body.session_id })
+  });
+  const sessionBody = await json(sessionResponse);
+  assert.ok(Array.isArray(sessionBody.recent_messages));
+  assert.equal(sessionBody.recent_messages[0].role, "system");
+  assert.equal(sessionBody.recent_messages[0].content, "Session initialized for stage-based pipeline.");
 });
 
 test("run-step route executes auto pipeline and stores Top-3", async () => {

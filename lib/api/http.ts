@@ -3,6 +3,28 @@ import { randomUUID } from "crypto";
 import { ZodError } from "zod";
 import { redactForLogs } from "../security/redact";
 
+const RESOURCE_NOT_FOUND_PATTERNS = [
+  /^Session not found/i,
+  /^Session not found for update/i,
+  /^Runtime goal not found/i,
+  /^Pack not found/i,
+  /^Job not found/i
+];
+
+function shouldReturnResourceNotFound(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return RESOURCE_NOT_FOUND_PATTERNS.some((pattern) => pattern.test(error.message));
+}
+
+function shouldReturnBadRequest(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return error instanceof SyntaxError;
+}
+
 export function jsonOk<T>(data: T, init?: ResponseInit): NextResponse<T> {
   return NextResponse.json(data, init);
 }
@@ -39,6 +61,12 @@ export function jsonRouteError(
 ): NextResponse<{ error: string; request_id: string }> {
   if (error instanceof ZodError) {
     return jsonError(input.validationMessage ?? "Invalid request payload", 400, input.requestId);
+  }
+  if (shouldReturnBadRequest(error)) {
+    return jsonError(input.validationMessage ?? "Invalid request payload", 400, input.requestId);
+  }
+  if (shouldReturnResourceNotFound(error)) {
+    return jsonError("Resource not found", 404, input.requestId);
   }
 
   const errorMessage = error instanceof Error ? error.message : String(error);

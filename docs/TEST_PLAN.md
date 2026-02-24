@@ -34,6 +34,13 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 - backward compatibility
   - `/api/agent/run-step` returns legacy shape + optional `runtime_meta`
   - `/api/chat` returns legacy shape + optional `runtime_meta`
+- seed matrix (`tests/api/session-seed-matrix.test.cjs`)
+  - `POST /api/dev/seed/session` preset 생성 검증 (`fresh/top3_ready/selected_ready/build_confirm_required/package_ready/done`)
+  - dev seed auth/guard 검증 (`401/404/403`)
+  - invalid `session_id` / `goal_id` on session-dependent APIs -> `404`
+  - missing `session_id` query -> `400`
+  - `/api/jobs?session_id=...` nonexistent session policy -> `404`
+  - `GET /api/sessions/:id` `recent_messages` 존재 + 최신순 정렬 검증
 
 ---
 
@@ -48,7 +55,18 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 
 ---
 
-## 4) Smoke tests (local + preview)
+## 4) Storage seed contract tests
+
+- file contract (`tests/unit/storage-file-seed.contract.test.cjs`)
+  - seed 생성 후 repository 재생성(프로세스 재로드 유사)에서도 session/artifact 유지
+  - seeded session으로 추가 step 진행 가능
+- supabase contract (`tests/unit/storage-supabase-seed.contract.test.cjs`, opt-in)
+  - 실행 조건: `SEED_TEST_SUPABASE=true` + 실제 Supabase service env 존재
+  - seed 생성 후 chat/revise/run-step 스타일 왕복 검증
+
+---
+
+## 5) Smoke tests (local + preview)
 
 - Start session -> runtime goal -> runtime step loop -> completed
 - Chat override (`select_candidate`) applied and reflected
@@ -57,7 +75,7 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 
 ---
 
-## 5) Quality gates
+## 6) Quality gates
 
 Run in order:
 ```bash
@@ -67,11 +85,18 @@ pnpm test:agent
 pnpm build
 ```
 
+Seed-focused suites:
+```bash
+pnpm test:api:seed
+pnpm test:storage:file:contract
+pnpm test:storage:supabase:contract   # opt-in
+```
+
 All gates must pass before promote to preview/main.
 
 ---
 
-## 6) Failure/recovery checks
+## 7) Failure/recovery checks
 
 - runtime max-iteration safety stop
 - replan limit exceeded -> goal failed

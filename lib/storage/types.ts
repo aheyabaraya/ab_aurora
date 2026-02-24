@@ -86,6 +86,7 @@ export interface StorageRepository {
     content: string;
     metadata?: Record<string, unknown> | null;
   }): Promise<MessageRecord>;
+  listMessagesBySession(sessionId: string, limit?: number): Promise<MessageRecord[]>;
   createJob(input: CreateJobInput): Promise<JobRecord>;
   updateJob(jobId: string, patch: Partial<Pick<JobRecord, "status" | "logs" | "error" | "payload">>): Promise<JobRecord>;
   listJobsBySession(sessionId: string): Promise<JobRecord[]>;

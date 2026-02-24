@@ -3,7 +3,15 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  --aurora-bg-top: rgba(5, 12, 24, 0.9);
+  --aurora-bg-mid: rgba(5, 12, 24, 0.56);
+  --aurora-bg-bottom: rgba(5, 12, 24, 0.9);
+  --aurora-cyan: #64dbe3;
+  --aurora-ember-gold: #d8b46f;
+  --aurora-bg-desktop: url("/aurora/bg_abstract_orbline_1920x1080.webp");
+  --aurora-bg-mobile: url("/aurora/bg_abstract_orbline_1080x1920.webp");
+  --aurora-sigil-tile: url("/aurora/sigil_tile_1024.png");
 }
 
 * {
@@ -12,6 +20,58 @@
 
 body {
   margin: 0;
-  font-family:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Sora", "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  background-color: #040913;
+}
+
+.aurora-page {
+  position: relative;
+  isolation: isolate;
+  background-image:
+    linear-gradient(180deg, var(--aurora-bg-top) 0%, var(--aurora-bg-mid) 58%, var(--aurora-bg-bottom) 100%),
+    var(--aurora-bg-desktop);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.aurora-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--aurora-sigil-tile);
+  background-size: 720px;
+  background-repeat: repeat;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@media (max-width: 1024px) {
+  .aurora-page {
+    background-image:
+      linear-gradient(180deg, var(--aurora-bg-top) 0%, var(--aurora-bg-mid) 58%, var(--aurora-bg-bottom) 100%),
+      var(--aurora-bg-mobile);
+  }
+
+  .aurora-page::before {
+    background-size: 540px;
+  }
+}
+
+.aurora-scene-enter {
+  animation: aurora-fade-slide 220ms ease-out;
+}
+
+@keyframes aurora-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

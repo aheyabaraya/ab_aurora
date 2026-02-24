@@ -35,6 +35,10 @@ pnpm dev
   - default: `true`
 - `ENABLE_AGENT_CHAT_CONTROL`
   - default: `true`
+- `ENABLE_DEV_SEED_API`
+  - default: `false`
+- `DEV_SEED_TOKEN`
+  - required when `ENABLE_DEV_SEED_API=true`
 - `OPENAI_FALLBACK_MODE`
   - default: `deterministic_mock`
   - valid: `deterministic_mock|none`
@@ -79,6 +83,13 @@ pnpm dev
   - default: `true`
 
 Server-only secrets must never use `NEXT_PUBLIC_`.
+
+### Dev-only seed API guard
+- `POST /api/dev/seed/session` is for local/test only.
+- Runtime policy:
+  - `NODE_ENV=production` -> `403` always
+  - `ENABLE_DEV_SEED_API=false` -> `404`
+  - missing/invalid `x-seed-token` -> `401`
 
 ---
 

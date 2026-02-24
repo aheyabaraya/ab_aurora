@@ -117,6 +117,11 @@ export class MemoryStorageRepository implements StorageRepository {
     return message;
   }
 
+  async listMessagesBySession(sessionId: string, limit = 50): Promise<MessageRecord[]> {
+    const list = messages.get(sessionId) ?? [];
+    return descByCreatedAt(list).slice(0, limit);
+  }
+
   async createJob(input: CreateJobInput): Promise<JobRecord> {
     const timestamp = nowIso();
     const job: JobRecord = {

@@ -428,6 +428,20 @@ export class SupabaseStorageRepository implements StorageRepository {
     return fromMessageRow(rows[0]);
   }
 
+  async listMessagesBySession(sessionId: string, limit = 50): Promise<MessageRecord[]> {
+    const rows = await requestRows<JsonMap>({
+      method: "GET",
+      path: "messages",
+      query: {
+        session_id: `eq.${sessionId}`,
+        select: "*",
+        order: "created_at.desc",
+        limit: String(limit)
+      }
+    });
+    return rows.map(fromMessageRow);
+  }
+
   async createJob(input: CreateJobInput): Promise<JobRecord> {
     const rows = await requestRows<JsonMap>({
       method: "POST",

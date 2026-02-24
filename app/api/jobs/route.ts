@@ -12,6 +12,10 @@ export async function GET(request: Request) {
   }
 
   const storage = getStorageRepository();
+  const session = await storage.getSession(sessionId);
+  if (!session) {
+    return jsonError("Resource not found", 404, requestId);
+  }
   const jobs = await storage.listJobsBySession(sessionId);
   return jsonOk({ jobs, request_id: requestId });
 }

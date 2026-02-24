@@ -9,13 +9,17 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck",
-    "test:build": "tsc -p tsconfig.tests.json",
-    "test:unit": "pnpm test:build && node --test --test-concurrency=1 --experimental-test-isolation=none tests/unit/*.test.cjs",
-    "test:api": "pnpm test:build && node --test --test-concurrency=1 --experimental-test-isolation=none tests/api/*.test.cjs",
-    "test:integration": "pnpm test:build && node --test --test-concurrency=1 --experimental-test-isolation=none tests/integration/*.test.cjs",
-    "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:integration"
+    "test:build": "rm -rf .tmp-tests && tsc -p tsconfig.tests.json",
+    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs",
+    "test:api": "pnpm test:build && NODE_ENV=test node --test tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs",
+    "test:api:seed": "pnpm test:build && NODE_ENV=test ENABLE_DEV_SEED_API=true DEV_SEED_TOKEN=seed-test-token RUNTIME_ENABLED=true node --test tests/api/session-seed-matrix.test.cjs",
+    "test:storage:file:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-file-seed.contract.test.cjs",
+    "test:storage:supabase:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-supabase-seed.contract.test.cjs",
+    "test:integration": "pnpm test:build && NODE_ENV=test node --test tests/integration/*.test.cjs",
+    "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:api:seed && pnpm test:storage:file:contract && pnpm test:integration"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "next": "^16.0.10",
     "openai": "^4.83.0",
     "react": "^19.2.0",

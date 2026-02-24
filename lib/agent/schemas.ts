@@ -22,6 +22,15 @@ const actionSchema = z.enum([
   "unknown"
 ]);
 
+export const seedPresetSchema = z.enum([
+  "fresh",
+  "top3_ready",
+  "selected_ready",
+  "build_confirm_required",
+  "package_ready",
+  "done"
+]);
+
 export const sessionStartRequestSchema = z.object({
   mode: z.enum(["mode_a", "mode_b"]),
   product: z.string().min(3).max(240),
@@ -70,8 +79,21 @@ export const chatActionSchema = z.object({
   raw: z.string()
 });
 
+export const seedSessionRequestSchema = z.object({
+  preset: seedPresetSchema.default("fresh"),
+  mode: z.enum(["mode_a", "mode_b"]).optional(),
+  product: z.string().min(3).max(240).optional(),
+  audience: z.string().min(3).max(240).optional(),
+  style_keywords: z.array(z.string().min(1).max(64)).min(1).max(10).optional(),
+  auto_continue: z.boolean().optional(),
+  auto_pick_top1: z.boolean().optional(),
+  with_runtime_goal: z.boolean().optional()
+});
+
 export type SessionStartRequest = z.infer<typeof sessionStartRequestSchema>;
 export type RunStepRequestBody = z.infer<typeof runStepRequestSchema>;
 export type ChatRequestBody = z.infer<typeof chatRequestSchema>;
 export type ReviseRequestBody = z.infer<typeof reviseRequestSchema>;
 export type MintRequestBody = z.infer<typeof mintRequestSchema>;
+export type SeedSessionPreset = z.infer<typeof seedPresetSchema>;
+export type SeedSessionRequestBody = z.infer<typeof seedSessionRequestSchema>;

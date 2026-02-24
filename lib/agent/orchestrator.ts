@@ -538,6 +538,23 @@ async function executeStep(
       };
     }
 
+    const requiresBuildConfirm = !session.auto_pick_top1 && request.action !== "proceed";
+    if (requiresBuildConfirm) {
+      const waitingSession = await storage.updateSession(session.id, {
+        status: "wait_user",
+        current_step: "approve_build"
+      });
+      return {
+        session: waitingSession,
+        result: {
+          nextStep: "approve_build",
+          waitUser: true,
+          message: "Build confirmation required. Send proceed/build to continue.",
+          jobId: null
+        }
+      };
+    }
+
     const activeJobs = await storage.countActiveJobsBySession(session.id);
     if (activeJobs >= env.CONCURRENT_JOB_LIMIT) {
       return {

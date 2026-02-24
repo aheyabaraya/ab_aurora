@@ -27,6 +27,7 @@ ab-aurora/.data/
 .env
 .env.*
 !.env.example
+agent.md
 ab-aurora/.env
 ab-aurora/.env.*
 
@@ -89,3 +90,4 @@ private/
 
 # Legacy nested workspace (non-source)
 ab-aurora/
+.vercel

@@ -45,6 +45,9 @@ test("chat parser maps selection and revise actions", () => {
 
   const pauseAction = parseChatAction("pause for now");
   assert.equal(pauseAction.type, "pause");
+
+  const proceedAction = parseChatAction("빌드 진행해줘");
+  assert.equal(proceedAction.type, "proceed");
 });
 
 test("orchestrator pauses when confidence is below threshold", async () => {
@@ -68,4 +71,86 @@ test("orchestrator pauses when confidence is below threshold", async () => {
 
   assert.equal(response.wait_user, true);
   assert.equal(response.current_step, "intent_gate");
+});
+
+test("approve_build requires explicit proceed when auto_pick_top1 is disabled", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "Aurora Direction Engine for Product Teams and Brand Operators",
+    audience: "Founders and design leads",
+    style_keywords: ["bold", "editorial", "futuristic"],
+    auto_continue: true,
+    auto_pick_top1: false
+  });
+
+  const firstRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_build_gate_001"
+    }
+  });
+  assert.equal(firstRun.current_step, "top3_select");
+  assert.equal(firstRun.wait_user, true);
+
+  const selectRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "select_candidate",
+      payload: {
+        candidate_id: "cand_1"
+      },
+      idempotency_key: "idem_build_gate_002"
+    }
+  });
+
+  assert.equal(selectRun.current_step, "approve_build");
+  assert.equal(selectRun.wait_user, true);
+  assert.match(selectRun.message, /Build confirmation required/i);
+});
+
+test("proceed action passes approve_build gate and finishes pipeline", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "Aurora Direction Engine for Product Teams and Brand Operators",
+    audience: "Founders and design leads",
+    style_keywords: ["bold", "editorial", "futuristic"],
+    auto_continue: true,
+    auto_pick_top1: false
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_build_gate_003"
+    }
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "select_candidate",
+      payload: {
+        candidate_id: "cand_1"
+      },
+      idempotency_key: "idem_build_gate_004"
+    }
+  });
+
+  const proceedRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_build_gate_005"
+    }
+  });
+
+  assert.equal(proceedRun.current_step, "done");
+  assert.equal(proceedRun.status, "completed");
 });

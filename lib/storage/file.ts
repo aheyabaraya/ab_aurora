@@ -175,6 +175,11 @@ export class FileStorageRepository implements StorageRepository {
     return message;
   }
 
+  async listMessagesBySession(sessionId: string, limit = 50): Promise<MessageRecord[]> {
+    const db = loadDb();
+    return descByCreatedAt(db.messages.filter((message) => message.session_id === sessionId)).slice(0, limit);
+  }
+
   async createJob(input: CreateJobInput): Promise<JobRecord> {
     const db = loadDb();
     const job: JobRecord = {

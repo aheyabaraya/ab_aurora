@@ -25,7 +25,14 @@ export function parseChatAction(message: string): ChatAction {
     return { type: "resume", raw: message };
   }
 
-  if (normalized.includes("proceed") || normalized.includes("다음") || normalized.includes("진행")) {
+  if (
+    normalized.includes("proceed") ||
+    normalized.includes("다음") ||
+    normalized.includes("진행") ||
+    normalized.includes("build") ||
+    normalized.includes("빌드") ||
+    normalized.includes("승인")
+  ) {
     return { type: "proceed", raw: message };
   }
 

@@ -1,0 +1,874 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import JSZip from "jszip";
+import {
+  AGENT_STEPS,
+  type ArtifactRecord,
+  type ChatEntry,
+  type JobsPayload,
+  type QueuedCommand,
+  type QuickActionId,
+  type RuntimeGoalSnapshot,
+  type SessionPayload,
+  resolveSceneFromStep
+} from "./types";
+import { ASSET_BASE } from "./aurora-assets";
+
+class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+type RequestInitWithBody = RequestInit & {
+  body?: string;
+};
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Request failed";
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+type ActionFn = () => Promise<void>;
+
+export function useAuroraController() {
+  const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
+  const [product, setProduct] = useState("AI landing page builder for solo founders");
+  const [audience, setAudience] = useState("Early-stage builders shipping in public");
+  const [styleKeywords, setStyleKeywords] = useState("bold, editorial, futuristic");
+  const [autoContinue, setAutoContinue] = useState(true);
+  const [autoPickTop1, setAutoPickTop1] = useState(true);
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionPayload, setSessionPayload] = useState<SessionPayload | null>(null);
+  const [jobsPayload, setJobsPayload] = useState<JobsPayload | null>(null);
+  const [runtimeGoalId, setRuntimeGoalId] = useState<string | null>(null);
+  const [runtimeSnapshot, setRuntimeSnapshot] = useState<RuntimeGoalSnapshot | null>(null);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+
+  const [apiToken, setApiToken] = useState("");
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [showSignIn, setShowSignIn] = useState(false);
+
+  const [queuedCommands, setQueuedCommands] = useState<QueuedCommand[]>([]);
+  const [stageMessages, setStageMessages] = useState<ChatEntry[]>([]);
+
+  const queuedRef = useRef<QueuedCommand[]>([]);
+  const stageRef = useRef<string | null>(null);
+  const flushingRef = useRef(false);
+  const lastFailedActionRef = useRef<ActionFn | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+
+  useEffect(() => {
+    queuedRef.current = queuedCommands;
+  }, [queuedCommands]);
+
+  useEffect(() => {
+    const storedToken = window.sessionStorage.getItem("ab_aurora_api_token") ?? "";
+    if (storedToken) {
+      setApiToken(storedToken);
+      setTokenDraft(storedToken);
+    }
+  }, []);
+
+  const requestJson = useCallback(
+    async <T>(url: string, init?: RequestInitWithBody): Promise<T> => {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(init?.headers ? (init.headers as Record<string, string>) : {})
+      };
+      if (apiToken.trim().length > 0) {
+        headers["x-api-token"] = apiToken.trim();
+      }
+
+      const response = await fetch(url, {
+        ...init,
+        headers,
+        cache: "no-store"
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const body = contentType.includes("application/json") ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        const message =
+          typeof body === "object" && body && "error" in body && typeof body.error === "string"
+            ? body.error
+            : `Request failed (${response.status})`;
+        throw new ApiError(message, response.status, body);
+      }
+
+      return body as T;
+    },
+    [apiToken]
+  );
+
+  const handleActionError = useCallback((actionError: unknown, retryAction?: ActionFn) => {
+    const message = toErrorMessage(actionError);
+    setError(message);
+    if (actionError instanceof ApiError) {
+      setErrorStatus(actionError.status);
+      if (actionError.status === 401) {
+        setShowSignIn(true);
+      }
+    } else {
+      setErrorStatus(null);
+    }
+
+    if (retryAction) {
+      lastFailedActionRef.current = retryAction;
+      setCanRetry(true);
+    }
+  }, []);
+
+  const runWithRecovery = useCallback(
+    async (action: ActionFn, retryAction?: ActionFn): Promise<boolean> => {
+      setBusy(true);
+      setError(null);
+      setErrorStatus(null);
+      try {
+        await action();
+        if (retryAction) {
+          lastFailedActionRef.current = null;
+          setCanRetry(false);
+        }
+        return true;
+      } catch (actionError) {
+        handleActionError(actionError, retryAction);
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [handleActionError]
+  );
+
+  const refreshSession = useCallback(
+    async (targetSessionId: string) => {
+      const [session, jobs] = await Promise.all([
+        requestJson<SessionPayload>(`/api/sessions/${targetSessionId}`),
+        requestJson<JobsPayload>(`/api/jobs?session_id=${targetSessionId}`)
+      ]);
+      setSessionPayload(session);
+      setJobsPayload(jobs);
+    },
+    [requestJson]
+  );
+
+  const refreshRuntimeGoal = useCallback(
+    async (goalId: string) => {
+      const snapshot = await requestJson<RuntimeGoalSnapshot>(`/api/runtime/goals/${goalId}`);
+      setRuntimeSnapshot(snapshot);
+    },
+    [requestJson]
+  );
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      refreshSession(sessionId).catch((refreshError) => {
+        handleActionError(refreshError);
+      });
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [handleActionError, refreshSession, sessionId]);
+
+  useEffect(() => {
+    if (!runtimeGoalId) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      refreshRuntimeGoal(runtimeGoalId).catch((runtimeError) => {
+        handleActionError(runtimeError);
+      });
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [handleActionError, refreshRuntimeGoal, runtimeGoalId]);
+
+  const activeStepIndex = useMemo(() => {
+    const currentStep = sessionPayload?.session.current_step;
+    if (!currentStep) {
+      return 0;
+    }
+    const index = AGENT_STEPS.findIndex((step) => step === currentStep);
+    return index >= 0 ? index : 0;
+  }, [sessionPayload?.session.current_step]);
+
+  const currentScene = useMemo(() => {
+    return resolveSceneFromStep(sessionPayload?.session.current_step);
+  }, [sessionPayload?.session.current_step]);
+
+  const hasActiveJob = useMemo(() => {
+    return (jobsPayload?.jobs ?? []).some((job) => job.status === "pending" || job.status === "running");
+  }, [jobsPayload?.jobs]);
+
+  const shouldQueueIntervention = useMemo(() => {
+    return sessionPayload?.session.status === "running" && hasActiveJob;
+  }, [hasActiveJob, sessionPayload?.session.status]);
+
+  const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
+    setQueuedCommands((current) => [
+      ...current,
+      {
+        id: `queue_${crypto.randomUUID()}`,
+        createdAt: nowIso(),
+        ...command
+      }
+    ]);
+  }, []);
+
+  const sendChatImmediate = useCallback(
+    async (message: string) => {
+      if (!sessionId) {
+        return;
+      }
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          message
+        })
+      });
+
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      } else if (runtimeGoalId) {
+        await refreshRuntimeGoal(runtimeGoalId);
+      }
+      await refreshSession(sessionId);
+    },
+    [refreshRuntimeGoal, refreshSession, requestJson, runtimeGoalId, sessionId]
+  );
+
+  const sendReviseImmediate = useCallback(
+    async (constraint: string) => {
+      if (!sessionId) {
+        return;
+      }
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          constraint,
+          intensity: 60
+        })
+      });
+
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      } else if (runtimeGoalId) {
+        await refreshRuntimeGoal(runtimeGoalId);
+      }
+      await refreshSession(sessionId);
+    },
+    [refreshRuntimeGoal, refreshSession, requestJson, runtimeGoalId, sessionId]
+  );
+
+  const runForceReplan = useCallback(
+    async () => {
+      if (!runtimeGoalId) {
+        return;
+      }
+      await requestJson("/api/runtime/step", {
+        method: "POST",
+        body: JSON.stringify({
+          goal_id: runtimeGoalId,
+          force_replan: true,
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      await refreshRuntimeGoal(runtimeGoalId);
+      if (sessionId) {
+        await refreshSession(sessionId);
+      }
+    },
+    [refreshRuntimeGoal, refreshSession, requestJson, runtimeGoalId, sessionId]
+  );
+
+  const applyQueuedCommand = useCallback(
+    async (command: QueuedCommand, withForceReplan: boolean) => {
+      if (command.kind === "chat") {
+        await sendChatImmediate(command.payload);
+      } else {
+        await sendReviseImmediate(command.payload);
+      }
+
+      if (withForceReplan) {
+        await runForceReplan();
+      }
+    },
+    [runForceReplan, sendChatImmediate, sendReviseImmediate]
+  );
+
+  const flushQueuedCommands = useCallback(async () => {
+    if (flushingRef.current || queuedRef.current.length === 0) {
+      return;
+    }
+
+    flushingRef.current = true;
+    try {
+      while (queuedRef.current.length > 0) {
+        const nextCommand = queuedRef.current[0];
+        const success = await runWithRecovery(
+          async () => {
+            await applyQueuedCommand(nextCommand, false);
+            setQueuedCommands((current) => current.filter((item) => item.id !== nextCommand.id));
+          },
+          async () => {
+            await applyQueuedCommand(nextCommand, true);
+            setQueuedCommands((current) => current.filter((item) => item.id !== nextCommand.id));
+          }
+        );
+        if (!success) {
+          break;
+        }
+      }
+    } finally {
+      flushingRef.current = false;
+    }
+  }, [applyQueuedCommand, runWithRecovery]);
+
+  useEffect(() => {
+    const currentStage = sessionPayload?.session.current_step ?? null;
+    if (!currentStage) {
+      stageRef.current = null;
+      return;
+    }
+
+    const previousStage = stageRef.current;
+    if (previousStage && previousStage !== currentStage) {
+      const scene = resolveSceneFromStep(currentStage);
+      setStageMessages((current) => [
+        ...current,
+        {
+          id: `stage_${crypto.randomUUID()}`,
+          type: "system",
+          content: `Scene transitioned to ${scene} (${currentStage}).`,
+          createdAt: nowIso(),
+          subtitle: "stage update"
+        }
+      ]);
+      void flushQueuedCommands();
+    }
+
+    stageRef.current = currentStage;
+  }, [flushQueuedCommands, sessionPayload?.session.current_step]);
+
+  const handleStartSession = useCallback(async () => {
+    const run = async () => {
+      const response = await requestJson<{
+        session_id: string;
+      }>("/api/session/start", {
+        method: "POST",
+        body: JSON.stringify({
+          mode,
+          product,
+          audience,
+          style_keywords: styleKeywords
+            .split(",")
+            .map((keyword) => keyword.trim())
+            .filter(Boolean),
+          auto_continue: autoContinue,
+          auto_pick_top1: autoPickTop1
+        })
+      });
+
+      setSessionId(response.session_id);
+      setRuntimeGoalId(null);
+      setRuntimeSnapshot(null);
+      setQueuedCommands([]);
+      setStageMessages([]);
+      stageRef.current = null;
+      await refreshSession(response.session_id);
+    };
+
+    await runWithRecovery(run, run);
+  }, [
+    audience,
+    autoContinue,
+    autoPickTop1,
+    mode,
+    product,
+    refreshSession,
+    requestJson,
+    runWithRecovery,
+    styleKeywords
+  ]);
+
+  const handleRunStep = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+
+    const run = async () => {
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
+      await refreshSession(sessionId);
+    };
+
+    await runWithRecovery(run, run);
+  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
+
+  const handleSelectCandidate = useCallback(
+    async (candidateId: string) => {
+      if (!sessionId) {
+        return;
+      }
+
+      const run = async () => {
+        const response = await requestJson<{
+          runtime_meta?: {
+            goal_id?: string;
+          };
+        }>("/api/agent/run-step", {
+          method: "POST",
+          body: JSON.stringify({
+            session_id: sessionId,
+            action: "select_candidate",
+            payload: {
+              candidate_id: candidateId
+            },
+            idempotency_key: crypto.randomUUID()
+          })
+        });
+
+        if (response.runtime_meta?.goal_id) {
+          setRuntimeGoalId(response.runtime_meta.goal_id);
+          await refreshRuntimeGoal(response.runtime_meta.goal_id);
+        }
+        await refreshSession(sessionId);
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]
+  );
+
+  const handleConfirmBuild = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+
+    const run = async () => {
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          action: "proceed",
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
+      await refreshSession(sessionId);
+    };
+
+    await runWithRecovery(run, run);
+  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
+
+  const handleStartRuntimeGoal = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+
+    const run = async () => {
+      const response = await requestJson<{
+        goal_id: string;
+      }>("/api/runtime/start", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          goal_type: "deliver_demo_pack",
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      setRuntimeGoalId(response.goal_id);
+      await refreshRuntimeGoal(response.goal_id);
+      await refreshSession(sessionId);
+    };
+
+    await runWithRecovery(run, run);
+  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
+
+  const handleRuntimeStep = useCallback(
+    async (forceReplan = false) => {
+      if (!runtimeGoalId) {
+        return;
+      }
+
+      const run = async () => {
+        await requestJson("/api/runtime/step", {
+          method: "POST",
+          body: JSON.stringify({
+            goal_id: runtimeGoalId,
+            force_replan: forceReplan,
+            idempotency_key: crypto.randomUUID()
+          })
+        });
+        await refreshRuntimeGoal(runtimeGoalId);
+        if (sessionId) {
+          await refreshSession(sessionId);
+        }
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, runtimeGoalId, sessionId]
+  );
+
+  const handleRuntimeControl = useCallback(
+    async (message: string) => {
+      if (!sessionId) {
+        return;
+      }
+
+      const run = async () => {
+        await sendChatImmediate(message);
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [runWithRecovery, sendChatImmediate, sessionId]
+  );
+
+  const handleSendChat = useCallback(
+    async (message: string) => {
+      const trimmed = message.trim();
+      if (!sessionId || trimmed.length === 0) {
+        return;
+      }
+
+      if (shouldQueueIntervention) {
+        appendQueuedCommand({
+          kind: "chat",
+          payload: trimmed,
+          label: `Queued chat: ${trimmed}`
+        });
+        return;
+      }
+
+      const run = async () => {
+        await sendChatImmediate(trimmed);
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [appendQueuedCommand, runWithRecovery, sendChatImmediate, sessionId, shouldQueueIntervention]
+  );
+
+  const handleSendRevise = useCallback(
+    async (constraint: string) => {
+      const trimmed = constraint.trim();
+      if (!sessionId || trimmed.length === 0) {
+        return;
+      }
+
+      if (shouldQueueIntervention) {
+        appendQueuedCommand({
+          kind: "revise",
+          payload: trimmed,
+          label: `Queued revise: ${trimmed}`
+        });
+        return;
+      }
+
+      const run = async () => {
+        await sendReviseImmediate(trimmed);
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [appendQueuedCommand, runWithRecovery, sendReviseImmediate, sessionId, shouldQueueIntervention]
+  );
+
+  const handleQuickAction = useCallback(
+    async (actionId: QuickActionId) => {
+      if (actionId === "pick_1") {
+        await handleSendChat("pick 1");
+        return;
+      }
+      if (actionId === "pick_2") {
+        await handleSendChat("pick 2");
+        return;
+      }
+      if (actionId === "pick_3") {
+        await handleSendChat("pick 3");
+        return;
+      }
+      if (actionId === "regenerate_top3") {
+        await handleSendChat("rerun candidates");
+        return;
+      }
+      if (actionId === "more_editorial") {
+        await handleSendRevise("Make it more editorial while keeping current brand premise.");
+        return;
+      }
+      if (actionId === "reduce_futuristic") {
+        await handleSendRevise("Reduce futuristic accents and keep a calmer premium tone.");
+        return;
+      }
+      if (actionId === "calmer") {
+        await handleSendRevise("Make the direction calmer and quieter.");
+        return;
+      }
+      if (actionId === "more_ritual") {
+        await handleSendRevise("Increase ritual mood while preserving readability and restraint.");
+        return;
+      }
+      if (actionId === "lock_style") {
+        await handleSendRevise("Lock style: keep the current visual language and avoid large stylistic drift.");
+      }
+    },
+    [handleSendChat, handleSendRevise]
+  );
+
+  const handleRegenerateTop3 = useCallback(async () => {
+    await handleSendChat("rerun candidates");
+  }, [handleSendChat]);
+
+  const handleRegenerateOutputs = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+
+    const run = async () => {
+      const response = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: sessionId,
+          step: "approve_build",
+          action: "proceed",
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+
+      if (response.runtime_meta?.goal_id) {
+        setRuntimeGoalId(response.runtime_meta.goal_id);
+        await refreshRuntimeGoal(response.runtime_meta.goal_id);
+      }
+      await refreshSession(sessionId);
+    };
+
+    await runWithRecovery(run, run);
+  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
+
+  const handleExportZip = useCallback(async () => {
+    if (!sessionPayload || !sessionId) {
+      return;
+    }
+
+    const run = async () => {
+      const zip = new JSZip();
+      zip.file("meta/session.json", JSON.stringify(sessionPayload.session, null, 2));
+      zip.file("meta/runtime_goal.json", JSON.stringify(runtimeSnapshot?.goal ?? null, null, 2));
+      zip.file("artifacts/recent_artifacts.json", JSON.stringify(sessionPayload.recent_artifacts, null, 2));
+      zip.file("chat/recent_messages.json", JSON.stringify(sessionPayload.recent_messages, null, 2));
+      zip.file(
+        "assets/reference_urls.json",
+        JSON.stringify(
+          {
+            card_1: `${ASSET_BASE}/top3_01_hyunmu_card_768x1024.webp`,
+            card_2: `${ASSET_BASE}/top3_02_samjoko_card_768x1024.webp`,
+            card_3: `${ASSET_BASE}/top3_03_haetae_card_768x1024.webp`,
+            background_desktop: `${ASSET_BASE}/bg_abstract_orbline_1920x1080.webp`,
+            background_mobile: `${ASSET_BASE}/bg_abstract_orbline_1080x1920.webp`,
+            sigil_overlay: `${ASSET_BASE}/sigil_tile_1024.png`
+          },
+          null,
+          2
+        )
+      );
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = `aurora-pack-${sessionId}.zip`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+    };
+
+    await runWithRecovery(run, run);
+  }, [runWithRecovery, runtimeSnapshot?.goal, sessionId, sessionPayload]);
+
+  const handleForceQueued = useCallback(
+    async (queueId: string) => {
+      const command = queuedRef.current.find((item) => item.id === queueId);
+      if (!command) {
+        return;
+      }
+
+      const run = async () => {
+        await applyQueuedCommand(command, true);
+        setQueuedCommands((current) => current.filter((item) => item.id !== queueId));
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [applyQueuedCommand, runWithRecovery]
+  );
+
+  const handleDiscardQueued = useCallback((queueId: string) => {
+    setQueuedCommands((current) => current.filter((item) => item.id !== queueId));
+  }, []);
+
+  const handleRetryLastAction = useCallback(async () => {
+    const retryAction = lastFailedActionRef.current;
+    if (!retryAction) {
+      return;
+    }
+    await runWithRecovery(retryAction, retryAction);
+  }, [runWithRecovery]);
+
+  const handleSaveApiToken = useCallback(() => {
+    const normalized = tokenDraft.trim();
+    setApiToken(normalized);
+    window.sessionStorage.setItem("ab_aurora_api_token", normalized);
+    setShowSignIn(false);
+    setError(null);
+    setErrorStatus(null);
+  }, [tokenDraft]);
+
+  const handleClearApiToken = useCallback(() => {
+    setApiToken("");
+    setTokenDraft("");
+    window.sessionStorage.removeItem("ab_aurora_api_token");
+  }, []);
+
+  const chatEntries = useMemo<ChatEntry[]>(() => {
+    const messageEntries = (sessionPayload?.recent_messages ?? []).map((message) => ({
+      id: message.id,
+      type: message.role,
+      content: message.content,
+      createdAt: message.created_at
+    }));
+
+    const artifactEntries = (sessionPayload?.recent_artifacts ?? []).map((artifact: ArtifactRecord) => ({
+      id: `artifact_${artifact.id}`,
+      type: "artifact-note" as const,
+      content: artifact.title,
+      subtitle: artifact.kind,
+      createdAt: artifact.created_at
+    }));
+
+    const merged = [...messageEntries, ...stageMessages, ...artifactEntries];
+    merged.sort((left, right) => {
+      return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    });
+    return merged;
+  }, [sessionPayload?.recent_artifacts, sessionPayload?.recent_messages, stageMessages]);
+
+  const buildConfirmRequired =
+    sessionPayload?.session.current_step === "approve_build" && sessionPayload.session.auto_pick_top1 === false;
+
+  return {
+    mode,
+    setMode,
+    product,
+    setProduct,
+    audience,
+    setAudience,
+    styleKeywords,
+    setStyleKeywords,
+    autoContinue,
+    setAutoContinue,
+    autoPickTop1,
+    setAutoPickTop1,
+    sessionId,
+    sessionPayload,
+    jobsPayload,
+    runtimeGoalId,
+    runtimeSnapshot,
+    busy,
+    error,
+    errorStatus,
+    canRetry,
+    showSignIn,
+    setShowSignIn,
+    tokenDraft,
+    setTokenDraft,
+    apiToken,
+    currentScene,
+    activeStepIndex,
+    hasActiveJob,
+    shouldQueueIntervention,
+    queuedCommands,
+    chatEntries,
+    buildConfirmRequired,
+    handleStartSession,
+    handleRunStep,
+    handleSelectCandidate,
+    handleConfirmBuild,
+    handleSendChat,
+    handleSendRevise,
+    handleQuickAction,
+    handleRegenerateTop3,
+    handleRegenerateOutputs,
+    handleExportZip,
+    handleStartRuntimeGoal,
+    handleRuntimeStep,
+    handleRuntimeControl,
+    handleForceQueued,
+    handleDiscardQueued,
+    handleRetryLastAction,
+    handleSaveApiToken,
+    handleClearApiToken
+  };
+}

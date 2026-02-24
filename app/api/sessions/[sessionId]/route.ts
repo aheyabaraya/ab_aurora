@@ -16,13 +16,17 @@ export async function GET(
   if (!session) {
     return jsonError("Resource not found", 404, requestId);
   }
-  const artifacts = await storage.listArtifactsBySession(sessionId);
+  const [artifacts, messages] = await Promise.all([
+    storage.listArtifactsBySession(sessionId),
+    storage.listMessagesBySession(sessionId, 50)
+  ]);
   return jsonOk({
     session,
     current_step: session.current_step,
     latest_top3: session.latest_top3,
     selected_candidate_id: session.selected_candidate_id,
     recent_artifacts: artifacts.slice(0, 20),
+    recent_messages: messages,
     request_id: requestId
   });
 }

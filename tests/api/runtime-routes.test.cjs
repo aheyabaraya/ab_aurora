@@ -105,3 +105,108 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
   assert.ok(Array.isArray(snapshot.events));
   assert.ok(snapshot.events.length >= 1);
 });
+
+test("runtime requires explicit proceed at approve_build when auto_pick_top1 is false", async () => {
+  const createResponse = await startSession(
+    new Request("http://localhost/api/session/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        mode: "mode_b",
+        product: "Aurora Direction Engine for Product Teams and Brand Operators",
+        audience: "Founders",
+        style_keywords: ["bold", "minimal", "editorial"],
+        auto_continue: true,
+        auto_pick_top1: false
+      })
+    })
+  );
+  const created = await json(createResponse);
+
+  const startedResponse = await runtimeStart(
+    new Request("http://localhost/api/runtime/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        session_id: created.session_id,
+        goal_type: "deliver_demo_pack",
+        idempotency_key: "idem_runtime_build_gate_001"
+      })
+    })
+  );
+  const started = await json(startedResponse);
+
+  await runtimeStep(
+    new Request("http://localhost/api/runtime/step", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        goal_id: started.goal_id,
+        idempotency_key: "idem_runtime_build_gate_002"
+      })
+    })
+  );
+
+  await runtimeStep(
+    new Request("http://localhost/api/runtime/step", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        goal_id: started.goal_id,
+        action_override: {
+          action_type: "select_candidate",
+          payload: {
+            candidate_id: "cand_1"
+          }
+        },
+        idempotency_key: "idem_runtime_build_gate_003"
+      })
+    })
+  );
+
+  const gatedResponse = await runtimeStep(
+    new Request("http://localhost/api/runtime/step", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        goal_id: started.goal_id,
+        idempotency_key: "idem_runtime_build_gate_004"
+      })
+    })
+  );
+  const gated = await json(gatedResponse);
+  assert.equal(gated.wait_user, true);
+  assert.equal(gated.goal_status, "wait_user");
+  assert.equal(gated.last_action?.tool_name, "tool.brand.ensure_outputs");
+  assert.equal(gated.last_action?.output?.current_step, "approve_build");
+  assert.equal(gated.last_action?.output?.wait_user, true);
+
+  const resumedResponse = await runtimeStep(
+    new Request("http://localhost/api/runtime/step", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        goal_id: started.goal_id,
+        action_override: {
+          action_type: "proceed"
+        },
+        idempotency_key: "idem_runtime_build_gate_005"
+      })
+    })
+  );
+  const resumed = await json(resumedResponse);
+  assert.ok(["running", "completed"].includes(resumed.goal_status));
+  assert.equal(resumed.goal_status === "failed", false);
+});
