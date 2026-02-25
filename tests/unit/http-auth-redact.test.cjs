@@ -190,4 +190,15 @@ test("parseEnv validates dev seed token requirement", () => {
   assert.equal(parsed.DEV_SEED_TOKEN, "seed-token");
   assert.equal(parsed.API_TOKEN_REQUIRED, true);
   assert.equal(parsed.AUTO_PICK_TOP1, false);
+
+  const normalizedSupabase = parseEnv({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "replace-with-your-project-url",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+    SUPABASE_SERVICE_ROLE_KEY: ""
+  });
+
+  assert.equal(normalizedSupabase.NEXT_PUBLIC_SUPABASE_URL, "http://127.0.0.1:54321");
+  assert.equal(normalizedSupabase.NEXT_PUBLIC_SUPABASE_ANON_KEY, "dev-anon-key");
+  assert.equal(normalizedSupabase.SUPABASE_SERVICE_ROLE_KEY, "dev-service-role-key");
 });

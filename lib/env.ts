@@ -1,11 +1,36 @@
 import { z } from "zod";
 
-const emptyToUndefined = (value: unknown) => {
-  if (typeof value === "string" && value.trim() === "") {
+function normalizeString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
     return undefined;
   }
-  return value;
-};
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return undefined;
+  }
+  return normalized;
+}
+
+const emptyToUndefined = (value: unknown) => normalizeString(value);
+
+function normalizeSupabaseUrl(value: unknown): string | undefined {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const lower = normalized.toLowerCase();
+  if (
+    lower.includes("replace-with") ||
+    lower.includes("your-project-ref") ||
+    lower === "placeholder" ||
+    lower === "none"
+  ) {
+    return undefined;
+  }
+
+  return normalized;
+}
 
 const stringBoolean = z
   .enum(["true", "false"])
@@ -40,9 +65,15 @@ const envSchema = z
       .transform((value) => value === "true"),
     RUNTIME_EVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.8),
     OPENAI_FALLBACK_MODE: z.enum(["deterministic_mock", "none"]).default("deterministic_mock"),
-    NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("http://127.0.0.1:54321"),
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("dev-anon-key"),
-    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).default("dev-service-role-key"),
+    NEXT_PUBLIC_SUPABASE_URL: z
+      .preprocess(normalizeSupabaseUrl, z.union([z.string().url(), z.undefined()]))
+      .transform((value) => value ?? "http://127.0.0.1:54321"),
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: z
+      .preprocess(emptyToUndefined, z.union([z.string().min(1), z.undefined()]))
+      .transform((value) => value ?? "dev-anon-key"),
+    SUPABASE_SERVICE_ROLE_KEY: z
+      .preprocess(emptyToUndefined, z.union([z.string().min(1), z.undefined()]))
+      .transform((value) => value ?? "dev-service-role-key"),
     API_BEARER_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_MODEL_TEXT: z.string().default("gpt-4o"),
