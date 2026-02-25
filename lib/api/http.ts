@@ -25,6 +25,13 @@ function shouldReturnBadRequest(error: unknown): boolean {
   return error instanceof SyntaxError;
 }
 
+function shouldReturnServiceUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /^Storage backend not configured for production/i.test(error.message);
+}
+
 export function jsonOk<T>(data: T, init?: ResponseInit): NextResponse<T> {
   return NextResponse.json(data, init);
 }
@@ -67,6 +74,13 @@ export function jsonRouteError(
   }
   if (shouldReturnResourceNotFound(error)) {
     return jsonError("Resource not found", 404, input.requestId);
+  }
+  if (shouldReturnServiceUnavailable(error)) {
+    return jsonError(
+      "Storage backend is not configured for production. Check Supabase env or enable ALLOW_FILE_STORAGE_IN_PRODUCTION.",
+      503,
+      input.requestId
+    );
   }
 
   const errorMessage = error instanceof Error ? error.message : String(error);

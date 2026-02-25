@@ -22,10 +22,21 @@ function resolveUiModeFromQuery(value: string | undefined): UiMode | null {
   return null;
 }
 
+function resolveUiModeFromLegacyEnv(value: string | undefined): UiMode | null {
+  if (value === "chat_flat") {
+    return "guided";
+  }
+  if (value === "agent_stage") {
+    return "pro";
+  }
+  return null;
+}
+
 export default async function HomePage(props: HomePageProps) {
   const resolvedSearchParams = (await props.searchParams) ?? {};
   const queryUi = resolveUiModeFromQuery(toSingleValue(resolvedSearchParams.ui));
-  const initialUiMode: UiMode = queryUi ?? "guided";
+  const envUi = resolveUiModeFromLegacyEnv(process.env.AGENT_UI_MODE);
+  const initialUiMode: UiMode = queryUi ?? envUi ?? "guided";
 
   return <AuroraClient initialUiMode={initialUiMode} />;
 }

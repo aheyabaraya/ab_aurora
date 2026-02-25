@@ -54,15 +54,70 @@ test("home page resolves ui mode from query first", async () => {
 });
 
 test("home page defaults to guided when query ui is missing or invalid", async () => {
-  const defaultGuided = await HomePage({
-    searchParams: Promise.resolve({})
-  });
-  assert.equal(defaultGuided.props.initialUiMode, "guided");
+  const previousMode = process.env.AGENT_UI_MODE;
+  try {
+    delete process.env.AGENT_UI_MODE;
 
-  const invalidQuery = await HomePage({
-    searchParams: Promise.resolve({
-      ui: "agent_stage"
-    })
-  });
-  assert.equal(invalidQuery.props.initialUiMode, "guided");
+    const defaultGuided = await HomePage({
+      searchParams: Promise.resolve({})
+    });
+    assert.equal(defaultGuided.props.initialUiMode, "guided");
+
+    const invalidQuery = await HomePage({
+      searchParams: Promise.resolve({
+        ui: "agent_stage"
+      })
+    });
+    assert.equal(invalidQuery.props.initialUiMode, "guided");
+  } finally {
+    if (previousMode === undefined) {
+      delete process.env.AGENT_UI_MODE;
+    } else {
+      process.env.AGENT_UI_MODE = previousMode;
+    }
+  }
+});
+
+test("home page maps legacy AGENT_UI_MODE when query is missing", async () => {
+  const previousMode = process.env.AGENT_UI_MODE;
+
+  try {
+    process.env.AGENT_UI_MODE = "agent_stage";
+    const proMode = await HomePage({
+      searchParams: Promise.resolve({})
+    });
+    assert.equal(proMode.props.initialUiMode, "pro");
+
+    process.env.AGENT_UI_MODE = "chat_flat";
+    const guidedMode = await HomePage({
+      searchParams: Promise.resolve({})
+    });
+    assert.equal(guidedMode.props.initialUiMode, "guided");
+  } finally {
+    if (previousMode === undefined) {
+      delete process.env.AGENT_UI_MODE;
+    } else {
+      process.env.AGENT_UI_MODE = previousMode;
+    }
+  }
+});
+
+test("home page query ui takes precedence over legacy env mode", async () => {
+  const previousMode = process.env.AGENT_UI_MODE;
+
+  try {
+    process.env.AGENT_UI_MODE = "agent_stage";
+    const queryGuided = await HomePage({
+      searchParams: Promise.resolve({
+        ui: "guided"
+      })
+    });
+    assert.equal(queryGuided.props.initialUiMode, "guided");
+  } finally {
+    if (previousMode === undefined) {
+      delete process.env.AGENT_UI_MODE;
+    } else {
+      process.env.AGENT_UI_MODE = previousMode;
+    }
+  }
 });

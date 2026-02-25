@@ -2,12 +2,14 @@ process.env.NODE_ENV = "test";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { tmpdir } = require("node:os");
 const { z } = require("zod");
 
 const HTTP_MODULE_PATH = "../../.tmp-tests/lib/api/http.js";
 const AUTH_MODULE_PATH = "../../.tmp-tests/lib/auth/api-token.js";
 const ENV_MODULE_PATH = "../../.tmp-tests/lib/env.js";
 const REDACT_MODULE_PATH = "../../.tmp-tests/lib/security/redact.js";
+const FILE_STORAGE_MODULE_PATH = "../../.tmp-tests/lib/storage/file.js";
 const STORAGE_INDEX_MODULE_PATH = "../../.tmp-tests/lib/storage/index.js";
 
 function clearCachedModules(modulePaths) {
@@ -101,6 +103,17 @@ test("http helpers map validation/not-found/internal errors to expected response
   const unauthorizedBody = await unauthorized.json();
   assert.equal(unauthorizedBody.error, "Unauthorized");
   assert.equal(unauthorizedBody.request_id, "req_auth");
+
+  const storageConfigResponse = jsonRouteError(
+    new Error("Storage backend not configured for production. missing durable storage."),
+    {
+      requestId: "req_503",
+      context: "unit.http"
+    }
+  );
+  assert.equal(storageConfigResponse.status, 503);
+  const storageConfigBody = await storageConfigResponse.json();
+  assert.equal(storageConfigBody.error.includes("Storage backend is not configured"), true);
 });
 
 test("assertApiToken enforces token only when production + required", () => {
@@ -184,13 +197,15 @@ test("parseEnv validates dev seed token requirement", () => {
     ENABLE_DEV_SEED_API: "true",
     DEV_SEED_TOKEN: "seed-token",
     API_TOKEN_REQUIRED: "true",
-    AUTO_PICK_TOP1: "false"
+    AUTO_PICK_TOP1: "false",
+    ALLOW_FILE_STORAGE_IN_PRODUCTION: "true"
   });
 
   assert.equal(parsed.ENABLE_DEV_SEED_API, true);
   assert.equal(parsed.DEV_SEED_TOKEN, "seed-token");
   assert.equal(parsed.API_TOKEN_REQUIRED, true);
   assert.equal(parsed.AUTO_PICK_TOP1, false);
+  assert.equal(parsed.ALLOW_FILE_STORAGE_IN_PRODUCTION, true);
 
   const normalizedSupabase = parseEnv({
     NODE_ENV: "production",
@@ -218,7 +233,8 @@ test("storage repository falls back to file storage when supabase url is invalid
       NODE_ENV: "production",
       NEXT_PUBLIC_SUPABASE_URL: "not-a-valid-url",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
-      SUPABASE_SERVICE_ROLE_KEY: "real-service-role-key"
+      SUPABASE_SERVICE_ROLE_KEY: "real-service-role-key",
+      ALLOW_FILE_STORAGE_IN_PRODUCTION: "true"
     },
     () => {
       clearCachedModules([STORAGE_INDEX_MODULE_PATH, ENV_MODULE_PATH]);
@@ -228,4 +244,37 @@ test("storage repository falls back to file storage when supabase url is invalid
 
   const storage = getStorageRepository();
   assert.equal(storage.constructor.name, "FileStorageRepository");
+});
+
+test("storage repository throws in production when supabase is invalid and file fallback is disabled", () => {
+  const getStorageRepository = withEnvPatch(
+    {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SUPABASE_URL: "not-a-valid-url",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
+      SUPABASE_SERVICE_ROLE_KEY: "real-service-role-key",
+      ALLOW_FILE_STORAGE_IN_PRODUCTION: "false"
+    },
+    () => {
+      clearCachedModules([STORAGE_INDEX_MODULE_PATH, ENV_MODULE_PATH]);
+      return require(STORAGE_INDEX_MODULE_PATH).getStorageRepository;
+    }
+  );
+
+  assert.throws(() => getStorageRepository(), /Storage backend not configured for production/);
+});
+
+test("file storage runtime dir uses tmp on serverless and supports custom data dir", () => {
+  const { resolveFileStorageRuntimeDir } = require(FILE_STORAGE_MODULE_PATH);
+
+  const serverlessDir = resolveFileStorageRuntimeDir({ VERCEL: "1" }, "/var/task");
+  assert.equal(serverlessDir.startsWith(tmpdir()), true);
+
+  const customDir = resolveFileStorageRuntimeDir(
+    {
+      AB_AURORA_DATA_DIR: "/custom/data"
+    },
+    "/var/task"
+  );
+  assert.equal(customDir, "/custom/data/runtime");
 });

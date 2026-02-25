@@ -73,6 +73,14 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 - Runtime tables populated and queryable
 - Mint endpoint disabled behavior verified when mint flag off
 
+Behavior-test conservative profile:
+- `RUNTIME_ENABLED=false`
+- `AUTO_CONTINUE=false`
+- `CANDIDATE_COUNT=3`
+- `TOP_K=3`
+- `MAX_REVISIONS=0`
+- Verify single-step progression with manual `Run / Continue`
+
 ---
 
 ## 6) Quality gates
@@ -103,3 +111,4 @@ All gates must pass before promote to preview/main.
 - runtime tool timeout (`RUNTIME_TOOL_TIMEOUT_MS`) -> failed action then replan/fail path
 - invalid action override -> safe error path
 - runtime disable rollback (`RUNTIME_ENABLED=false`) keeps legacy flow working
+- repeated `Regenerate Top-3` / revise actions should be manually bounded during real-key tests

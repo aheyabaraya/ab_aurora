@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:openai:safe": "RUNTIME_ENABLED=false AUTO_CONTINUE=false CANDIDATE_COUNT=3 TOP_K=3 MAX_REVISIONS=0 CONCURRENT_JOB_LIMIT=1 OPENAI_FALLBACK_MODE=deterministic_mock next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",

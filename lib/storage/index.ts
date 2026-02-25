@@ -6,6 +6,9 @@ import type { StorageRepository } from "./types";
 
 let singleton: StorageRepository | null = null;
 
+const STORAGE_CONFIG_ERROR_MESSAGE =
+  "Storage backend not configured for production. Set valid Supabase env vars or ALLOW_FILE_STORAGE_IN_PRODUCTION=true for ephemeral file storage.";
+
 function canUseSupabase(): boolean {
   if (env.NODE_ENV === "test") {
     return false;
@@ -30,6 +33,15 @@ export function getStorageRepository(): StorageRepository {
     return singleton;
   }
 
-  singleton = canUseSupabase() ? new SupabaseStorageRepository() : new FileStorageRepository();
+  if (canUseSupabase()) {
+    singleton = new SupabaseStorageRepository();
+    return singleton;
+  }
+
+  if (env.NODE_ENV === "production" && !env.ALLOW_FILE_STORAGE_IN_PRODUCTION) {
+    throw new Error(STORAGE_CONFIG_ERROR_MESSAGE);
+  }
+
+  singleton = new FileStorageRepository();
   return singleton;
 }

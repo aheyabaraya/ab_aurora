@@ -156,6 +156,10 @@ export function ChatDock({
               </button>
             ))}
           </div>
+          <p className="text-[11px] text-slate-400">
+            `Regenerate Top-3` and tone revisions can trigger additional model calls. Keep them minimal for behavior
+            tests.
+          </p>
 
           {queuedCommands.length > 0 ? (
             <div className="space-y-2 rounded-lg border border-amber-300/35 bg-amber-400/10 p-2">

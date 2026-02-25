@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { join } from "path";
 import type {
   ArtifactRecord,
@@ -48,29 +49,80 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-const runtimeDir = join(process.cwd(), ".data", "runtime");
-const runtimeFile = join(runtimeDir, "db.json");
+function normalizeDataDir(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  return normalized;
+}
+
+function isServerlessRuntime(rawEnv: NodeJS.ProcessEnv): boolean {
+  return (
+    rawEnv.VERCEL === "1" ||
+    typeof rawEnv.AWS_LAMBDA_FUNCTION_NAME === "string" ||
+    typeof rawEnv.LAMBDA_TASK_ROOT === "string"
+  );
+}
+
+export function resolveFileStorageRuntimeDir(
+  rawEnv: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd()
+): string {
+  const customBaseDir = normalizeDataDir(rawEnv.AB_AURORA_DATA_DIR);
+  if (customBaseDir) {
+    return join(customBaseDir, "runtime");
+  }
+  if (isServerlessRuntime(rawEnv)) {
+    return join(tmpdir(), "ab_aurora", ".data", "runtime");
+  }
+  return join(cwd, ".data", "runtime");
+}
+
+const tmpFallbackRuntimeDir = join(tmpdir(), "ab_aurora", ".data", "runtime");
+let runtimeDir = resolveFileStorageRuntimeDir();
+let runtimeFile = join(runtimeDir, "db.json");
+
+function setRuntimeDir(nextRuntimeDir: string): void {
+  runtimeDir = nextRuntimeDir;
+  runtimeFile = join(runtimeDir, "db.json");
+}
 
 function ensureRuntimeFile() {
-  mkdirSync(runtimeDir, { recursive: true });
+  const initializeRuntimeFile = () => {
+    mkdirSync(runtimeDir, { recursive: true });
+    try {
+      readFileSync(runtimeFile, "utf8");
+    } catch {
+      const initial: DbShape = {
+        sessions: [],
+        messages: [],
+        jobs: [],
+        artifacts: [],
+        packs: [],
+        runtime_goals: [],
+        runtime_plans: [],
+        runtime_actions: [],
+        runtime_tool_calls: [],
+        runtime_evals: [],
+        runtime_memories: [],
+        runtime_events: []
+      };
+      writeFileSync(runtimeFile, JSON.stringify(initial), "utf8");
+    }
+  };
+
   try {
-    readFileSync(runtimeFile, "utf8");
+    initializeRuntimeFile();
   } catch {
-    const initial: DbShape = {
-      sessions: [],
-      messages: [],
-      jobs: [],
-      artifacts: [],
-      packs: [],
-      runtime_goals: [],
-      runtime_plans: [],
-      runtime_actions: [],
-      runtime_tool_calls: [],
-      runtime_evals: [],
-      runtime_memories: [],
-      runtime_events: []
-    };
-    writeFileSync(runtimeFile, JSON.stringify(initial), "utf8");
+    if (runtimeDir === tmpFallbackRuntimeDir) {
+      throw new Error(`Failed to initialize file storage at fallback path: ${tmpFallbackRuntimeDir}`);
+    }
+    setRuntimeDir(tmpFallbackRuntimeDir);
+    initializeRuntimeFile();
   }
 }
 

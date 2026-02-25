@@ -18,6 +18,11 @@ pnpm install
 pnpm dev
 ```
 
+Behavior-test safe dev run:
+```bash
+pnpm dev:openai:safe
+```
+
 ---
 
 ## 2) Core runtime variables
@@ -27,8 +32,9 @@ pnpm dev
 - `APP_URL`
   - local: `http://localhost:3000`
 - `AGENT_UI_MODE`
-  - default: `agent_stage`
-  - valid: `agent_stage|chat_flat`
+  - legacy bridge only (optional)
+  - valid: `agent_stage|chat_flat` (`agent_stage -> pro`, `chat_flat -> guided`)
+  - UI mode priority in page load: `searchParams.ui` -> `AGENT_UI_MODE` -> `guided`
 - `AUTO_CONTINUE`
   - default: `true`
 - `AUTO_PICK_TOP1`
@@ -70,6 +76,9 @@ pnpm dev
 - `IMAGE_LIMIT_PER_DAY` (default `20`)
 - `SESSION_RETENTION_DAYS` (default `30`)
 
+Current behavior note:
+- `REQUEST_LIMIT_PER_DAY` and `IMAGE_LIMIT_PER_DAY` are configuration placeholders and are not hard-enforced in OpenAI request paths yet.
+
 ---
 
 ## 3) Security variables
@@ -79,6 +88,9 @@ pnpm dev
 - `API_TOKEN_REQUIRED`
   - default: `false`
   - production recommendation: `true`
+- `ALLOW_FILE_STORAGE_IN_PRODUCTION`
+  - default: `false`
+  - production recommendation: `false` (enable only for temporary smoke tests; storage is ephemeral)
 - `SECURITY_HEADERS_STRICT`
   - default: `true`
 
@@ -99,6 +111,8 @@ Server-only secrets must never use `NEXT_PUBLIC_`.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
 
+If Supabase is missing/invalid in production and `ALLOW_FILE_STORAGE_IN_PRODUCTION=false`, API routes return `503` with storage configuration guidance instead of failing with internal file-system errors.
+
 Required migrations:
 1. `infra/supabase/migrations/20260219_agent_runtime.sql`
 2. `infra/supabase/migrations/20260220_runtime_control_plane.sql`
@@ -110,6 +124,20 @@ Required migrations:
 - `OPENAI_API_KEY` (optional when fallback mode is active)
 - `OPENAI_MODEL_TEXT` (default `gpt-4o`)
 - `OPENAI_MODEL_IMAGE` (default `gpt-image-1`)
+
+Behavior-test conservative profile (recommended when using a real key):
+- `RUNTIME_ENABLED=false`
+- `AUTO_CONTINUE=false`
+- `CANDIDATE_COUNT=3`
+- `TOP_K=3`
+- `MAX_REVISIONS=0`
+- `CONCURRENT_JOB_LIMIT=1`
+- `OPENAI_FALLBACK_MODE=deterministic_mock`
+
+High-cost triggers during UI testing:
+- `Regenerate Top-3`
+- repeated revise actions (`more editorial`, `reduce futuristic`, `calmer`, `more ritual`, `lock style`)
+- runtime loop with replan enabled
 
 ---
 
@@ -128,7 +156,7 @@ Required migrations:
 ## 7) Deployment matrix
 
 ### Development (local)
-- `RUNTIME_ENABLED=true`
+- `RUNTIME_ENABLED=false` (for behavior-test conservative profile)
 - `API_TOKEN_REQUIRED=false`
 - `OPENAI_FALLBACK_MODE=deterministic_mock`
 

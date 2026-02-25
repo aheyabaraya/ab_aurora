@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { AURORA_ASSETS, createAuroraPageStyle } from "./aurora-assets";
 import { ChatDock } from "./ChatDock";
-import { PackageChecklist } from "./PackageChecklist";
 import { Progress4 } from "./Progress4";
 import { SceneRouter } from "./SceneRouter";
-import { Top3Cards } from "./Top3Cards";
+import { DecideScene } from "./scenes/DecideScene";
+import { DefineScene } from "./scenes/DefineScene";
+import { ExploreScene } from "./scenes/ExploreScene";
+import { PackageScene } from "./scenes/PackageScene";
 import type { useAuroraController } from "./useAuroraController";
 
 type AuroraController = ReturnType<typeof useAuroraController>;
@@ -88,20 +90,18 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
   const status = sessionPayload?.session.status ?? "idle";
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
-
-  const sectionGridClass = useMemo(() => {
-    if (leftCollapsed && sessionId) {
-      return "mx-auto grid max-w-[90rem] gap-4 lg:grid-cols-[0.35fr_1.55fr_1fr]";
-    }
-    return "mx-auto grid max-w-[90rem] gap-4 lg:grid-cols-[0.95fr_1.45fr_1fr]";
-  }, [leftCollapsed, sessionId]);
+  const setupCardKey = `${sessionId ? "active" : "idle"}-${leftCollapsed ? "compact" : "full"}-${stage}`;
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
 
   return (
     <main className="aurora-page min-h-screen px-4 py-6 text-slate-100 md:px-6" style={pageStyle}>
-      <section className={sectionGridClass}>
-        <article className="rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 shadow-[0_16px_36px_-24px_rgba(34,211,238,0.45)] backdrop-blur">
+      <section className="mx-auto grid max-w-[90rem] gap-4 xl:grid-cols-[1.7fr_1fr]">
+        <div className="space-y-4">
+          <article
+            key={setupCardKey}
+            className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 shadow-[0_16px_36px_-24px_rgba(34,211,238,0.45)] backdrop-blur"
+          >
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Setup/Runtime</p>
             {sessionId ? (
@@ -189,6 +189,11 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 />
                 Auto pick top-1
               </label>
+
+              <div className="rounded-lg border border-cyan-300/20 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
+                OpenAI behavior-test safe profile: `RUNTIME_ENABLED=false`, `AUTO_CONTINUE=false`, `CANDIDATE_COUNT=3`,
+                `TOP_K=3`, `MAX_REVISIONS=0`.
+              </div>
 
               <button
                 className="w-full rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-60"
@@ -290,7 +295,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
           </button>
         </article>
 
-        <article className="rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
+        <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
           <header className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
@@ -323,48 +328,21 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
               ) : null}
 
               {sessionId && currentScene === "DEFINE" ? (
-                <div className="space-y-4">
-                  <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
-                    <div
-                      className="h-56 bg-cover bg-center"
-                      style={{
-                        backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.25), rgba(2,6,23,0.82)), url(${AURORA_ASSETS.heroSquare})`
-                      }}
-                    />
-                    <div className="space-y-2 p-4 text-sm text-slate-200">
-                      <p>Interview + intent gate + draft spec are merged as one DEFINE scene.</p>
-                      <p>Current stage: {stage}</p>
-                    </div>
-                  </div>
-                </div>
+                <DefineScene stage={stage} />
               ) : null}
 
               {sessionId && currentScene === "EXPLORE" ? (
-                <div className="space-y-4">
-                  {latestTop3.length === 0 ? (
-                    <div className="rounded-2xl border border-cyan-300/25 bg-slate-950/70 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">Generating Top-3...</p>
-                      <div className="mt-3 space-y-2">
-                        <div className="h-3 w-full animate-pulse rounded bg-cyan-500/20" />
-                        <div className="h-3 w-4/5 animate-pulse rounded bg-cyan-500/20" />
-                        <div className="h-3 w-3/5 animate-pulse rounded bg-cyan-500/20" />
-                      </div>
-                    </div>
-                  ) : (
-                    <Top3Cards
-                      candidates={latestTop3}
-                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                      busy={busy}
-                      buildRequired={false}
-                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                      onConfirmBuild={() => void handleConfirmBuild()}
-                    />
-                  )}
-                </div>
+                <ExploreScene
+                  candidates={latestTop3}
+                  selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                  busy={busy}
+                  onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                  onConfirmBuild={() => void handleConfirmBuild()}
+                />
               ) : null}
 
               {sessionId && currentScene === "DECIDE" ? (
-                <Top3Cards
+                <DecideScene
                   candidates={latestTop3}
                   selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
                   busy={busy}
@@ -375,7 +353,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
               ) : null}
 
               {sessionId && currentScene === "PACKAGE" ? (
-                <PackageChecklist
+                <PackageScene
                   artifacts={sessionPayload?.recent_artifacts ?? []}
                   currentStep={stage}
                   finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
@@ -389,21 +367,25 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
           </div>
         </article>
 
-        <ChatDock
-          entries={chatEntries}
-          artifacts={sessionPayload?.recent_artifacts ?? []}
-          jobs={jobsPayload?.jobs ?? []}
-          queuedCommands={queuedCommands}
-          shouldQueueIntervention={shouldQueueIntervention}
-          busy={busy}
-          sessionReady={Boolean(sessionId)}
-          guided
-          defaultTab="chat"
-          onSendChat={(message) => void handleSendChat(message)}
-          onQuickAction={(actionId) => void handleQuickAction(actionId)}
-          onForceQueued={(queueId) => void handleForceQueued(queueId)}
-          onDiscardQueued={handleDiscardQueued}
-        />
+        </div>
+
+        <aside className="h-fit xl:sticky xl:top-6">
+          <ChatDock
+            entries={chatEntries}
+            artifacts={sessionPayload?.recent_artifacts ?? []}
+            jobs={jobsPayload?.jobs ?? []}
+            queuedCommands={queuedCommands}
+            shouldQueueIntervention={shouldQueueIntervention}
+            busy={busy}
+            sessionReady={Boolean(sessionId)}
+            guided
+            defaultTab="chat"
+            onSendChat={(message) => void handleSendChat(message)}
+            onQuickAction={(actionId) => void handleQuickAction(actionId)}
+            onForceQueued={(queueId) => void handleForceQueued(queueId)}
+            onDiscardQueued={handleDiscardQueued}
+          />
+        </aside>
       </section>
 
       {showSignIn ? (

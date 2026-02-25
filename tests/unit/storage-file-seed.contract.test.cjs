@@ -49,3 +49,33 @@ test("File storage seed contract persists seeded sessions across repository inst
     fs.rmSync(tempCwd, { recursive: true, force: true });
   }
 });
+
+test("File storage falls back to tmp runtime dir when configured data dir is unavailable", async () => {
+  const originalDataDir = process.env.AB_AURORA_DATA_DIR;
+  const fileModulePath = "../../.tmp-tests/lib/storage/file.js";
+
+  try {
+    process.env.AB_AURORA_DATA_DIR = "/var/task/.data";
+    delete require.cache[require.resolve(fileModulePath)];
+
+    const { FileStorageRepository } = require(fileModulePath);
+    const storage = new FileStorageRepository();
+    const created = await storage.createSession({
+      mode: "mode_b",
+      product: "Fallback storage check",
+      audience: "Ops",
+      style_keywords: ["calm"],
+      auto_continue: false,
+      auto_pick_top1: false
+    });
+
+    assert.ok(created.id.startsWith("sess_"));
+  } finally {
+    if (originalDataDir === undefined) {
+      delete process.env.AB_AURORA_DATA_DIR;
+    } else {
+      process.env.AB_AURORA_DATA_DIR = originalDataDir;
+    }
+    delete require.cache[require.resolve(fileModulePath)];
+  }
+});

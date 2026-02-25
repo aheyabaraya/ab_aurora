@@ -50,6 +50,10 @@ const envSchema = z
     AUTO_CONTINUE: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     AUTO_PICK_TOP1: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     API_TOKEN_REQUIRED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    ALLOW_FILE_STORAGE_IN_PRODUCTION: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     SECURITY_HEADERS_STRICT: z
       .enum(["true", "false"])
       .default("true")
