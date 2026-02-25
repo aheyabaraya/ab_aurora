@@ -29,7 +29,12 @@ function normalizeSupabaseUrl(value: unknown): string | undefined {
     return undefined;
   }
 
-  return normalized;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
 }
 
 const stringBoolean = z

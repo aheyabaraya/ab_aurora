@@ -8,6 +8,7 @@ const HTTP_MODULE_PATH = "../../.tmp-tests/lib/api/http.js";
 const AUTH_MODULE_PATH = "../../.tmp-tests/lib/auth/api-token.js";
 const ENV_MODULE_PATH = "../../.tmp-tests/lib/env.js";
 const REDACT_MODULE_PATH = "../../.tmp-tests/lib/security/redact.js";
+const STORAGE_INDEX_MODULE_PATH = "../../.tmp-tests/lib/storage/index.js";
 
 function clearCachedModules(modulePaths) {
   for (const modulePath of modulePaths) {
@@ -201,4 +202,30 @@ test("parseEnv validates dev seed token requirement", () => {
   assert.equal(normalizedSupabase.NEXT_PUBLIC_SUPABASE_URL, "http://127.0.0.1:54321");
   assert.equal(normalizedSupabase.NEXT_PUBLIC_SUPABASE_ANON_KEY, "dev-anon-key");
   assert.equal(normalizedSupabase.SUPABASE_SERVICE_ROLE_KEY, "dev-service-role-key");
+
+  const invalidSupabaseUrl = parseEnv({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "not-a-valid-url",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
+    SUPABASE_SERVICE_ROLE_KEY: "service"
+  });
+  assert.equal(invalidSupabaseUrl.NEXT_PUBLIC_SUPABASE_URL, "http://127.0.0.1:54321");
+});
+
+test("storage repository falls back to file storage when supabase url is invalid", () => {
+  const getStorageRepository = withEnvPatch(
+    {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SUPABASE_URL: "not-a-valid-url",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
+      SUPABASE_SERVICE_ROLE_KEY: "real-service-role-key"
+    },
+    () => {
+      clearCachedModules([STORAGE_INDEX_MODULE_PATH, ENV_MODULE_PATH]);
+      return require(STORAGE_INDEX_MODULE_PATH).getStorageRepository;
+    }
+  );
+
+  const storage = getStorageRepository();
+  assert.equal(storage.constructor.name, "FileStorageRepository");
 });
