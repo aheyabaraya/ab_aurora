@@ -2,6 +2,7 @@ import { AuroraClient } from "../components/aurora/AuroraClient";
 
 type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
+type UiMode = "guided" | "pro";
 
 type HomePageProps = {
   searchParams?: Promise<SearchParams>;
@@ -14,24 +15,17 @@ function toSingleValue(value: SearchParamsValue): string | undefined {
   return value;
 }
 
-function resolveUiModeFromEnv(raw: string | undefined): "guided" | "pro" {
-  if (!raw) {
-    return "guided";
+function resolveUiModeFromQuery(value: string | undefined): UiMode | null {
+  if (value === "guided" || value === "pro") {
+    return value;
   }
-  if (raw === "chat_flat" || raw === "guided") {
-    return "guided";
-  }
-  if (raw === "agent_stage" || raw === "pro") {
-    return "pro";
-  }
-  return "guided";
+  return null;
 }
 
 export default async function HomePage(props: HomePageProps) {
   const resolvedSearchParams = (await props.searchParams) ?? {};
-  const queryUi = toSingleValue(resolvedSearchParams.ui);
-
-  const initialUiMode = queryUi === "guided" || queryUi === "pro" ? queryUi : resolveUiModeFromEnv(process.env.AGENT_UI_MODE);
+  const queryUi = resolveUiModeFromQuery(toSingleValue(resolvedSearchParams.ui));
+  const initialUiMode: UiMode = queryUi ?? "guided";
 
   return <AuroraClient initialUiMode={initialUiMode} />;
 }

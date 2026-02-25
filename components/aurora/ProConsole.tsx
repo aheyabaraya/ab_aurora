@@ -1,21 +1,42 @@
 "use client";
 
-import { AGENT_STEPS } from "./types";
-import { createAuroraPageStyle } from "./aurora-assets";
+import { AURORA_ASSETS, createAuroraPageStyle } from "./aurora-assets";
 import { ChatDock } from "./ChatDock";
+import { PackageChecklist } from "./PackageChecklist";
+import { Progress4 } from "./Progress4";
+import { SceneRouter } from "./SceneRouter";
+import { Top3Cards } from "./Top3Cards";
+import { AGENT_STEPS } from "./types";
 import type { useAuroraController } from "./useAuroraController";
 
 type AuroraController = ReturnType<typeof useAuroraController>;
 
 type ProConsoleProps = {
   controller: AuroraController;
+  onSwitchUiMode: (mode: "guided" | "pro") => void;
 };
 
 function toPrettyStep(step: string): string {
   return step.replaceAll("_", " ");
 }
 
-export function ProConsole({ controller }: ProConsoleProps) {
+function statusBadge(status: string): string {
+  if (status === "completed") {
+    return "border-emerald-300/60 bg-emerald-500/15 text-emerald-100";
+  }
+  if (status === "running") {
+    return "border-cyan-300/60 bg-cyan-500/15 text-cyan-100";
+  }
+  if (status === "wait_user") {
+    return "border-amber-300/60 bg-amber-500/15 text-amber-100";
+  }
+  if (status === "failed") {
+    return "border-rose-300/60 bg-rose-500/15 text-rose-100";
+  }
+  return "border-slate-700 bg-slate-900/70 text-slate-200";
+}
+
+export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
   const {
     mode,
     setMode,
@@ -42,15 +63,21 @@ export function ProConsole({ controller }: ProConsoleProps) {
     setShowSignIn,
     tokenDraft,
     setTokenDraft,
+    currentScene,
     activeStepIndex,
     chatEntries,
     queuedCommands,
     shouldQueueIntervention,
+    buildConfirmRequired,
     handleStartSession,
     handleRunStep,
     handleSelectCandidate,
+    handleConfirmBuild,
     handleSendChat,
     handleQuickAction,
+    handleRegenerateTop3,
+    handleRegenerateOutputs,
+    handleExportZip,
     handleStartRuntimeGoal,
     handleRuntimeStep,
     handleRuntimeControl,
@@ -61,6 +88,9 @@ export function ProConsole({ controller }: ProConsoleProps) {
   } = controller;
 
   const pageStyle = createAuroraPageStyle();
+  const stage = sessionPayload?.session.current_step ?? "interview_collect";
+  const status = sessionPayload?.session.status ?? "idle";
+  const latestTop3 = sessionPayload?.latest_top3 ?? [];
 
   return (
     <main className="aurora-page min-h-screen px-5 py-8 text-slate-100" style={pageStyle}>
@@ -68,9 +98,12 @@ export function ProConsole({ controller }: ProConsoleProps) {
         <article className="rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">AB_Aurora Agent</p>
-            <a href="?ui=guided" className="text-xs text-cyan-200 underline-offset-4 hover:underline">
+            <button
+              className="text-xs text-cyan-200 underline-offset-4 hover:underline"
+              onClick={() => onSwitchUiMode("guided")}
+            >
               Switch to Guided
-            </a>
+            </button>
           </div>
 
           <h1 className="mt-2 text-2xl font-semibold text-cyan-100">Pro Console</h1>
@@ -228,16 +261,14 @@ export function ProConsole({ controller }: ProConsoleProps) {
         </article>
 
         <article className="rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
-          <header className="mb-4 flex items-center justify-between">
+          <header className="mb-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Execution Plane</p>
-              <h2 className="text-xl font-semibold text-cyan-100">Stage Timeline + Top-3</h2>
+              <h2 className="text-xl font-semibold text-cyan-100">Stage Timeline + Scene Canvas</h2>
             </div>
-            {sessionPayload ? (
-              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-                {sessionPayload.session.status}
-              </span>
-            ) : null}
+            <span className={`rounded-full border px-3 py-1 text-xs uppercase tracking-wider ${statusBadge(status)}`}>
+              {status}
+            </span>
           </header>
 
           <ol className="grid gap-2 sm:grid-cols-2">
@@ -257,30 +288,85 @@ export function ProConsole({ controller }: ProConsoleProps) {
             ))}
           </ol>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {(sessionPayload?.latest_top3 ?? []).map((candidate) => {
-              const selected = sessionPayload?.selected_candidate_id === candidate.id;
-              return (
-                <div
-                  key={candidate.id}
-                  className={`rounded-xl border p-3 ${
-                    selected ? "border-cyan-300 bg-cyan-400/10" : "border-slate-700 bg-slate-900/60"
-                  }`}
-                >
-                  <p className="text-xs text-slate-400">Rank #{candidate.rank}</p>
-                  <h3 className="mt-1 text-sm font-semibold text-cyan-100">{candidate.naming.recommended}</h3>
-                  <p className="mt-1 text-xs text-slate-300">{candidate.rationale}</p>
-                  <p className="mt-2 text-[11px] text-slate-400">Score: {candidate.score.toFixed(3)}</p>
-                  <button
-                    className="mt-3 w-full rounded-md border border-cyan-300/40 px-2 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10"
-                    onClick={() => void handleSelectCandidate(candidate.id)}
-                    disabled={busy}
-                  >
-                    {selected ? "Selected" : "Select Candidate"}
-                  </button>
-                </div>
-              );
-            })}
+          <div className="mt-5">
+            <Progress4 scene={currentScene} status={status} />
+            <div className="mt-4">
+              <SceneRouter scene={currentScene} stage={stage}>
+                {!sessionId ? (
+                  <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
+                    <div
+                      className="h-52 bg-cover bg-center"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.24), rgba(2,6,23,0.85)), url(${AURORA_ASSETS.heroDesktop})`
+                      }}
+                    />
+                    <div className="space-y-2 p-4 text-sm text-slate-200">
+                      <p>Start a session to enter DEFINE and move through scenes automatically.</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {sessionId && currentScene === "DEFINE" ? (
+                  <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
+                    <div
+                      className="h-52 bg-cover bg-center"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.24), rgba(2,6,23,0.85)), url(${AURORA_ASSETS.heroSquare})`
+                      }}
+                    />
+                    <div className="space-y-2 p-4 text-sm text-slate-200">
+                      <p>Interview + intent gate + draft spec are unified as DEFINE.</p>
+                      <p>Current stage: {stage}</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {sessionId && currentScene === "EXPLORE" ? (
+                  latestTop3.length === 0 ? (
+                    <div className="rounded-2xl border border-cyan-300/25 bg-slate-950/70 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">Generating Top-3...</p>
+                      <div className="mt-3 space-y-2">
+                        <div className="h-3 w-full animate-pulse rounded bg-cyan-500/20" />
+                        <div className="h-3 w-4/5 animate-pulse rounded bg-cyan-500/20" />
+                        <div className="h-3 w-3/5 animate-pulse rounded bg-cyan-500/20" />
+                      </div>
+                    </div>
+                  ) : (
+                    <Top3Cards
+                      candidates={latestTop3}
+                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                      busy={busy}
+                      buildRequired={false}
+                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                      onConfirmBuild={() => void handleConfirmBuild()}
+                    />
+                  )
+                ) : null}
+
+                {sessionId && currentScene === "DECIDE" ? (
+                  <Top3Cards
+                    candidates={latestTop3}
+                    selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                    busy={busy}
+                    buildRequired={buildConfirmRequired}
+                    onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                    onConfirmBuild={() => void handleConfirmBuild()}
+                  />
+                ) : null}
+
+                {sessionId && currentScene === "PACKAGE" ? (
+                  <PackageChecklist
+                    artifacts={sessionPayload?.recent_artifacts ?? []}
+                    currentStep={stage}
+                    finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
+                    busy={busy}
+                    onRegenerateOutputs={() => void handleRegenerateOutputs()}
+                    onRegenerateTop3={() => void handleRegenerateTop3()}
+                    onExportZip={() => void handleExportZip()}
+                  />
+                ) : null}
+              </SceneRouter>
+            </div>
           </div>
         </article>
 

@@ -18,7 +18,8 @@
     "test:storage:supabase:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-supabase-seed.contract.test.cjs",
     "test:integration": "pnpm test:build && NODE_ENV=test node --test tests/integration/*.test.cjs",
     "test:agent": "pnpm test:unit && pnpm test:api && pnpm test:api:seed && pnpm test:storage:file:contract && pnpm test:integration",
-    "test:coverage:agent": "pnpm test:build && NODE_ENV=test node --test --experimental-test-coverage tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs tests/api/revise-route.test.cjs tests/api/session-seed-matrix.test.cjs tests/unit/storage-file-seed.contract.test.cjs tests/integration/pipeline.test.cjs"
+    "test:coverage:agent": "pnpm test:build && NODE_ENV=test node --test --experimental-test-coverage tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs tests/api/revise-route.test.cjs tests/api/session-seed-matrix.test.cjs tests/unit/storage-file-seed.contract.test.cjs tests/integration/pipeline.test.cjs",
+    "verify:all": "pnpm ci:verify && pnpm test:coverage:agent && SEED_TEST_SUPABASE=true pnpm test:storage:supabase:contract"
   },
   "dependencies": {
     "jszip": "^3.10.1",

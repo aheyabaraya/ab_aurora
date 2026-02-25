@@ -53,32 +53,16 @@ test("home page resolves ui mode from query first", async () => {
   assert.equal(element.props.initialUiMode, "pro");
 });
 
-test("home page resolves ui mode from environment fallback", async () => {
-  const originalMode = process.env.AGENT_UI_MODE;
+test("home page defaults to guided when query ui is missing or invalid", async () => {
+  const defaultGuided = await HomePage({
+    searchParams: Promise.resolve({})
+  });
+  assert.equal(defaultGuided.props.initialUiMode, "guided");
 
-  try {
-    process.env.AGENT_UI_MODE = "chat_flat";
-    const guided = await HomePage({
-      searchParams: Promise.resolve({})
-    });
-    assert.equal(guided.props.initialUiMode, "guided");
-
-    process.env.AGENT_UI_MODE = "agent_stage";
-    const pro = await HomePage({
-      searchParams: Promise.resolve({})
-    });
-    assert.equal(pro.props.initialUiMode, "pro");
-
-    delete process.env.AGENT_UI_MODE;
-    const defaultGuided = await HomePage({
-      searchParams: Promise.resolve({})
-    });
-    assert.equal(defaultGuided.props.initialUiMode, "guided");
-  } finally {
-    if (originalMode === undefined) {
-      delete process.env.AGENT_UI_MODE;
-    } else {
-      process.env.AGENT_UI_MODE = originalMode;
-    }
-  }
+  const invalidQuery = await HomePage({
+    searchParams: Promise.resolve({
+      ui: "agent_stage"
+    })
+  });
+  assert.equal(invalidQuery.props.initialUiMode, "guided");
 });

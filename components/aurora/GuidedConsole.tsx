@@ -13,6 +13,7 @@ type AuroraController = ReturnType<typeof useAuroraController>;
 
 type GuidedConsoleProps = {
   controller: AuroraController;
+  onSwitchUiMode: (mode: "guided" | "pro") => void;
 };
 
 function statusBadge(status: string): string {
@@ -31,7 +32,7 @@ function statusBadge(status: string): string {
   return "border-slate-700 bg-slate-900/70 text-slate-200";
 }
 
-export function GuidedConsole({ controller }: GuidedConsoleProps) {
+export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps) {
   const {
     mode,
     setMode,
@@ -281,9 +282,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
             </div>
           ) : null}
 
-          <a href="?ui=pro" className="mt-4 inline-block text-xs text-cyan-200 underline-offset-4 hover:underline">
+          <button
+            className="mt-4 inline-block text-xs text-cyan-200 underline-offset-4 hover:underline"
+            onClick={() => onSwitchUiMode("pro")}
+          >
             Switch to Pro Console
-          </a>
+          </button>
         </article>
 
         <article className="rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
