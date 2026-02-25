@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AURORA_ASSETS, createAuroraPageStyle } from "./aurora-assets";
 import { ChatDock } from "./ChatDock";
 import { Progress4 } from "./Progress4";
@@ -51,8 +51,6 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     sessionId,
     sessionPayload,
     jobsPayload,
-    runtimeGoalId,
-    runtimeSnapshot,
     busy,
     error,
     errorStatus,
@@ -66,31 +64,25 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     queuedCommands,
     shouldQueueIntervention,
     buildConfirmRequired,
-    handleStartSession,
-    handleRunStep,
+    rightPanelViewModel,
+    top3ModelSource,
     handleSelectCandidate,
     handleConfirmBuild,
     handleSendChat,
     handleQuickAction,
+    handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,
-    handleStartRuntimeGoal,
-    handleRuntimeStep,
-    handleRuntimeControl,
     handleForceQueued,
     handleDiscardQueued,
     handleRetryLastAction,
     handleSaveApiToken
   } = controller;
 
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
-  const leftCollapsed = Boolean(sessionId) && expandedSessionId !== sessionId;
-
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
   const status = sessionPayload?.session.status ?? "idle";
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
-  const setupCardKey = `${sessionId ? "active" : "idle"}-${leftCollapsed ? "compact" : "full"}-${stage}`;
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
 
@@ -98,275 +90,203 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     <main className="aurora-page min-h-screen px-4 py-6 text-slate-100 md:px-6" style={pageStyle}>
       <section className="mx-auto grid max-w-[90rem] gap-4 xl:grid-cols-[1.7fr_1fr]">
         <div className="space-y-4">
-          <article
-            key={setupCardKey}
-            className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 shadow-[0_16px_36px_-24px_rgba(34,211,238,0.45)] backdrop-blur"
-          >
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Setup/Runtime</p>
-            {sessionId ? (
-              <button
-                className="rounded-md border border-cyan-300/35 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/10"
-                onClick={() => {
-                  if (!sessionId) {
-                    return;
-                  }
-                  setExpandedSessionId((value) => (value === sessionId ? null : sessionId));
-                }}
-              >
-                {leftCollapsed ? "Expand" : "Collapse"}
-              </button>
-            ) : null}
-          </div>
-
-          {leftCollapsed && sessionId ? (
-            <div className="mt-4 space-y-2 text-xs text-slate-300">
-              <p>Session: {sessionPayload?.session.id ?? sessionId}</p>
-              <p>Step: {stage}</p>
-              <p>Status: {status}</p>
-              <button
-                className="mt-2 w-full rounded-lg border border-cyan-300/45 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/10 disabled:opacity-60"
-                onClick={() => setExpandedSessionId(sessionId)}
-              >
-                Open controls
-              </button>
+          <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 shadow-[0_16px_36px_-24px_rgba(34,211,238,0.45)] backdrop-blur">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">
+                {sessionId ? "Runtime Status" : "Setup"}
+              </p>
+              <span className={`rounded-full border px-2 py-1 text-[11px] uppercase tracking-wider ${statusBadge(status)}`}>
+                {status}
+              </span>
             </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm">
-                <span className="text-slate-300">Mode</span>
-                <select
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                  value={mode}
-                  onChange={(event) => setMode(event.target.value as "mode_a" | "mode_b")}
-                >
-                  <option value="mode_a">Mode A (Reference)</option>
-                  <option value="mode_b">Mode B (Guided)</option>
-                </select>
-              </label>
 
-              <label className="block text-sm">
-                <span className="text-slate-300">Product</span>
-                <input
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                  value={product}
-                  onChange={(event) => setProduct(event.target.value)}
-                />
-              </label>
+            {!sessionId ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Core Brief</p>
 
-              <label className="block text-sm">
-                <span className="text-slate-300">Audience</span>
-                <input
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                  value={audience}
-                  onChange={(event) => setAudience(event.target.value)}
-                />
-              </label>
+                <label className="block text-sm">
+                  <span className="text-slate-300">Product</span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    value={product}
+                    onChange={(event) => setProduct(event.target.value)}
+                    placeholder="e.g. AI landing page builder for solo founders"
+                  />
+                </label>
 
-              <label className="block text-sm">
-                <span className="text-slate-300">Style keywords</span>
-                <input
-                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                  value={styleKeywords}
-                  onChange={(event) => setStyleKeywords(event.target.value)}
-                />
-              </label>
+                <label className="block text-sm">
+                  <span className="text-slate-300">Audience</span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    value={audience}
+                    onChange={(event) => setAudience(event.target.value)}
+                    placeholder="e.g. early-stage builders shipping in public"
+                  />
+                </label>
 
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={autoContinue}
-                  onChange={(event) => setAutoContinue(event.target.checked)}
-                />
-                Auto continue
-              </label>
+                <label className="block text-sm">
+                  <span className="text-slate-300">Style keywords</span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    value={styleKeywords}
+                    onChange={(event) => setStyleKeywords(event.target.value)}
+                    placeholder="e.g. editorial, calm, ritual"
+                  />
+                </label>
 
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={autoPickTop1}
-                  onChange={(event) => setAutoPickTop1(event.target.checked)}
-                />
-                Auto pick top-1
-              </label>
+                <details className="rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2">
+                  <summary className="cursor-pointer text-sm text-slate-300">Advanced options</summary>
+                  <div className="mt-3 space-y-3">
+                    <label className="block text-sm">
+                      <span className="text-slate-300">Mode</span>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        value={mode}
+                        onChange={(event) => setMode(event.target.value as "mode_a" | "mode_b")}
+                      >
+                        <option value="mode_a">Mode A (Reference)</option>
+                        <option value="mode_b">Mode B (Guided)</option>
+                      </select>
+                    </label>
 
-              <div className="rounded-lg border border-cyan-300/20 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
-                OpenAI behavior-test safe profile: `RUNTIME_ENABLED=false`, `AUTO_CONTINUE=false`, `CANDIDATE_COUNT=3`,
-                `TOP_K=3`, `MAX_REVISIONS=0`.
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={autoContinue}
+                        onChange={(event) => setAutoContinue(event.target.checked)}
+                      />
+                      Auto continue
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={autoPickTop1}
+                        onChange={(event) => setAutoPickTop1(event.target.checked)}
+                      />
+                      Auto pick top-1
+                    </label>
+                  </div>
+                </details>
+
+                <p className="rounded-lg border border-cyan-300/20 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
+                  실행 버튼은 우측 Chat Dock의 Next Action에서만 노출됩니다.
+                </p>
               </div>
+            ) : (
+              <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+                <p>Session: {sessionPayload?.session.id ?? sessionId}</p>
+                <p>Scene: {currentScene}</p>
+                <p>Step: {stage}</p>
+                <p>Status: {status}</p>
+                <p>Top-3: {latestTop3.length}</p>
+                <p>Selected: {sessionPayload?.selected_candidate_id ?? "none"}</p>
+              </div>
+            )}
 
-              <button
-                className="w-full rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-60"
-                onClick={() => void handleStartSession()}
-                disabled={busy}
-              >
-                Start Session
-              </button>
-
-              {sessionId ? (
-                <button
-                  className="w-full rounded-lg border border-cyan-300/45 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-60"
-                  onClick={() => void handleRunStep()}
-                  disabled={busy}
-                >
-                  Run / Continue
-                </button>
-              ) : null}
-
-              {sessionId ? (
-                <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Runtime controls</p>
-                  <button
-                    className="w-full rounded-lg border border-fuchsia-300/40 px-3 py-2 text-xs font-semibold text-fuchsia-100 hover:bg-fuchsia-400/10"
-                    onClick={() => void handleStartRuntimeGoal()}
-                    disabled={busy}
-                  >
-                    Start Runtime Goal
-                  </button>
-                  <button
-                    className="w-full rounded-lg border border-cyan-300/40 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10"
-                    onClick={() => void handleRuntimeStep(false)}
-                    disabled={busy || !runtimeGoalId}
-                  >
-                    Runtime Step
-                  </button>
-                  <button
-                    className="w-full rounded-lg border border-amber-300/40 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-400/10"
-                    onClick={() => void handleRuntimeStep(true)}
-                    disabled={busy || !runtimeGoalId}
-                  >
-                    Force Replan + Step
-                  </button>
-                  <button
-                    className="w-full rounded-lg border border-rose-300/40 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/10"
-                    onClick={() => void handleRuntimeControl("pause")}
-                    disabled={busy}
-                  >
-                    Pause
-                  </button>
-                  <button
-                    className="w-full rounded-lg border border-emerald-300/40 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10"
-                    onClick={() => void handleRuntimeControl("resume")}
-                    disabled={busy}
-                  >
-                    Resume
-                  </button>
-                  {runtimeSnapshot ? (
-                    <div className="rounded-md border border-slate-700 bg-slate-950/70 p-2 text-[11px] text-slate-300">
-                      <p>Goal: {runtimeSnapshot.goal.id}</p>
-                      <p>Status: {runtimeSnapshot.goal.status}</p>
-                      <p>Loop Step: {runtimeSnapshot.goal.current_step_no}</p>
-                    </div>
+            {error ? (
+              <div className="mt-4 rounded-lg border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
+                <p>{error}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {canRetry ? (
+                    <button
+                      className="rounded-md border border-rose-300/60 px-2 py-1 text-[11px] hover:bg-rose-500/15"
+                      onClick={() => void handleRetryLastAction()}
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                  {errorStatus === 401 ? (
+                    <button
+                      className="rounded-md border border-cyan-300/60 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/15"
+                      onClick={() => setShowSignIn(true)}
+                    >
+                      Sign-in
+                    </button>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-          )}
-
-          {error ? (
-            <div className="mt-4 rounded-lg border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
-              <p>{error}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {canRetry ? (
-                  <button
-                    className="rounded-md border border-rose-300/60 px-2 py-1 text-[11px] hover:bg-rose-500/15"
-                    onClick={() => void handleRetryLastAction()}
-                  >
-                    Retry
-                  </button>
-                ) : null}
-                {errorStatus === 401 ? (
-                  <button
-                    className="rounded-md border border-cyan-300/60 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/15"
-                    onClick={() => setShowSignIn(true)}
-                  >
-                    Sign-in
-                  </button>
-                ) : null}
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <button
-            className="mt-4 inline-block text-xs text-cyan-200 underline-offset-4 hover:underline"
-            onClick={() => onSwitchUiMode("pro")}
-          >
-            Switch to Pro Console
-          </button>
-        </article>
+            <button
+              className="mt-4 inline-block text-xs text-cyan-200 underline-offset-4 hover:underline"
+              onClick={() => onSwitchUiMode("pro")}
+            >
+              Switch to Pro Console
+            </button>
+          </article>
 
-        <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
-          <header className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
-              <h1 className="text-2xl font-semibold text-cyan-100">Aurora Guided Flow</h1>
-            </div>
-            <span className={`rounded-full border px-3 py-1 text-xs uppercase tracking-wider ${statusBadge(status)}`}>
-              {status}
-            </span>
-          </header>
+          <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
+            <header className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
+                <h1 className="text-2xl font-semibold text-cyan-100">Aurora Guided Flow</h1>
+              </div>
+              <span className={`rounded-full border px-3 py-1 text-xs uppercase tracking-wider ${statusBadge(status)}`}>
+                {status}
+              </span>
+            </header>
 
-          <Progress4 scene={currentScene} status={status} />
+            <Progress4 scene={currentScene} status={status} />
 
-          <div className="mt-5">
-            <SceneRouter scene={currentScene} stage={stage}>
-              {!sessionId ? (
-                <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
-                  <div
-                    className="h-52 bg-cover bg-center"
-                    style={{
-                      backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.24), rgba(2,6,23,0.85)), url(${AURORA_ASSETS.heroDesktop})`
-                    }}
-                  />
-                  <div className="space-y-2 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Define</p>
-                    <p className="text-sm text-slate-200">
-                      Start a session to map interview and intent gate into one continuous scene.
-                    </p>
+            <div className="mt-5">
+              <SceneRouter scene={currentScene} stage={stage}>
+                {!sessionId ? (
+                  <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
+                    <div
+                      className="h-52 bg-cover bg-center"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.24), rgba(2,6,23,0.85)), url(${AURORA_ASSETS.heroDesktop})`
+                      }}
+                    />
+                    <div className="space-y-2 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Define</p>
+                      <p className="text-sm text-slate-200">
+                        브리프를 작성한 뒤 우측 Next Action으로 세션을 시작하세요.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
-              {sessionId && currentScene === "DEFINE" ? (
-                <DefineScene stage={stage} />
-              ) : null}
+                {sessionId && currentScene === "DEFINE" ? <DefineScene stage={stage} /> : null}
 
-              {sessionId && currentScene === "EXPLORE" ? (
-                <ExploreScene
-                  candidates={latestTop3}
-                  selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                  busy={busy}
-                  onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                  onConfirmBuild={() => void handleConfirmBuild()}
-                />
-              ) : null}
+                {sessionId && currentScene === "EXPLORE" ? (
+                  <ExploreScene
+                    candidates={latestTop3}
+                    selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                    modelSource={top3ModelSource}
+                    busy={busy}
+                    onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                    onConfirmBuild={() => void handleConfirmBuild()}
+                  />
+                ) : null}
 
-              {sessionId && currentScene === "DECIDE" ? (
-                <DecideScene
-                  candidates={latestTop3}
-                  selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                  busy={busy}
-                  buildRequired={buildConfirmRequired}
-                  onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                  onConfirmBuild={() => void handleConfirmBuild()}
-                />
-              ) : null}
+                {sessionId && currentScene === "DECIDE" ? (
+                  <DecideScene
+                    candidates={latestTop3}
+                    selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                    modelSource={top3ModelSource}
+                    busy={busy}
+                    buildRequired={buildConfirmRequired}
+                    onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                    onConfirmBuild={() => void handleConfirmBuild()}
+                  />
+                ) : null}
 
-              {sessionId && currentScene === "PACKAGE" ? (
-                <PackageScene
-                  artifacts={sessionPayload?.recent_artifacts ?? []}
-                  currentStep={stage}
-                  finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
-                  busy={busy}
-                  onRegenerateOutputs={() => void handleRegenerateOutputs()}
-                  onRegenerateTop3={() => void handleRegenerateTop3()}
-                  onExportZip={() => void handleExportZip()}
-                />
-              ) : null}
-            </SceneRouter>
-          </div>
-        </article>
-
+                {sessionId && currentScene === "PACKAGE" ? (
+                  <PackageScene
+                    artifacts={sessionPayload?.recent_artifacts ?? []}
+                    currentStep={stage}
+                    finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
+                    busy={busy}
+                    onRegenerateOutputs={() => void handleRegenerateOutputs()}
+                    onRegenerateTop3={() => void handleRegenerateTop3()}
+                    onExportZip={() => void handleExportZip()}
+                  />
+                ) : null}
+              </SceneRouter>
+            </div>
+          </article>
         </div>
 
         <aside className="h-fit xl:sticky xl:top-6">
@@ -380,8 +300,12 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
             sessionReady={Boolean(sessionId)}
             guided
             defaultTab="chat"
+            status={rightPanelViewModel.status}
+            modelSource={rightPanelViewModel.modelSource}
+            actionHub={rightPanelViewModel}
             onSendChat={(message) => void handleSendChat(message)}
             onQuickAction={(actionId) => void handleQuickAction(actionId)}
+            onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
             onForceQueued={(queueId) => void handleForceQueued(queueId)}
             onDiscardQueued={handleDiscardQueued}
           />

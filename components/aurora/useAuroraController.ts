@@ -6,14 +6,18 @@ import {
   AGENT_STEPS,
   type ArtifactRecord,
   type ChatEntry,
+  type GuidedActionId,
   type JobsPayload,
+  type ModelSource,
   type QueuedCommand,
   type QuickActionId,
+  type RightPanelViewModel,
   type RuntimeGoalSnapshot,
   type SessionPayload,
   resolveSceneFromStep
 } from "./types";
 import { ASSET_BASE } from "./aurora-assets";
+import { resolveGuidedActionViewModel } from "./guided-actions";
 
 class ApiError extends Error {
   status: number;
@@ -45,9 +49,9 @@ type ActionFn = () => Promise<void>;
 
 export function useAuroraController() {
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
-  const [product, setProduct] = useState("AI landing page builder for solo founders");
-  const [audience, setAudience] = useState("Early-stage builders shipping in public");
-  const [styleKeywords, setStyleKeywords] = useState("bold, editorial, futuristic");
+  const [product, setProduct] = useState("");
+  const [audience, setAudience] = useState("");
+  const [styleKeywords, setStyleKeywords] = useState("");
   const [autoContinue, setAutoContinue] = useState(true);
   const [autoPickTop1, setAutoPickTop1] = useState(true);
 
@@ -227,6 +231,17 @@ export function useAuroraController() {
     return sessionPayload?.session.status === "running" && hasActiveJob;
   }, [hasActiveJob, sessionPayload?.session.status]);
 
+  const styleKeywordList = useMemo(() => {
+    return styleKeywords
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+  }, [styleKeywords]);
+
+  const canStartSession = useMemo(() => {
+    return product.trim().length >= 3 && audience.trim().length >= 3 && styleKeywordList.length >= 1;
+  }, [audience, product, styleKeywordList.length]);
+
   const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
     setQueuedCommands((current) => [
       ...current,
@@ -386,6 +401,11 @@ export function useAuroraController() {
   }, [flushQueuedCommands, sessionPayload?.session.current_step]);
 
   const handleStartSession = useCallback(async () => {
+    if (!canStartSession) {
+      setError("Product, Audience, Style keywords를 먼저 입력하세요.");
+      return;
+    }
+
     const run = async () => {
       const response = await requestJson<{
         session_id: string;
@@ -395,10 +415,7 @@ export function useAuroraController() {
           mode,
           product,
           audience,
-          style_keywords: styleKeywords
-            .split(",")
-            .map((keyword) => keyword.trim())
-            .filter(Boolean),
+          style_keywords: styleKeywordList,
           auto_continue: autoContinue,
           auto_pick_top1: autoPickTop1
         })
@@ -418,12 +435,13 @@ export function useAuroraController() {
     audience,
     autoContinue,
     autoPickTop1,
+    canStartSession,
     mode,
     product,
     refreshSession,
     requestJson,
     runWithRecovery,
-    styleKeywords
+    styleKeywordList
   ]);
 
   const handleRunStep = useCallback(async () => {
@@ -748,6 +766,70 @@ export function useAuroraController() {
     await runWithRecovery(run, run);
   }, [runWithRecovery, runtimeSnapshot?.goal, sessionId, sessionPayload]);
 
+  const handleRunGuidedAction = useCallback(
+    async (actionId: GuidedActionId) => {
+      if (actionId === "start_session") {
+        await handleStartSession();
+        return;
+      }
+      if (actionId === "run_step") {
+        await handleRunStep();
+        return;
+      }
+      if (actionId === "confirm_build") {
+        await handleConfirmBuild();
+        return;
+      }
+      if (actionId === "regenerate_top3") {
+        await handleRegenerateTop3();
+        return;
+      }
+      if (actionId === "regenerate_outputs") {
+        await handleRegenerateOutputs();
+        return;
+      }
+      if (actionId === "export_zip") {
+        await handleExportZip();
+        return;
+      }
+      if (actionId === "start_runtime_goal") {
+        await handleStartRuntimeGoal();
+        return;
+      }
+      if (actionId === "runtime_step") {
+        await handleRuntimeStep(false);
+        return;
+      }
+      if (actionId === "pause_runtime") {
+        await handleRuntimeControl("pause");
+        return;
+      }
+      if (actionId === "resume_runtime") {
+        await handleRuntimeControl("resume");
+        return;
+      }
+      if (actionId === "force_replan") {
+        await handleRuntimeStep(true);
+        return;
+      }
+      if (actionId === "pick_1" || actionId === "pick_2" || actionId === "pick_3") {
+        await handleQuickAction(actionId);
+      }
+    },
+    [
+      handleConfirmBuild,
+      handleExportZip,
+      handleQuickAction,
+      handleRegenerateOutputs,
+      handleRegenerateTop3,
+      handleRunStep,
+      handleStartRuntimeGoal,
+      handleRuntimeControl,
+      handleRuntimeStep,
+      handleStartSession
+    ]
+  );
+
   const handleForceQueued = useCallback(
     async (queueId: string) => {
       const command = queuedRef.current.find((item) => item.id === queueId);
@@ -818,6 +900,63 @@ export function useAuroraController() {
   const buildConfirmRequired =
     sessionPayload?.session.current_step === "approve_build" && sessionPayload.session.auto_pick_top1 === false;
 
+  const top3ModelSource = useMemo<ModelSource>(() => {
+    const top3Artifact = (sessionPayload?.recent_artifacts ?? [])
+      .filter((artifact) => artifact.kind === "candidates_top3")
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+    const source = top3Artifact?.content?.source;
+    if (source === "openai") {
+      return "OPENAI";
+    }
+    if (source === "mock") {
+      return "MOCK";
+    }
+    return "UNKNOWN";
+  }, [sessionPayload?.recent_artifacts]);
+
+  const packReady = useMemo(() => {
+    if (!sessionPayload) {
+      return false;
+    }
+    return (
+      sessionPayload.session.current_step === "done" ||
+      sessionPayload.recent_artifacts.some((artifact) => artifact.kind === "pack_meta")
+    );
+  }, [sessionPayload]);
+
+  const rightPanelViewModel = useMemo<RightPanelViewModel>(() => {
+    const resolved = resolveGuidedActionViewModel({
+      sessionId,
+      status: sessionPayload?.session.status ?? "idle",
+      currentScene,
+      currentStep: sessionPayload?.session.current_step ?? "interview_collect",
+      top3Count: sessionPayload?.latest_top3?.length ?? 0,
+      selectedCandidateId: sessionPayload?.selected_candidate_id ?? null,
+      buildConfirmRequired,
+      runtimeGoalId,
+      packReady,
+      shouldQueueIntervention,
+      canStartSession
+    });
+    return {
+      ...resolved,
+      modelSource: top3ModelSource
+    };
+  }, [
+    buildConfirmRequired,
+    canStartSession,
+    currentScene,
+    packReady,
+    runtimeGoalId,
+    sessionId,
+    sessionPayload?.latest_top3?.length,
+    sessionPayload?.selected_candidate_id,
+    sessionPayload?.session.current_step,
+    sessionPayload?.session.status,
+    shouldQueueIntervention,
+    top3ModelSource
+  ]);
+
   return {
     mode,
     setMode,
@@ -852,6 +991,8 @@ export function useAuroraController() {
     queuedCommands,
     chatEntries,
     buildConfirmRequired,
+    top3ModelSource,
+    rightPanelViewModel,
     handleStartSession,
     handleRunStep,
     handleSelectCandidate,
@@ -859,6 +1000,7 @@ export function useAuroraController() {
     handleSendChat,
     handleSendRevise,
     handleQuickAction,
+    handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,

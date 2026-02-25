@@ -55,6 +55,7 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
     jobsPayload,
     runtimeGoalId,
     runtimeSnapshot,
+    top3ModelSource,
     busy,
     error,
     errorStatus,
@@ -75,6 +76,7 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
     handleConfirmBuild,
     handleSendChat,
     handleQuickAction,
+    handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,
@@ -380,8 +382,11 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
           sessionReady={Boolean(sessionId)}
           guided={false}
           defaultTab="jobs"
+          status={status}
+          modelSource={top3ModelSource}
           onSendChat={(message) => void handleSendChat(message)}
           onQuickAction={(actionId) => void handleQuickAction(actionId)}
+          onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
           onForceQueued={(queueId) => void handleForceQueued(queueId)}
           onDiscardQueued={handleDiscardQueued}
         />

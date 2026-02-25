@@ -12,7 +12,7 @@
     "check": "pnpm lint && pnpm typecheck",
     "ci:verify": "pnpm lint && pnpm typecheck && pnpm test:agent && pnpm build",
     "test:build": "rm -rf .tmp-tests && tsc -p tsconfig.tests.json",
-    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs",
+    "test:unit": "pnpm test:build && NODE_ENV=test node --test tests/unit/agent-core.test.cjs tests/unit/runtime-core.test.cjs tests/unit/page-aurora.test.cjs tests/unit/http-auth-redact.test.cjs tests/unit/guided-actions.test.cjs",
     "test:api": "pnpm test:build && NODE_ENV=test node --test tests/api/routes.test.cjs tests/api/runtime-routes.test.cjs tests/api/revise-route.test.cjs",
     "test:api:seed": "pnpm test:build && NODE_ENV=test ENABLE_DEV_SEED_API=true DEV_SEED_TOKEN=seed-test-token RUNTIME_ENABLED=true node --test tests/api/session-seed-matrix.test.cjs",
     "test:storage:file:contract": "pnpm test:build && NODE_ENV=test node --test tests/unit/storage-file-seed.contract.test.cjs",

@@ -157,3 +157,38 @@ export type QuickActionId =
   | "calmer"
   | "more_ritual"
   | "lock_style";
+
+export type GuidedActionId =
+  | "start_session"
+  | "run_step"
+  | "confirm_build"
+  | "regenerate_top3"
+  | "regenerate_outputs"
+  | "export_zip"
+  | "start_runtime_goal"
+  | "runtime_step"
+  | "pause_runtime"
+  | "resume_runtime"
+  | "force_replan"
+  | "pick_1"
+  | "pick_2"
+  | "pick_3";
+
+export type ModelSource = "OPENAI" | "MOCK" | "UNKNOWN";
+
+export type ActionHubAction = {
+  id: GuidedActionId;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+};
+
+export type RightPanelViewModel = {
+  status: AgentStatus | string;
+  modelSource: ModelSource;
+  primaryAction: ActionHubAction | null;
+  secondaryAction: ActionHubAction | null;
+  hint: string;
+  showRuntimeGroup: boolean;
+  hasRuntimeGoal: boolean;
+};
