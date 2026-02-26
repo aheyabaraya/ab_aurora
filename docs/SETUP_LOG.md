@@ -1,5 +1,27 @@
 # Setup Log
 
+## 2026-02-26 / aurora-openai-chat-v1
+- Confirmed `/api/chat` OpenAI path is production-ready with additive response metadata:
+  - `assistant_source`, `rate_limited`, `rate_limit {limit, used, remaining}`
+- Locked `/api/chat` key contract:
+  - `OPENAI_API_KEY` missing -> `503` (configuration guidance)
+- Locked per-session 24h chat guard behavior:
+  - OpenAI limit exceeded -> action still applies, assistant degrades to `rate_limited`
+- Enabled OpenAI image model usage for social assets in `approve_build`:
+  - `OPENAI_MODEL_IMAGE` path now calls `/v1/images/generations`
+  - fallback follows `OPENAI_FALLBACK_MODE` (`deterministic_mock` or strict `none`)
+- Strengthened API tests for metadata persistence in `recent_messages`:
+  - `tests/api/routes.test.cjs`
+  - `tests/api/session-seed-matrix.test.cjs`
+- Added focused unit contracts:
+  - `tests/unit/chat-openai-contract.test.cjs`
+  - `tests/unit/controller-chat-sync.test.cjs`
+- Extended test scripts to include new unit coverage:
+  - `package.json` `test:unit`, `test:coverage:agent`
+- Verified gates:
+  - `pnpm ci:verify` pass
+  - `pnpm test:coverage:agent` pass
+
 ## 2026-02-20
 - Implemented runtime-first vertical slice control plane:
   - `lib/runtime/types.ts`

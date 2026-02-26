@@ -123,12 +123,21 @@ Required migrations:
 
 - `OPENAI_API_KEY` (optional when fallback mode is active)
 - `OPENAI_MODEL_TEXT` (default `gpt-4o`)
-- `OPENAI_MODEL_IMAGE` (default `gpt-image-1`)
+- `OPENAI_MODEL_IMAGE` (default `gpt-image-1`, used for social asset image generation in `approve_build`)
+- `CHAT_OPENAI_LIMIT_PER_DAY` (default `30`, per-session rolling 24h on `/api/chat`)
+- `CHAT_OPENAI_MAX_TOKENS` (default `220`)
+- `CHAT_OPENAI_TEMPERATURE` (default `0.2`)
+
+`/api/chat` runtime behavior:
+- `OPENAI_API_KEY` missing -> `503` with setup guidance
+- key present + within limit -> `assistant_source=openai`
+- key present + over session limit -> action is still applied, assistant degrades to `assistant_source=rate_limited`
+- provider error -> action is still applied, assistant degrades to `assistant_source=fallback`
 
 Behavior-test conservative profile (recommended when using a real key):
 - `RUNTIME_ENABLED=false`
 - `AUTO_CONTINUE=false`
-- `CANDIDATE_COUNT=3`
+- `CANDIDATE_COUNT=3` (recommended minimum for low-cost behavior checks)
 - `TOP_K=3`
 - `MAX_REVISIONS=0`
 - `CONCURRENT_JOB_LIMIT=1`

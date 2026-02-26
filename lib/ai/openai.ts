@@ -73,6 +73,86 @@ function promptForCandidates(input: {
   ].join("\n");
 }
 
+const SOCIAL_IMAGE_SPECS = [
+  {
+    key: "post_1200x675",
+    size: "1536x1024",
+    intent: "landscape social cover"
+  },
+  {
+    key: "post_1080x1080",
+    size: "1024x1024",
+    intent: "square social post"
+  },
+  {
+    key: "post_1080x1920",
+    size: "1024x1536",
+    intent: "vertical story post"
+  }
+] as const;
+
+type SocialImageKey = (typeof SOCIAL_IMAGE_SPECS)[number]["key"];
+
+function toMockSocialAssetUrl(input: { sessionId: string; key: SocialImageKey }): string {
+  return `generated://${input.sessionId}/social/${input.key}.png`;
+}
+
+function toSocialAssetPrompt(input: {
+  candidate: Candidate;
+  intent: string;
+}): string {
+  return [
+    "Create a premium brand visual for social media.",
+    "No readable text, no watermark, no logo marks.",
+    "Keep calm ritual mood with restrained cyan glow and deep navy-charcoal base.",
+    `Visual intent: ${input.intent}.`,
+    `Name cue: ${input.candidate.naming.recommended}.`,
+    `Moodboard title: ${input.candidate.moodboard.title}.`,
+    `Moodboard prompt: ${input.candidate.moodboard.prompt}.`,
+    `Palette hint: ${input.candidate.moodboard.colors.join(", ")}.`
+  ].join("\n");
+}
+
+async function generateOpenAiImageUrl(input: {
+  prompt: string;
+  size: (typeof SOCIAL_IMAGE_SPECS)[number]["size"];
+}): Promise<string> {
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL_IMAGE,
+      prompt: input.prompt,
+      size: input.size,
+      n: 1
+    }),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`OpenAI image call failed (${response.status}): ${errorBody}`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<{
+      url?: string;
+      b64_json?: string;
+    }>;
+  };
+  const first = payload.data?.[0];
+  if (first?.url && typeof first.url === "string") {
+    return first.url;
+  }
+  if (first?.b64_json && typeof first.b64_json === "string") {
+    return `data:image/png;base64,${first.b64_json}`;
+  }
+  throw new Error("OpenAI image call returned empty image payload.");
+}
+
 export async function generateCandidatesWithFallback(input: {
   sessionId: string;
   product: string;
@@ -185,4 +265,73 @@ export function generateFollowupSocialAsset(input: {
     caption,
     hashtags
   };
+}
+
+export async function generateSocialAssetsWithFallback(input: {
+  sessionId: string;
+  candidate: Candidate;
+}): Promise<{
+  post_1200x675: string;
+  post_1080x1080: string;
+  post_1080x1920: string;
+  captions: string[];
+  source: "openai" | "mock";
+  model: string;
+}> {
+  const captions = [
+    `${input.candidate.naming.recommended} - launch your brand direction from a ranked Top-3.`,
+    `Selected candidate ${input.candidate.rank}: now converted to tokens and build plan.`
+  ];
+
+  const mockAssets = {
+    post_1200x675: toMockSocialAssetUrl({
+      sessionId: input.sessionId,
+      key: "post_1200x675"
+    }),
+    post_1080x1080: toMockSocialAssetUrl({
+      sessionId: input.sessionId,
+      key: "post_1080x1080"
+    }),
+    post_1080x1920: toMockSocialAssetUrl({
+      sessionId: input.sessionId,
+      key: "post_1080x1920"
+    }),
+    captions,
+    source: "mock" as const,
+    model: env.OPENAI_MODEL_IMAGE
+  };
+
+  if (!env.OPENAI_API_KEY) {
+    return mockAssets;
+  }
+
+  try {
+    const generated = await Promise.all(
+      SOCIAL_IMAGE_SPECS.map(async (spec) => {
+        const url = await generateOpenAiImageUrl({
+          prompt: toSocialAssetPrompt({
+            candidate: input.candidate,
+            intent: spec.intent
+          }),
+          size: spec.size
+        });
+        return [spec.key, url] as const;
+      })
+    );
+
+    const map = Object.fromEntries(generated) as Record<SocialImageKey, string>;
+    return {
+      post_1200x675: map.post_1200x675,
+      post_1080x1080: map.post_1080x1080,
+      post_1080x1920: map.post_1080x1920,
+      captions,
+      source: "openai",
+      model: env.OPENAI_MODEL_IMAGE
+    };
+  } catch (error) {
+    if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
+      throw error;
+    }
+    return mockAssets;
+  }
 }

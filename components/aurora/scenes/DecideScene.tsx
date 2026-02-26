@@ -41,6 +41,7 @@ export function DecideScene({
         selectedCandidateId={selectedCandidateId}
         busy={busy}
         buildRequired={buildRequired}
+        preferChatCommands
         onSelect={onSelect}
         onConfirmBuild={onConfirmBuild}
       />

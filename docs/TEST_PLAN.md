@@ -18,6 +18,12 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 - `memory`
   - session memory upsert/read
   - brand memory merge when `RUNTIME_MEMORY_PERSIST=true`
+- `chat-openai-contract`
+  - prompt includes compact option hints and command guidance
+  - rate-limited/fallback reply format remains stable
+- `controller-chat-sync`
+  - slash chat execution path refreshes session/runtime snapshots
+  - command execution metadata mapping (`assistantSource`, `rateLimited`) is fixed
 
 ---
 
@@ -34,6 +40,9 @@ Goal: verify runtime-first loop behavior without breaking existing stage APIs.
 - backward compatibility
   - `/api/agent/run-step` returns legacy shape + optional `runtime_meta`
   - `/api/chat` returns legacy shape + optional `runtime_meta`
+- `/api/chat` assistant metadata contract
+  - response includes `assistant_source`, `rate_limited`, `rate_limit`
+  - metadata is persisted on assistant messages and visible in `GET /api/sessions/:id`
 - seed matrix (`tests/api/session-seed-matrix.test.cjs`)
   - `POST /api/dev/seed/session` preset 생성 검증 (`fresh/top3_ready/selected_ready/build_confirm_required/package_ready/done`)
   - dev seed auth/guard 검증 (`401/404/403`)

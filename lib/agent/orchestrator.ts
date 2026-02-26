@@ -2,7 +2,11 @@ import { brandSpecDraftSchema, brandSpecFinalSchema } from "../brand-spec.schema
 import { env } from "../env";
 import type { StorageRepository } from "../storage/types";
 import { sha256 } from "../utils/hash";
-import { generateFollowupSocialAsset, generateCandidatesWithFallback } from "../ai/openai";
+import {
+  generateFollowupSocialAsset,
+  generateCandidatesWithFallback,
+  generateSocialAssetsWithFallback
+} from "../ai/openai";
 import { toVariationWidth } from "./candidate";
 import type {
   AgentStep,
@@ -587,15 +591,10 @@ async function executeStep(
       spacing: { base: 8, scale: [8, 12, 16, 24, 32] },
       radius: { card: 16, button: 10 }
     };
-    const socialAssets = {
-      post_1200x675: `generated://${session.id}/social/post_1200x675.png`,
-      post_1080x1080: `generated://${session.id}/social/post_1080x1080.png`,
-      post_1080x1920: `generated://${session.id}/social/post_1080x1920.png`,
-      captions: [
-        `${selectedCandidate.naming.recommended} - launch your brand direction from a ranked Top-3.`,
-        `Selected candidate ${selectedCandidate.rank}: now converted to tokens and build plan.`
-      ]
-    };
+    const socialAssets = await generateSocialAssetsWithFallback({
+      sessionId: session.id,
+      candidate: selectedCandidate
+    });
     const codePlan = {
       stack: "nextjs-tailwind",
       components: ["HeroSection", "ProofStrip", "FeatureGrid", "FinalCTA"],

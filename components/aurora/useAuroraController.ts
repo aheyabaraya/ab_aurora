@@ -6,6 +6,7 @@ import {
   AGENT_STEPS,
   type ArtifactRecord,
   type ChatEntry,
+  type CommandExecutionResult,
   type GuidedActionId,
   type JobsPayload,
   type ModelSource,
@@ -18,6 +19,11 @@ import {
 } from "./types";
 import { ASSET_BASE } from "./aurora-assets";
 import { resolveGuidedActionViewModel } from "./guided-actions";
+import {
+  buildSlashHelpText,
+  parseSlashCommand,
+  validateSlashCommandContext
+} from "./slash-commands";
 
 class ApiError extends Error {
   status: number;
@@ -34,6 +40,8 @@ type RequestInitWithBody = RequestInit & {
   body?: string;
 };
 
+type RequestJsonFn = <T>(url: string, init?: RequestInitWithBody) => Promise<T>;
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -43,6 +51,87 @@ function toErrorMessage(error: unknown): string {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+export type ChatApiResponse = {
+  runtime_meta?: {
+    goal_id?: string;
+  };
+  assistant_source?: "openai" | "rate_limited" | "fallback";
+  rate_limited?: boolean;
+  rate_limit?: {
+    limit: number;
+    used: number;
+    remaining: number;
+  };
+};
+
+type SendChatAndSyncInput = {
+  sessionId: string | null;
+  runtimeGoalId: string | null;
+  message: string;
+  requestJson: RequestJsonFn;
+  setRuntimeGoalId: (goalId: string) => void;
+  refreshRuntimeGoal: (goalId: string) => Promise<void>;
+  refreshSession: (sessionId: string) => Promise<void>;
+};
+
+export async function sendChatAndSync(input: SendChatAndSyncInput): Promise<ChatApiResponse> {
+  if (!input.sessionId) {
+    return {};
+  }
+
+  const response = await input.requestJson<ChatApiResponse>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      session_id: input.sessionId,
+      message: input.message
+    })
+  });
+
+  if (response.runtime_meta?.goal_id) {
+    input.setRuntimeGoalId(response.runtime_meta.goal_id);
+    await input.refreshRuntimeGoal(response.runtime_meta.goal_id);
+  } else if (input.runtimeGoalId) {
+    await input.refreshRuntimeGoal(input.runtimeGoalId);
+  }
+  await input.refreshSession(input.sessionId);
+  return response;
+}
+
+export function getCommandExecutionMeta(response: ChatApiResponse | null | undefined): Pick<CommandExecutionResult, "assistantSource" | "rateLimited"> {
+  return {
+    assistantSource: response?.assistant_source,
+    rateLimited: response?.rate_limited
+  };
+}
+
+function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
+  if (stage === "top3_select") {
+    const candidates = (payload?.latest_top3 ?? []).slice(0, 3);
+    const optionLines = candidates.map((candidate, index) => {
+      return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.rationale.slice(0, 52)})`;
+    });
+    optionLines.push("- /regen top3: 후보 3개를 다시 생성");
+    return `DECIDE 선택 단계입니다.\n${optionLines.join("\n")}`;
+  }
+
+  if (stage === "approve_build") {
+    if (payload?.session.auto_pick_top1 === false) {
+      return "Build 확인 단계입니다. /build 로 확정하거나 /regen top3 로 후보를 다시 생성할 수 있습니다.";
+    }
+    return "Build 승인 처리 단계입니다. 필요 시 /run 으로 다음 진행을 트리거하세요.";
+  }
+
+  if (stage === "package" || stage === "done") {
+    return "PACKAGE 단계입니다. /export 로 내보내거나 /regen outputs 로 산출물만 재생성할 수 있습니다.";
+  }
+
+  if (stage === "candidates_generate") {
+    return "EXPLORE 단계입니다. Top-3 생성 대기 중이며 /run 으로 다음 실행을 진행할 수 있습니다.";
+  }
+
+  return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
 }
 
 type ActionFn = () => Promise<void>;
@@ -254,29 +343,16 @@ export function useAuroraController() {
   }, []);
 
   const sendChatImmediate = useCallback(
-    async (message: string) => {
-      if (!sessionId) {
-        return;
-      }
-      const response = await requestJson<{
-        runtime_meta?: {
-          goal_id?: string;
-        };
-      }>("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          session_id: sessionId,
-          message
-        })
+    async (message: string): Promise<ChatApiResponse> => {
+      return sendChatAndSync({
+        sessionId,
+        runtimeGoalId,
+        message,
+        requestJson,
+        setRuntimeGoalId,
+        refreshRuntimeGoal,
+        refreshSession
       });
-
-      if (response.runtime_meta?.goal_id) {
-        setRuntimeGoalId(response.runtime_meta.goal_id);
-        await refreshRuntimeGoal(response.runtime_meta.goal_id);
-      } else if (runtimeGoalId) {
-        await refreshRuntimeGoal(runtimeGoalId);
-      }
-      await refreshSession(sessionId);
     },
     [refreshRuntimeGoal, refreshSession, requestJson, runtimeGoalId, sessionId]
   );
@@ -384,12 +460,13 @@ export function useAuroraController() {
     const previousStage = stageRef.current;
     if (previousStage && previousStage !== currentStage) {
       const scene = resolveSceneFromStep(currentStage);
+      const guide = buildStageGuideMessage(currentStage, sessionPayload);
       setStageMessages((current) => [
         ...current,
         {
           id: `stage_${crypto.randomUUID()}`,
           type: "system",
-          content: `Scene transitioned to ${scene} (${currentStage}).`,
+          content: `Scene transitioned to ${scene} (${currentStage}).\n${guide}`,
           createdAt: nowIso(),
           subtitle: "stage update"
         }
@@ -398,7 +475,7 @@ export function useAuroraController() {
     }
 
     stageRef.current = currentStage;
-  }, [flushQueuedCommands, sessionPayload?.session.current_step]);
+  }, [flushQueuedCommands, sessionPayload]);
 
   const handleStartSession = useCallback(async () => {
     if (!canStartSession) {
@@ -586,25 +663,27 @@ export function useAuroraController() {
   );
 
   const handleRuntimeControl = useCallback(
-    async (message: string) => {
+    async (message: string): Promise<ChatApiResponse | null> => {
       if (!sessionId) {
-        return;
+        return null;
       }
 
+      let response: ChatApiResponse | null = null;
       const run = async () => {
-        await sendChatImmediate(message);
+        response = await sendChatImmediate(message);
       };
 
-      await runWithRecovery(run, run);
+      const success = await runWithRecovery(run, run);
+      return success ? response : null;
     },
     [runWithRecovery, sendChatImmediate, sessionId]
   );
 
   const handleSendChat = useCallback(
-    async (message: string) => {
+    async (message: string): Promise<ChatApiResponse | null> => {
       const trimmed = message.trim();
       if (!sessionId || trimmed.length === 0) {
-        return;
+        return null;
       }
 
       if (shouldQueueIntervention) {
@@ -613,14 +692,16 @@ export function useAuroraController() {
           payload: trimmed,
           label: `Queued chat: ${trimmed}`
         });
-        return;
+        return null;
       }
 
+      let response: ChatApiResponse | null = null;
       const run = async () => {
-        await sendChatImmediate(trimmed);
+        response = await sendChatImmediate(trimmed);
       };
 
-      await runWithRecovery(run, run);
+      const success = await runWithRecovery(run, run);
+      return success ? response : null;
     },
     [appendQueuedCommand, runWithRecovery, sendChatImmediate, sessionId, shouldQueueIntervention]
   );
@@ -765,6 +846,166 @@ export function useAuroraController() {
 
     await runWithRecovery(run, run);
   }, [runWithRecovery, runtimeSnapshot?.goal, sessionId, sessionPayload]);
+
+  const executeSlashCommand = useCallback(
+    async (raw: string): Promise<CommandExecutionResult> => {
+      const trimmed = raw.trim();
+      if (trimmed.length === 0) {
+        return {
+          accepted: false,
+          kind: "chat",
+          message: "명령을 입력하세요."
+        };
+      }
+
+      if (!trimmed.startsWith("/")) {
+        if (!sessionId) {
+          const message = "Session is required. Run /start first.";
+          setError(message);
+          setErrorStatus(null);
+          return {
+            accepted: false,
+            kind: "chat",
+            message
+          };
+        }
+        const response = await handleSendChat(trimmed);
+        return {
+          accepted: true,
+          kind: "chat",
+          ...getCommandExecutionMeta(response)
+        };
+      }
+
+      const parsed = parseSlashCommand(trimmed);
+      if (!parsed) {
+        const message = "Unknown slash command. Try /help.";
+        setError(message);
+        setErrorStatus(null);
+        return {
+          accepted: false,
+          kind: "slash",
+          message
+        };
+      }
+
+      const contextMessage = validateSlashCommandContext(parsed.spec, {
+        sessionReady: Boolean(sessionId),
+        runtimeGoalReady: Boolean(runtimeGoalId)
+      });
+      if (contextMessage) {
+        setError(contextMessage);
+        setErrorStatus(null);
+        return {
+          accepted: false,
+          kind: "slash",
+          commandId: parsed.id,
+          message: contextMessage
+        };
+      }
+
+      if (shouldQueueIntervention && !parsed.spec.queueable) {
+        const message = "This command can not be queued. Wait for current stage to finish.";
+        setError(message);
+        setErrorStatus(null);
+        return {
+          accepted: false,
+          kind: "slash",
+          commandId: parsed.id,
+          message
+        };
+      }
+
+      if (parsed.id === "help") {
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: "help",
+          message: buildSlashHelpText()
+        };
+      }
+
+      if (parsed.id === "start_session") {
+        await handleStartSession();
+      } else if (parsed.id === "run_step") {
+        await handleRunStep();
+      } else if (parsed.id === "confirm_build") {
+        await handleConfirmBuild();
+      } else if (parsed.id === "pick_1" || parsed.id === "pick_2" || parsed.id === "pick_3") {
+        const pickCommand = parsed.id === "pick_1" ? "pick 1" : parsed.id === "pick_2" ? "pick 2" : "pick 3";
+        const response = await handleSendChat(pickCommand);
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          ...getCommandExecutionMeta(response)
+        };
+      } else if (parsed.id === "regenerate_top3") {
+        const response = await handleSendChat("rerun candidates");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          ...getCommandExecutionMeta(response)
+        };
+      } else if (parsed.id === "regenerate_outputs") {
+        await handleRegenerateOutputs();
+      } else if (parsed.id === "export_zip") {
+        await handleExportZip();
+      } else if (parsed.id === "tone_editorial") {
+        await handleSendRevise("Make it more editorial while keeping current brand premise.");
+      } else if (parsed.id === "tone_less_futuristic") {
+        await handleSendRevise("Reduce futuristic accents and keep a calmer premium tone.");
+      } else if (parsed.id === "tone_calmer") {
+        await handleSendRevise("Make the direction calmer and quieter.");
+      } else if (parsed.id === "tone_ritual") {
+        await handleSendRevise("Increase ritual mood while preserving readability and restraint.");
+      } else if (parsed.id === "start_runtime_goal") {
+        await handleStartRuntimeGoal();
+      } else if (parsed.id === "runtime_step") {
+        await handleRuntimeStep(false);
+      } else if (parsed.id === "pause_runtime") {
+        const response = await handleRuntimeControl("pause");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          ...getCommandExecutionMeta(response)
+        };
+      } else if (parsed.id === "resume_runtime") {
+        const response = await handleRuntimeControl("resume");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          ...getCommandExecutionMeta(response)
+        };
+      } else if (parsed.id === "force_replan") {
+        await handleRuntimeStep(true);
+      }
+
+      return {
+        accepted: true,
+        kind: "slash",
+        commandId: parsed.id
+      };
+    },
+    [
+      handleConfirmBuild,
+      handleExportZip,
+      handleRegenerateOutputs,
+      handleRunStep,
+      handleRuntimeControl,
+      handleRuntimeStep,
+      handleSendChat,
+      handleSendRevise,
+      handleStartRuntimeGoal,
+      handleStartSession,
+      runtimeGoalId,
+      sessionId,
+      shouldQueueIntervention
+    ]
+  );
 
   const handleRunGuidedAction = useCallback(
     async (actionId: GuidedActionId) => {
@@ -998,6 +1239,7 @@ export function useAuroraController() {
     handleSelectCandidate,
     handleConfirmBuild,
     handleSendChat,
+    executeSlashCommand,
     handleSendRevise,
     handleQuickAction,
     handleRunGuidedAction,

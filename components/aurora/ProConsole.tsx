@@ -70,13 +70,13 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
     queuedCommands,
     shouldQueueIntervention,
     buildConfirmRequired,
+    executeSlashCommand,
     handleStartSession,
     handleRunStep,
     handleSelectCandidate,
     handleConfirmBuild,
     handleSendChat,
     handleQuickAction,
-    handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,
@@ -291,7 +291,7 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
           </ol>
 
           <div className="mt-5">
-            <Progress4 scene={currentScene} status={status} />
+            <Progress4 scene={currentScene} />
             <div className="mt-4">
               <SceneRouter scene={currentScene} stage={stage}>
                 {!sessionId ? (
@@ -386,7 +386,7 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
           modelSource={top3ModelSource}
           onSendChat={(message) => void handleSendChat(message)}
           onQuickAction={(actionId) => void handleQuickAction(actionId)}
-          onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
+          onExecuteSlash={(raw) => executeSlashCommand(raw)}
           onForceQueued={(queueId) => void handleForceQueued(queueId)}
           onDiscardQueued={handleDiscardQueued}
         />

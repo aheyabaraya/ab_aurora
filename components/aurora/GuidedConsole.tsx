@@ -18,22 +18,6 @@ type GuidedConsoleProps = {
   onSwitchUiMode: (mode: "guided" | "pro") => void;
 };
 
-function statusBadge(status: string): string {
-  if (status === "completed") {
-    return "border-emerald-300/60 bg-emerald-500/15 text-emerald-100";
-  }
-  if (status === "running") {
-    return "border-cyan-300/60 bg-cyan-500/15 text-cyan-100";
-  }
-  if (status === "wait_user") {
-    return "border-amber-300/60 bg-amber-500/15 text-amber-100";
-  }
-  if (status === "failed") {
-    return "border-rose-300/60 bg-rose-500/15 text-rose-100";
-  }
-  return "border-slate-700 bg-slate-900/70 text-slate-200";
-}
-
 export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps) {
   const {
     mode,
@@ -66,11 +50,9 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     buildConfirmRequired,
     rightPanelViewModel,
     top3ModelSource,
+    executeSlashCommand,
     handleSelectCandidate,
     handleConfirmBuild,
-    handleSendChat,
-    handleQuickAction,
-    handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,
@@ -81,7 +63,6 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
   } = controller;
 
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
-  const status = sessionPayload?.session.status ?? "idle";
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
@@ -95,9 +76,6 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">
                 {sessionId ? "Runtime Status" : "Setup"}
               </p>
-              <span className={`rounded-full border px-2 py-1 text-[11px] uppercase tracking-wider ${statusBadge(status)}`}>
-                {status}
-              </span>
             </div>
 
             {!sessionId ? (
@@ -178,7 +156,6 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <p>Session: {sessionPayload?.session.id ?? sessionId}</p>
                 <p>Scene: {currentScene}</p>
                 <p>Step: {stage}</p>
-                <p>Status: {status}</p>
                 <p>Top-3: {latestTop3.length}</p>
                 <p>Selected: {sessionPayload?.selected_candidate_id ?? "none"}</p>
               </div>
@@ -208,26 +185,17 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
               </div>
             ) : null}
 
-            <button
-              className="mt-4 inline-block text-xs text-cyan-200 underline-offset-4 hover:underline"
-              onClick={() => onSwitchUiMode("pro")}
-            >
-              Switch to Pro Console
-            </button>
           </article>
 
           <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
-            <header className="mb-4 flex items-start justify-between gap-3">
+            <header className="mb-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
                 <h1 className="text-2xl font-semibold text-cyan-100">Aurora Guided Flow</h1>
               </div>
-              <span className={`rounded-full border px-3 py-1 text-xs uppercase tracking-wider ${statusBadge(status)}`}>
-                {status}
-              </span>
             </header>
 
-            <Progress4 scene={currentScene} status={status} />
+            <Progress4 scene={currentScene} />
 
             <div className="mt-5">
               <SceneRouter scene={currentScene} stage={stage}>
@@ -242,7 +210,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                     <div className="space-y-2 p-4">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Define</p>
                       <p className="text-sm text-slate-200">
-                        브리프를 작성한 뒤 우측 Next Action으로 세션을 시작하세요.
+                        브리프를 작성한 뒤 우측 Chat Dock에서 `/start` 명령으로 세션을 시작하세요.
                       </p>
                     </div>
                   </div>
@@ -303,9 +271,8 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
             status={rightPanelViewModel.status}
             modelSource={rightPanelViewModel.modelSource}
             actionHub={rightPanelViewModel}
-            onSendChat={(message) => void handleSendChat(message)}
-            onQuickAction={(actionId) => void handleQuickAction(actionId)}
-            onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
+            onExecuteSlash={(raw) => executeSlashCommand(raw)}
+            onSwitchUiMode={onSwitchUiMode}
             onForceQueued={(queueId) => void handleForceQueued(queueId)}
             onDiscardQueued={handleDiscardQueued}
           />

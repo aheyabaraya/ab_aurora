@@ -57,6 +57,7 @@ export function ExploreScene({
         selectedCandidateId={selectedCandidateId}
         busy={busy}
         buildRequired={false}
+        preferChatCommands
         onSelect={onSelect}
         onConfirmBuild={onConfirmBuild}
       />

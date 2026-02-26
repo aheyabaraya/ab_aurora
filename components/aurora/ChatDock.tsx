@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { filterSlashCommands } from "./slash-commands";
 import type {
   ArtifactRecord,
   ChatEntry,
-  GuidedActionId,
+  CommandExecutionResult,
   JobsPayload,
   ModelSource,
   QueuedCommand,
@@ -27,35 +28,13 @@ type ChatDockProps = {
   status?: string;
   modelSource?: ModelSource;
   actionHub?: RightPanelViewModel | null;
-  onSendChat: (message: string) => void;
-  onQuickAction: (actionId: QuickActionId) => void;
-  onRunGuidedAction?: (actionId: GuidedActionId) => void;
+  onSendChat?: (message: string) => void;
+  onQuickAction?: (actionId: QuickActionId) => void;
+  onExecuteSlash?: (raw: string) => Promise<CommandExecutionResult>;
+  onSwitchUiMode?: (mode: "guided" | "pro") => void;
   onForceQueued: (queueId: string) => void;
   onDiscardQueued: (queueId: string) => void;
 };
-
-const CANDIDATE_ACTIONS: Array<{ id: QuickActionId; label: string }> = [
-  { id: "pick_1", label: "Pick #1" },
-  { id: "pick_2", label: "Pick #2" },
-  { id: "pick_3", label: "Pick #3" },
-  { id: "regenerate_top3", label: "Regenerate Top-3" }
-];
-
-const STYLE_ACTIONS: Array<{ id: QuickActionId; label: string }> = [
-  { id: "more_editorial", label: "More editorial" },
-  { id: "reduce_futuristic", label: "Reduce futuristic" },
-  { id: "calmer", label: "Calmer" },
-  { id: "more_ritual", label: "More ritual" },
-  { id: "lock_style", label: "Lock style" }
-];
-
-const RUNTIME_ACTIONS: Array<{ id: GuidedActionId; label: string; requireGoal?: boolean }> = [
-  { id: "start_runtime_goal", label: "Start Runtime Goal" },
-  { id: "runtime_step", label: "Runtime Step", requireGoal: true },
-  { id: "pause_runtime", label: "Pause" },
-  { id: "resume_runtime", label: "Resume" },
-  { id: "force_replan", label: "Force Replan", requireGoal: true }
-];
 
 function roleClass(type: ChatEntry["type"]): string {
   if (type === "user") {
@@ -121,112 +100,120 @@ export function ChatDock({
   modelSource = "UNKNOWN",
   actionHub,
   onSendChat,
-  onQuickAction,
-  onRunGuidedAction,
+  onExecuteSlash,
+  onSwitchUiMode,
   onForceQueued,
   onDiscardQueued
 }: ChatDockProps) {
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
-  const [showJobsTab, setShowJobsTab] = useState(!guided);
-  const [showPanels, setShowPanels] = useState(!guided);
-  const [showStyleTools, setShowStyleTools] = useState(false);
-  const [showRuntimeTools, setShowRuntimeTools] = useState(false);
   const [input, setInput] = useState("");
-  const currentTab: TabId = showPanels ? activeTab : "chat";
+  const [commandNotice, setCommandNotice] = useState("");
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const [isComposing, setIsComposing] = useState(false);
 
-  const pinnedIds = new Set<string>();
-  if (actionHub?.primaryAction?.id) {
-    pinnedIds.add(actionHub.primaryAction.id);
-  }
-  if (actionHub?.secondaryAction?.id) {
-    pinnedIds.add(actionHub.secondaryAction.id);
-  }
+  const slashMatches = useMemo(() => filterSlashCommands(input).slice(0, 10), [input]);
+  const showSlashPopover = activeTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
+  const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
 
-  const quickCandidateActions = CANDIDATE_ACTIONS.filter((action) => !pinnedIds.has(action.id));
-  const quickStyleActions = STYLE_ACTIONS.filter((action) => !pinnedIds.has(action.id));
-  const quickRuntimeActions = RUNTIME_ACTIONS.filter((action) => !pinnedIds.has(action.id));
-
-  const showRuntimeSection = sessionReady && (!guided || Boolean(actionHub?.showRuntimeGroup) || Boolean(actionHub?.hasRuntimeGoal));
-
-  const send = () => {
-    if (!sessionReady || input.trim().length === 0) {
+  const execute = async (raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
       return;
     }
-    onSendChat(input.trim());
-    setInput("");
-  };
 
-  const runPinnedAction = (actionId: GuidedActionId) => {
-    if (!onRunGuidedAction) {
+    if (!onExecuteSlash) {
+      if (trimmed.startsWith("/")) {
+        setCommandNotice("Slash command execution is not configured.");
+        return;
+      }
+      if (!sessionReady) {
+        setCommandNotice("Session is required. Run /start first.");
+        return;
+      }
+      if (!onSendChat) {
+        setCommandNotice("Chat sender is not configured.");
+        return;
+      }
+      onSendChat(trimmed);
+      setInput("");
       return;
     }
-    onRunGuidedAction(actionId);
+
+    const result = await onExecuteSlash(trimmed);
+    if (result.message) {
+      setCommandNotice(result.message);
+    } else {
+      setCommandNotice("");
+    }
+    if (result.accepted) {
+      setInput("");
+      setHighlightIndex(0);
+    }
   };
 
-  const actionHint =
-    actionHub?.primaryAction?.disabledReason ?? actionHub?.secondaryAction?.disabledReason ?? actionHub?.hint ?? "";
+  const handleJobsTabClick = () => {
+    if (guided) {
+      onSwitchUiMode?.("pro");
+      return;
+    }
+    setActiveTab("jobs");
+  };
 
   return (
     <article className="flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Chat Dock</p>
-          <h2 className="text-lg font-semibold text-cyan-100">Intervention Console</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
-              {status}
-            </span>
-            <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
-              {modelSource}
-            </span>
-          </div>
+          <h2 className="text-lg font-semibold text-cyan-100">Command Console</h2>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          {guided ? (
-            <button
-              className="rounded-md border border-cyan-300/30 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/10"
-              onClick={() => setShowPanels((value) => !value)}
-            >
-              {showPanels ? "패널 숨기기" : "패널 보기"}
-            </button>
-          ) : null}
-          {!showJobsTab ? (
-            <button
-              className="rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-400/10"
-              onClick={() => {
-                setShowJobsTab(true);
-                setShowPanels(true);
-                setActiveTab("jobs");
-              }}
-            >
-              Pro 보기
-            </button>
-          ) : null}
+        <div className="mt-1 flex flex-wrap gap-2">
+          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
+            {status}
+          </span>
+          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
+            {modelSource}
+          </span>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            activeTab === "chat" ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100" : "border-slate-700 text-slate-300"
+          }`}
+          onClick={() => setActiveTab("chat")}
+        >
+          Chat
+        </button>
+        <button
+          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            activeTab === "artifacts"
+              ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
+              : "border-slate-700 text-slate-300"
+          }`}
+          onClick={() => setActiveTab("artifacts")}
+        >
+          Artifacts
+        </button>
+        <button
+          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            !guided && activeTab === "jobs"
+              ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
+              : "border-slate-700 text-slate-300"
+          }`}
+          onClick={handleJobsTabClick}
+        >
+          {guided ? "Jobs (Pro)" : "Jobs"}
+        </button>
       </div>
 
       {actionHub ? (
         <div className="mt-3 rounded-xl border border-cyan-300/25 bg-slate-900/70 p-3">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-200">Next Action</p>
-          {actionHub.primaryAction ? (
-            <button
-              className="mt-2 w-full rounded-lg border border-cyan-300/55 bg-cyan-400/15 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-55"
-              onClick={() => runPinnedAction(actionHub.primaryAction!.id)}
-              disabled={busy || actionHub.primaryAction.disabled || !onRunGuidedAction}
-            >
-              {actionHub.primaryAction.label}
-            </button>
-          ) : null}
-          {actionHub.secondaryAction ? (
-            <button
-              className="mt-2 w-full rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 disabled:opacity-55"
-              onClick={() => runPinnedAction(actionHub.secondaryAction!.id)}
-              disabled={busy || actionHub.secondaryAction.disabled || !onRunGuidedAction}
-            >
-              {actionHub.secondaryAction.label}
-            </button>
-          ) : null}
-          {actionHint ? <p className="mt-2 text-[11px] text-slate-300">{actionHint}</p> : null}
+          <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-200">Next Suggested Command</p>
+          <p className="mt-2 rounded-md border border-cyan-300/35 bg-cyan-500/10 px-2 py-1 text-sm font-semibold text-cyan-100">
+            {actionHub.suggestedCommand || "/help"}
+          </p>
+          <p className="mt-2 text-[11px] text-slate-300">{actionHub.suggestedReason || actionHub.hint}</p>
         </div>
       ) : null}
 
@@ -255,123 +242,8 @@ export function ChatDock({
         </div>
       ) : null}
 
-      {showPanels ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-              currentTab === "chat"
-                ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
-                : "border-slate-700 text-slate-300"
-            }`}
-            onClick={() => setActiveTab("chat")}
-          >
-            chat
-          </button>
-          <button
-            className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-              currentTab === "artifacts"
-                ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
-                : "border-slate-700 text-slate-300"
-            }`}
-            onClick={() => setActiveTab("artifacts")}
-          >
-            artifacts
-          </button>
-          {showJobsTab ? (
-            <button
-              className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-                currentTab === "jobs"
-                  ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
-                  : "border-slate-700 text-slate-300"
-              }`}
-              onClick={() => setActiveTab("jobs")}
-            >
-              jobs
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {currentTab === "chat" ? (
+      {activeTab === "chat" ? (
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          {sessionReady ? (
-            <div className="space-y-2">
-              {quickCandidateActions.length > 0 ? (
-                <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Pipeline Actions</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {quickCandidateActions.map((action) => (
-                      <button
-                        key={action.id}
-                        className="rounded-full border border-cyan-300/35 px-3 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-50"
-                        onClick={() => onQuickAction(action.id)}
-                        disabled={!sessionReady}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {quickStyleActions.length > 0 ? (
-                <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
-                  <button
-                    className="flex w-full items-center justify-between text-left text-[11px] uppercase tracking-[0.18em] text-slate-300"
-                    onClick={() => setShowStyleTools((value) => !value)}
-                  >
-                    Style Actions
-                    <span>{showStyleTools ? "−" : "+"}</span>
-                  </button>
-                  {showStyleTools ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {quickStyleActions.map((action) => (
-                        <button
-                          key={action.id}
-                          className="rounded-full border border-cyan-300/35 px-3 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-50"
-                          onClick={() => onQuickAction(action.id)}
-                          disabled={!sessionReady}
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {showRuntimeSection ? (
-                <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
-                  <button
-                    className="flex w-full items-center justify-between text-left text-[11px] uppercase tracking-[0.18em] text-slate-300"
-                    onClick={() => setShowRuntimeTools((value) => !value)}
-                  >
-                    Runtime Controls
-                    <span>{showRuntimeTools ? "−" : "+"}</span>
-                  </button>
-                  {showRuntimeTools ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {quickRuntimeActions.map((action) => (
-                        <button
-                          key={action.id}
-                          className="rounded-full border border-amber-300/35 px-3 py-1 text-[11px] text-amber-100 hover:bg-amber-400/10 disabled:opacity-50"
-                          onClick={() => runPinnedAction(action.id)}
-                          disabled={
-                            !sessionReady ||
-                            !onRunGuidedAction ||
-                            Boolean(action.requireGoal && !actionHub?.hasRuntimeGoal)
-                          }
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
           <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/50 p-2">
             <div className="h-full space-y-2 overflow-auto">
               {entries.map((entry) => (
@@ -380,6 +252,7 @@ export function ChatDock({
                     <p className="uppercase tracking-wide text-slate-300">{entry.type}</p>
                     <p className="text-[10px] text-slate-400">{formatTime(entry.createdAt)}</p>
                   </div>
+                  {entry.subtitle ? <p className="mb-1 text-[10px] text-slate-400">{entry.subtitle}</p> : null}
                   <p className="whitespace-pre-wrap text-slate-100">{entry.content}</p>
                 </div>
               ))}
@@ -397,21 +270,81 @@ export function ChatDock({
             >
               {shouldQueueIntervention ? "Queued: 다음 stage 시작 시 적용됩니다." : "Safe: 현재 stage에 바로 반영됩니다."}
             </div>
-            <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-              placeholder='e.g. "2번 후보로 바꿔"'
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  send();
-                }
-              }}
-            />
+
+            {commandNotice ? (
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
+                <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
+              </div>
+            ) : null}
+
+            <div className="relative">
+              <textarea
+                className="min-h-[74px] w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                placeholder='Type "/" for commands or send natural language.'
+                value={input}
+                onChange={(event) => {
+                  setInput(event.target.value);
+                  setHighlightIndex(0);
+                }}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                onKeyDown={(event) => {
+                  if (isComposing) {
+                    return;
+                  }
+
+                  if (showSlashPopover && event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setHighlightIndex((value) => (value + 1) % slashMatches.length);
+                    return;
+                  }
+
+                  if (showSlashPopover && event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setHighlightIndex((value) => (value - 1 + slashMatches.length) % slashMatches.length);
+                    return;
+                  }
+
+                  if (event.key === "Escape") {
+                    setInput("");
+                    setHighlightIndex(0);
+                    return;
+                  }
+
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (showSlashPopover && selectedCommand) {
+                      void execute(selectedCommand.canonical);
+                      return;
+                    }
+                    void execute(input);
+                  }
+                }}
+              />
+
+              {showSlashPopover ? (
+                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-lg border border-cyan-300/25 bg-slate-950/95 p-1 shadow-xl">
+                  {slashMatches.map((command, index) => (
+                    <button
+                      key={`${command.id}_${command.canonical}`}
+                      className={`w-full rounded-md px-2 py-2 text-left text-xs ${
+                        index === highlightIndex ? "bg-cyan-500/15 text-cyan-100" : "text-slate-200 hover:bg-slate-800"
+                      }`}
+                      onMouseEnter={() => setHighlightIndex(index)}
+                      onClick={() => void execute(command.canonical)}
+                    >
+                      <p className="font-semibold">{command.canonical}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">{command.help}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             <button
               className="w-full rounded-lg border border-cyan-300/40 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-60"
-              onClick={send}
-              disabled={!sessionReady || input.trim().length === 0}
+              onClick={() => void execute(input)}
+              disabled={busy || input.trim().length === 0}
             >
               Send Command {busy ? "(processing)" : ""}
             </button>
@@ -419,7 +352,7 @@ export function ChatDock({
         </div>
       ) : null}
 
-      {currentTab === "artifacts" ? (
+      {activeTab === "artifacts" ? (
         <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700 bg-slate-900/50 p-2">
           <div className="space-y-2">
             {artifacts.map((artifact) => (
@@ -434,7 +367,7 @@ export function ChatDock({
         </div>
       ) : null}
 
-      {currentTab === "jobs" ? (
+      {!guided && activeTab === "jobs" ? (
         <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700 bg-slate-900/50 p-2">
           <div className="space-y-2">
             {jobs.map((job) => (

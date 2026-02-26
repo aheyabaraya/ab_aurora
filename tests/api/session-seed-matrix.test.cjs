@@ -2,6 +2,7 @@ process.env.NODE_ENV = "test";
 process.env.RUNTIME_ENABLED = "true";
 process.env.ENABLE_DEV_SEED_API = "true";
 process.env.DEV_SEED_TOKEN = "seed-test-token";
+process.env.OPENAI_API_KEY = "test-openai-key";
 
 const { randomUUID } = require("node:crypto");
 const test = require("node:test");
@@ -25,6 +26,129 @@ const {
 function asJson(response) {
   return response.json();
 }
+
+function createCandidatePayload() {
+  return {
+    candidates: [
+      {
+        naming: {
+          recommended: "Astra",
+          candidates: ["Astra", "Auralis"]
+        },
+        moodboard: {
+          title: "Orbital calm",
+          prompt: "deep navy with calm cyan accents",
+          colors: ["#0a1022", "#0d1f3d", "#5ed6e5"]
+        },
+        ui_plan: {
+          headline: "Build in calm momentum",
+          layout: ["hero", "proof", "cta"],
+          cta: "Start now"
+        },
+        rationale: "Balanced premium tone for focused builders."
+      },
+      {
+        naming: {
+          recommended: "Noxline",
+          candidates: ["Noxline", "Nightrail"]
+        },
+        moodboard: {
+          title: "Nocturne ritual",
+          prompt: "ritual mood with low contrast gradients",
+          colors: ["#090d18", "#1a2235", "#c6a65d"]
+        },
+        ui_plan: {
+          headline: "Ritualized launches",
+          layout: ["hero", "gallery", "faq"],
+          cta: "Generate pack"
+        },
+        rationale: "Quiet ritual framing with restrained luxury."
+      },
+      {
+        naming: {
+          recommended: "Helixplain",
+          candidates: ["Helixplain", "Plainloop"]
+        },
+        moodboard: {
+          title: "Editorial structure",
+          prompt: "editorial typography and clean geometry",
+          colors: ["#0f172a", "#1f2937", "#38bdf8"]
+        },
+        ui_plan: {
+          headline: "Editorial by default",
+          layout: ["hero", "features", "social"],
+          cta: "Open builder"
+        },
+        rationale: "Clear hierarchy for conversion-focused storytelling."
+      }
+    ]
+  };
+}
+
+function mockOpenAiFetch() {
+  return async (_url, init) => {
+    const targetUrl = typeof _url === "string" ? _url : _url instanceof URL ? _url.toString() : String(_url);
+    if (targetUrl.includes("/images/generations")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              url: "https://example.com/mock-social-image.png"
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    const body = JSON.parse(init?.body ?? "{}");
+    const systemMessage = body.messages?.[0]?.content ?? "";
+    const isCandidateCall =
+      typeof systemMessage === "string" && systemMessage.includes("brand direction candidate generator");
+
+    if (isCandidateCall) {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(createCandidatePayload())
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content:
+                "현재 단계 기준으로 실행할 수 있습니다. /run 또는 /pick 1 같은 명령으로 계속 진행하세요."
+            }
+          }
+        ]
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+  };
+}
+
+test.before(() => {
+  global.fetch = mockOpenAiFetch();
+});
 
 function assertMessageSortedDesc(messages) {
   for (let index = 1; index < messages.length; index += 1) {
@@ -188,6 +312,17 @@ test("seeded session exposes recent_messages in descending order", async () => {
   assert.ok(Array.isArray(body.recent_messages));
   assert.equal(body.recent_messages.length >= 2, true);
   assertMessageSortedDesc(body.recent_messages);
+  const assistantMessage = body.recent_messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      message.metadata &&
+      typeof message.metadata === "object" &&
+      typeof message.metadata.assistant_source === "string"
+  );
+  assert.ok(assistantMessage);
+  assert.equal(typeof assistantMessage.metadata.rate_limit.limit, "number");
+  assert.equal(typeof assistantMessage.metadata.rate_limit.used, "number");
+  assert.equal(typeof assistantMessage.metadata.rate_limit.remaining, "number");
 });
 
 test("session-dependent APIs return deterministic 404/400 for invalid IDs", async () => {

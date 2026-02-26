@@ -176,6 +176,36 @@ export type GuidedActionId =
 
 export type ModelSource = "OPENAI" | "MOCK" | "UNKNOWN";
 
+export type SlashCommandCategory = "pipeline" | "tone" | "runtime" | "session" | "utility";
+
+export type SlashCommandId =
+  | GuidedActionId
+  | "tone_editorial"
+  | "tone_calmer"
+  | "tone_ritual"
+  | "tone_less_futuristic"
+  | "help";
+
+export type SlashCommandSpec = {
+  id: SlashCommandId;
+  category: SlashCommandCategory;
+  canonical: string;
+  aliasesKo: string[];
+  help: string;
+  requiresSession?: boolean;
+  requiresRuntimeGoal?: boolean;
+  queueable?: boolean;
+};
+
+export type CommandExecutionResult = {
+  accepted: boolean;
+  kind: "slash" | "chat";
+  commandId?: SlashCommandId;
+  message?: string;
+  rateLimited?: boolean;
+  assistantSource?: "openai" | "rate_limited" | "fallback";
+};
+
 export type ActionHubAction = {
   id: GuidedActionId;
   label: string;
@@ -189,6 +219,8 @@ export type RightPanelViewModel = {
   primaryAction: ActionHubAction | null;
   secondaryAction: ActionHubAction | null;
   hint: string;
+  suggestedCommand: string;
+  suggestedReason: string;
   showRuntimeGroup: boolean;
   hasRuntimeGoal: boolean;
 };

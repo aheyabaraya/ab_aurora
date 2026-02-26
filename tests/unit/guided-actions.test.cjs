@@ -22,6 +22,7 @@ test("build confirmation state pins Build as primary action", () => {
 
   assert.equal(model.primaryAction?.id, "confirm_build");
   assert.equal(model.secondaryAction?.id, "regenerate_top3");
+  assert.equal(model.suggestedCommand, "/build");
 });
 
 test("running define with active job shows queue hint", () => {
@@ -41,6 +42,7 @@ test("running define with active job shows queue hint", () => {
 
   assert.equal(model.primaryAction?.id, "run_step");
   assert.equal(model.hint.includes("다음 stage"), true);
+  assert.equal(model.suggestedCommand, "/tone calmer");
 });
 
 test("start session is disabled when setup input is invalid", () => {
@@ -60,6 +62,7 @@ test("start session is disabled when setup input is invalid", () => {
 
   assert.equal(model.primaryAction?.id, "start_session");
   assert.equal(model.primaryAction?.disabled, true);
+  assert.equal(model.suggestedCommand, "/start");
 });
 
 test("package scene sets export as primary and disables until pack is ready", () => {
@@ -92,5 +95,6 @@ test("package scene sets export as primary and disables until pack is ready", ()
 
   assert.equal(pending.primaryAction?.id, "export_zip");
   assert.equal(pending.primaryAction?.disabled, true);
+  assert.equal(pending.suggestedCommand, "/export");
   assert.equal(ready.primaryAction?.disabled, false);
 });
