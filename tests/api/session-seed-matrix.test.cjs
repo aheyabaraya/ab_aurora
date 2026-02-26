@@ -166,7 +166,7 @@ test("POST /api/dev/seed/session creates deterministic presets", async () => {
     top3_ready: {
       current_step: "top3_select",
       status: "running",
-      required_artifacts: ["interview", "brand_spec_draft", "candidates_top3"]
+      required_artifacts: ["interview", "brand_spec_draft", "brand_narrative", "candidates_top3"]
     },
     selected_ready: {
       current_step: "approve_build",

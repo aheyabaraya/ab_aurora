@@ -52,6 +52,45 @@ function buildClarifyQuestions(session: SessionRecord): string[] {
   ];
 }
 
+function buildBrandNarrative(session: SessionRecord): {
+  brand_promise: string;
+  audience_tension: string;
+  story_arc: string[];
+  voice_do: string[];
+  voice_dont: string[];
+  tagline_candidates: string[];
+} {
+  const tone = session.style_keywords.slice(0, 3);
+  const [toneA, toneB, toneC] = tone.length > 0 ? tone : ["clear", "focused", "confident"];
+  const productHead = session.product.split(/\s+/).slice(0, 2).join(" ");
+  const audienceHead = session.audience.split(/\s+/).slice(0, 4).join(" ");
+
+  return {
+    brand_promise: `${session.product} helps ${session.audience} move from vague taste to a shippable brand direction without losing speed.`,
+    audience_tension: `${session.audience} need distinctive identity decisions quickly, but scattered references make consistent direction hard to lock.`,
+    story_arc: [
+      `${audienceHead} starts with pressure to ship but no coherent visual baseline.`,
+      `${productHead} narrows ambiguity into ranked options with clear rationale and constraints.`,
+      `${audienceHead} commits to one direction and moves into package-ready execution assets.`
+    ],
+    voice_do: [
+      `Use ${toneA} language with concrete implementation intent.`,
+      `Keep messaging ${toneB} and outcome-oriented for builders.`,
+      `Maintain ${toneC} confidence with concise, directive phrasing.`
+    ],
+    voice_dont: [
+      "Avoid abstract manifesto language without execution anchors.",
+      "Avoid trend-chasing adjectives that conflict with product fit.",
+      "Avoid verbose copy that hides the next decision."
+    ],
+    tagline_candidates: [
+      "Direction, then ship.",
+      `${productHead}: brand decisions made executable.`,
+      "From intent to interface."
+    ]
+  };
+}
+
 function findCandidate(session: SessionRecord, candidateId: string | null): Candidate | null {
   if (!candidateId || !session.latest_top3) {
     return null;
@@ -241,8 +280,8 @@ async function executeStep(
   const step = request.step ?? session.current_step;
 
   if (step === "interview_collect") {
-    const intentConfidence = deriveIntentConfidence(session);
-    const variationWidth = toVariationWidth(intentConfidence);
+    const intentConfidence = session.intent_confidence ?? deriveIntentConfidence(session);
+    const variationWidth = session.variation_width ?? toVariationWidth(intentConfidence);
     const nextSession = await storage.updateSession(session.id, {
       intent_confidence: intentConfidence,
       variation_width: variationWidth,
@@ -352,7 +391,7 @@ async function executeStep(
     });
     const nextSession = await storage.updateSession(session.id, {
       draft_spec: draft,
-      current_step: "candidates_generate",
+      current_step: "brand_narrative",
       status: "running"
     });
     await recordArtifact(storage, artifacts, {
@@ -365,9 +404,61 @@ async function executeStep(
     return {
       session: nextSession,
       result: {
-        nextStep: "candidates_generate",
+        nextStep: "brand_narrative",
         waitUser: false,
         message: "Draft spec is ready.",
+        jobId: null
+      }
+    };
+  }
+
+  if (step === "brand_narrative") {
+    if (!session.draft_spec) {
+      const waitingSession = await storage.updateSession(session.id, {
+        status: "wait_user",
+        current_step: "spec_draft"
+      });
+      return {
+        session: waitingSession,
+        result: {
+          nextStep: "spec_draft",
+          waitUser: true,
+          message: "Draft spec is missing. Generate draft spec before narrative.",
+          jobId: null
+        }
+      };
+    }
+
+    const narrative = buildBrandNarrative(session);
+    const personaRecord =
+      session.draft_spec.persona && typeof session.draft_spec.persona === "object"
+        ? session.draft_spec.persona
+        : {};
+    const draftWithNarrative = brandSpecDraftSchema.parse({
+      ...session.draft_spec,
+      persona: {
+        ...personaRecord,
+        narrative
+      }
+    });
+    const nextSession = await storage.updateSession(session.id, {
+      draft_spec: draftWithNarrative,
+      current_step: "candidates_generate",
+      status: "running"
+    });
+    await recordArtifact(storage, artifacts, {
+      sessionId: session.id,
+      step,
+      kind: "brand_narrative",
+      title: "Brand narrative generated",
+      content: narrative
+    });
+    return {
+      session: nextSession,
+      result: {
+        nextStep: "candidates_generate",
+        waitUser: false,
+        message: "Brand narrative is ready.",
         jobId: null
       }
     };

@@ -4,6 +4,7 @@ export const AGENT_STEPS = [
   "interview_collect",
   "intent_gate",
   "spec_draft",
+  "brand_narrative",
   "candidates_generate",
   "top3_select",
   "approve_build",
@@ -25,6 +26,7 @@ export type ArtifactKind =
   | "interview"
   | "clarify_questions"
   | "brand_spec_draft"
+  | "brand_narrative"
   | "candidates_top3"
   | "selection"
   | "tokens"

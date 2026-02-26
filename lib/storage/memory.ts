@@ -48,6 +48,21 @@ function descByCreatedAt<T extends { created_at: string }>(items: T[]): T[] {
   return [...items].sort((left, right) => (left.created_at < right.created_at ? 1 : -1));
 }
 
+function toVariationWidthFromScore(
+  score: number | undefined
+): SessionRecord["variation_width"] {
+  if (typeof score !== "number") {
+    return null;
+  }
+  if (score <= 2) {
+    return "wide";
+  }
+  if (score === 3) {
+    return "medium";
+  }
+  return "narrow";
+}
+
 export class MemoryStorageRepository implements StorageRepository {
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
     const timestamp = nowIso();
@@ -63,8 +78,8 @@ export class MemoryStorageRepository implements StorageRepository {
       auto_continue: input.auto_continue,
       auto_pick_top1: input.auto_pick_top1,
       paused: false,
-      intent_confidence: null,
-      variation_width: null,
+      intent_confidence: input.q0_intent_confidence ?? null,
+      variation_width: toVariationWidthFromScore(input.q0_intent_confidence),
       latest_top3: null,
       selected_candidate_id: null,
       draft_spec: null,

@@ -2,6 +2,7 @@ export const AGENT_STEPS = [
   "interview_collect",
   "intent_gate",
   "spec_draft",
+  "brand_narrative",
   "candidates_generate",
   "top3_select",
   "approve_build",
@@ -21,6 +22,7 @@ export const STAGE_TO_SCENE: Record<AgentStep, Scene> = {
   interview_collect: "DEFINE",
   intent_gate: "DEFINE",
   spec_draft: "DEFINE",
+  brand_narrative: "DEFINE",
   candidates_generate: "EXPLORE",
   top3_select: "DECIDE",
   approve_build: "DECIDE",
@@ -88,6 +90,8 @@ export type SessionPayload = {
     auto_continue: boolean;
     auto_pick_top1: boolean;
     selected_candidate_id: string | null;
+    intent_confidence: number | null;
+    variation_width: "wide" | "medium" | "narrow" | null;
     final_spec?: Record<string, unknown> | null;
   };
   latest_top3: Candidate[] | null;

@@ -38,7 +38,7 @@ const PRESET_EXPECTATION: Record<SeedSessionPreset, { current_step: AgentStep; s
 
 const REQUIRED_ARTIFACTS: Record<SeedSessionPreset, ArtifactKind[]> = {
   fresh: [],
-  top3_ready: ["interview", "brand_spec_draft", "candidates_top3"],
+  top3_ready: ["interview", "brand_spec_draft", "brand_narrative", "candidates_top3"],
   selected_ready: ["selection"],
   build_confirm_required: ["selection"],
   package_ready: ["tokens", "social_assets", "code_plan", "validation"],
@@ -78,7 +78,7 @@ async function runFixedSteps(storage: StorageRepository, sessionId: string, step
 }
 
 async function progressToApproveBuild(storage: StorageRepository, sessionId: string): Promise<void> {
-  await runFixedSteps(storage, sessionId, 4);
+  await runFixedSteps(storage, sessionId, 5);
   const afterTop3 = await storage.getSession(sessionId);
   if (!afterTop3) {
     throw new Error(`Session not found: ${sessionId}`);
@@ -191,7 +191,7 @@ export async function buildSessionSeed(input: BuildSessionSeedInput): Promise<Bu
   });
 
   if (input.preset === "top3_ready") {
-    await runFixedSteps(input.storage, session.id, 4);
+    await runFixedSteps(input.storage, session.id, 5);
   } else if (input.preset === "selected_ready") {
     await progressToApproveBuild(input.storage, session.id);
   } else if (input.preset === "build_confirm_required") {

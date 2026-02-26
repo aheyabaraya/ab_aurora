@@ -29,6 +29,7 @@ export interface CreateSessionInput {
   product: string;
   audience: string;
   style_keywords: string[];
+  q0_intent_confidence?: number;
   auto_continue: boolean;
   auto_pick_top1: boolean;
 }

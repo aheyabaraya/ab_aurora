@@ -1,4 +1,4 @@
-# AB_Aurora (ab_aurora) — Internal Spec (v0.5)
+# AB_Aurora (ab_aurora) — Internal Spec (v0.6)
 
 Purpose: lock product behavior so implementation and demo operations are deterministic.
 
@@ -30,6 +30,11 @@ Top-3 candidate quality is the central outcome for early decision quality.
 
 Reference quality must raise intent confidence before lock-in.
 
+### Onboarding Surface
+- Pre-session uses a centered single-card layout.
+- Right-side chat panel is hidden until session start succeeds.
+- On successful start, UI transitions with a short flip animation into the 2-column workspace.
+
 ---
 
 ## 2) Confidence and Variation
@@ -39,6 +44,9 @@ Reference quality must raise intent confidence before lock-in.
   - `1..2 -> wide`
   - `3 -> medium`
   - `4..5 -> narrow`
+- Guided UI requires Q0 (`1..5`) and sends it as `q0_intent_confidence` at session start.
+- If `q0_intent_confidence` exists, it is the source of truth for initial `intent_confidence` and `variation_width`.
+- If Q0 is missing (legacy clients), `interview_collect` computes score via heuristic fallback.
 
 Intent gate rule:
 - if `intent_confidence < INTENT_CLARIFY_THRESHOLD` (default `4`), block build progression with `wait_user` and targeted questions.
@@ -47,7 +55,7 @@ Intent gate rule:
 
 ## 3) Stage State Machine (Execution Backend)
 
-`interview_collect -> intent_gate -> spec_draft -> candidates_generate -> top3_select -> approve_build -> package -> done`
+`interview_collect -> intent_gate -> spec_draft -> brand_narrative -> candidates_generate -> top3_select -> approve_build -> package -> done`
 
 Policies:
 - `auto_continue=true`: automatically progress until a wait condition
@@ -55,6 +63,7 @@ Policies:
 - revisions: max 2
 - self-heal: max 3
 - per-session concurrent active jobs: `CONCURRENT_JOB_LIMIT`
+- `brand_narrative` is deterministic template generation (no additional model call in v1).
 
 Every step persists at least one artifact for observability and follow-up actions.
 

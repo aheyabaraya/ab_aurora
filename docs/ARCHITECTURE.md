@@ -1,4 +1,4 @@
-# docs/ARCHITECTURE.md — AB_Aurora Architecture (v0.5)
+# docs/ARCHITECTURE.md — AB_Aurora Architecture (v0.6)
 
 ## High-level
 Client (Next.js Agent UI)
@@ -9,6 +9,10 @@ Client (Next.js Agent UI)
 -> Optional Monad mint (`/api/mint`)
 
 This release is a runtime-first vertical slice: runtime is the top control loop, while the existing stage orchestrator remains the execution backend.
+
+Onboarding UX contract:
+- Pre-session renders as a centered single-card setup surface.
+- Workspace (canvas + chat dock) appears only after successful session start transition.
 
 ---
 
@@ -25,7 +29,8 @@ This release is a runtime-first vertical slice: runtime is the top control loop,
 
 ### Execution plane (`lib/agent/*` + `lib/storage/*`)
 - Existing stage state machine:
-  - `interview_collect -> intent_gate -> spec_draft -> candidates_generate -> top3_select -> approve_build -> package -> done`
+  - `interview_collect -> intent_gate -> spec_draft -> brand_narrative -> candidates_generate -> top3_select -> approve_build -> package -> done`
+- `brand_narrative` is deterministic in v1 and persists a dedicated narrative artifact before candidate generation.
 - Artifact persistence (session/job/artifact/pack)
 - Candidate generation/scoring and Top-3 selection
 - Build outputs + packaging + optional mint

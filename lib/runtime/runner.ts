@@ -44,7 +44,7 @@ function toLegacyStepSpec(input: {
   if (!input.step) {
     return null;
   }
-  if (input.step === "candidates_generate") {
+  if (input.step === "brand_narrative" || input.step === "candidates_generate") {
     return {
       action_type: "ensure_top3",
       tool_name: "tool.brand.ensure_top3",

@@ -34,7 +34,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
       disabled: !input.canStartSession,
       disabledReason: input.canStartSession
         ? undefined
-        : "Product, Audience, Style keywords를 먼저 입력하세요."
+        : "Product, Audience, Style keywords, Q0를 먼저 입력하세요."
     };
     model.hint = "브리프 입력 후 세션을 시작하세요.";
     model.suggestedCommand = "/start";

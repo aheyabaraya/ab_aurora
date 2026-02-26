@@ -1,8 +1,8 @@
-# docs/INTERVIEW.md — AB_Aurora Interview (v0.3)
+# docs/INTERVIEW.md — AB_Aurora Interview (v0.4)
 
 > Goal: Start even from blank, and force convergence on **3-way fit (Creator taste × Audience taste × Product fit)**.  
 > Principle: Every question must map to a concrete output.  
-> v0.3: Intent is subjective → measure with **confidence score 1–5** and gate the next step.
+> v0.4: Q0 is first-class input, and `brand_narrative` is required before candidate generation.
 
 ---
 
@@ -26,12 +26,16 @@
 - **3**: some direction but not confident  
 - **4**: clear direction  
 - **5**: very clear / fixed conviction
+- Guided UI requires this answer before `Start Session`.
+- Request field: `q0_intent_confidence` (`1..5`) on `POST /api/session/start`.
 
 Also capture:
 - `has_direction` (bool): Do you already have a moodboard / fixed tone?
 - If yes: attach references (links/images) and specify **what must NOT change**.
 
 **Gate rule (must enforce):**
+- Q0 is the initial source-of-truth score when provided.
+- `interview_collect` must not overwrite an existing intent score.
 - If confidence **< 4**, AB_Aurora should say:
   - “We’re not clear enough yet to lock the design. Let’s clarify a bit more.”
   and ask targeted questions until ≥4.
@@ -99,10 +103,17 @@ Interview must produce decisions in this order:
    - `has_direction` (bool)
    - `intent_confidence` (1–5)
    - `variation_width` (wide|medium|narrow)
-2) `persona_summary` (optional/minimal if user has strong direction)
-3) `voice` (tone do/don’t)
-4) `moodboard_prompt` (positive + negative prompt)
-5) `ui_plan` (IA + sections + key components)
-6) `tokens_hint` (direction only; **final tokens after moodboard+ui_plan selection**)
-7) `social_assets_plan` (what to post, sizes, copy tone)
-8) `code_plan` (stack preset + file generation plan; **single page only in v0**)
+2) `brand_narrative`:
+   - `brand_promise` (1 sentence)
+   - `audience_tension` (1 sentence)
+   - `story_arc` (3 beats)
+   - `voice_do` (3)
+   - `voice_dont` (3)
+   - `tagline_candidates` (3)
+3) `persona_summary` (optional/minimal if user has strong direction)
+4) `voice` (tone do/don’t)
+5) `moodboard_prompt` (positive + negative prompt)
+6) `ui_plan` (IA + sections + key components)
+7) `tokens_hint` (direction only; **final tokens after moodboard+ui_plan selection**)
+8) `social_assets_plan` (what to post, sizes, copy tone)
+9) `code_plan` (stack preset + file generation plan; **single page only in v0**)

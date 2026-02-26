@@ -224,6 +224,7 @@ test("session start route returns initial session data", async () => {
       product: "AB Aurora Direction Engine For Product Teams",
       audience: "Vibe coders",
       style_keywords: ["bold", "minimal", "future"],
+      q0_intent_confidence: 5,
       auto_continue: true,
       auto_pick_top1: true
     })
@@ -242,6 +243,33 @@ test("session start route returns initial session data", async () => {
   assert.ok(Array.isArray(sessionBody.recent_messages));
   assert.equal(sessionBody.recent_messages[0].role, "system");
   assert.equal(sessionBody.recent_messages[0].content, "Session initialized for stage-based pipeline.");
+  assert.equal(sessionBody.session.intent_confidence, 5);
+  assert.equal(sessionBody.session.variation_width, "narrow");
+});
+
+test("session start route remains backward compatible when q0 is omitted", async () => {
+  const request = new Request("http://localhost/api/session/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "mode_b",
+      product: "AB Aurora Direction Engine For Product Teams",
+      audience: "Vibe coders",
+      style_keywords: ["bold", "minimal", "future"],
+      auto_continue: true,
+      auto_pick_top1: true
+    })
+  });
+
+  const response = await startSession(request);
+  assert.equal(response.status, 200);
+  const body = await json(response);
+  const sessionResponse = await getSession(new Request("http://localhost"), {
+    params: Promise.resolve({ sessionId: body.session_id })
+  });
+  const sessionBody = await json(sessionResponse);
+  assert.equal(sessionBody.session.intent_confidence, null);
+  assert.equal(sessionBody.session.variation_width, null);
 });
 
 test("run-step route executes auto pipeline and stores Top-3", async () => {

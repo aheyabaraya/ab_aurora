@@ -1,6 +1,16 @@
-# docs/SCHEMAS.md — AB_Aurora Schemas (v0.5)
+# docs/SCHEMAS.md — AB_Aurora Schemas (v0.6)
 
 Goal: define stable schemas for stage outputs and runtime control-plane records.
+
+---
+
+## 0) Pipeline Enums
+
+### `AgentStep`
+`interview_collect | intent_gate | spec_draft | brand_narrative | candidates_generate | top3_select | approve_build | package | done`
+
+### `ArtifactKind` (core)
+`interview | clarify_questions | brand_spec_draft | brand_narrative | candidates_top3 | selection | tokens | social_assets | code_plan | validation | pack_meta`
 
 ---
 
@@ -102,6 +112,24 @@ Goal: define stable schemas for stage outputs and runtime control-plane records.
 
 ## 4) API Payload Contracts
 
+### `POST /api/session/start`
+Input:
+```json
+{
+  "mode": "mode_a",
+  "product": "string",
+  "audience": "string",
+  "style_keywords": ["string"],
+  "q0_intent_confidence": 4,
+  "auto_continue": true,
+  "auto_pick_top1": true
+}
+```
+Notes:
+- `q0_intent_confidence` is optional for API compatibility, range `1..5`.
+- Guided UI always sends `q0_intent_confidence`.
+- If omitted, backend falls back to heuristic intent scoring in `interview_collect`.
+
 ### `POST /api/runtime/start`
 Input:
 ```json
@@ -195,7 +223,19 @@ Output:
 
 ---
 
-## 6) TokenURI Metadata (optional mint)
+## 6) Brand Narrative Artifact Schema
+
+Artifact `kind = "brand_narrative"`:
+- `brand_promise` (string)
+- `audience_tension` (string)
+- `story_arc` (string[3])
+- `voice_do` (string[3])
+- `voice_dont` (string[3])
+- `tagline_candidates` (string[3])
+
+---
+
+## 7) TokenURI Metadata (optional mint)
 
 Messaging rule: use provenance/origin language, not legal ownership claims.
 

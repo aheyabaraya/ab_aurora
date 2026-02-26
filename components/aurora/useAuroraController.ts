@@ -164,18 +164,25 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
     return "EXPLORE 단계입니다. Top-3 생성 대기 중이며 /run 으로 다음 실행을 진행할 수 있습니다.";
   }
 
+  if (stage === "brand_narrative") {
+    return "DEFINE 단계입니다. 브랜드 내러티브를 구성한 뒤 후보 생성 단계로 진행합니다.";
+  }
+
   return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
 }
 
 type ActionFn = () => Promise<void>;
+type OnboardingPhase = "setup" | "flipping" | "workspace";
 
 export function useAuroraController() {
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
   const [product, setProduct] = useState("");
   const [audience, setAudience] = useState("");
   const [styleKeywords, setStyleKeywords] = useState("");
+  const [q0IntentConfidence, setQ0IntentConfidence] = useState<number | null>(null);
   const [autoContinue, setAutoContinue] = useState(true);
   const [autoPickTop1, setAutoPickTop1] = useState(true);
+  const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>("setup");
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionPayload, setSessionPayload] = useState<SessionPayload | null>(null);
@@ -361,8 +368,13 @@ export function useAuroraController() {
   }, [styleKeywords]);
 
   const canStartSession = useMemo(() => {
-    return product.trim().length >= 3 && audience.trim().length >= 3 && styleKeywordList.length >= 1;
-  }, [audience, product, styleKeywordList.length]);
+    return (
+      product.trim().length >= 3 &&
+      audience.trim().length >= 3 &&
+      styleKeywordList.length >= 1 &&
+      q0IntentConfidence !== null
+    );
+  }, [audience, product, q0IntentConfidence, styleKeywordList.length]);
 
   const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
     setQueuedCommands((current) => [
@@ -512,7 +524,7 @@ export function useAuroraController() {
 
   const handleStartSession = useCallback(async () => {
     if (!canStartSession) {
-      setError("Product, Audience, Style keywords를 먼저 입력하세요.");
+      setError("Product, Audience, Style keywords와 Q0(1-5)를 먼저 입력하세요.");
       return;
     }
 
@@ -526,18 +538,22 @@ export function useAuroraController() {
           product,
           audience,
           style_keywords: styleKeywordList,
+          q0_intent_confidence: q0IntentConfidence,
           auto_continue: autoContinue,
           auto_pick_top1: autoPickTop1
         })
       });
 
-      setSessionId(response.session_id);
       setRuntimeGoalId(null);
       setRuntimeSnapshot(null);
       setQueuedCommands([]);
       setStageMessages([]);
       stageRef.current = null;
       await refreshSession(response.session_id);
+      setOnboardingPhase("flipping");
+      await new Promise((resolve) => setTimeout(resolve, 380));
+      setSessionId(response.session_id);
+      setOnboardingPhase("workspace");
     };
 
     await runWithRecovery(run, run);
@@ -548,6 +564,7 @@ export function useAuroraController() {
     canStartSession,
     mode,
     product,
+    q0IntentConfidence,
     refreshSession,
     requestJson,
     runWithRecovery,
@@ -1243,6 +1260,9 @@ export function useAuroraController() {
     setAudience,
     styleKeywords,
     setStyleKeywords,
+    q0IntentConfidence,
+    setQ0IntentConfidence,
+    onboardingPhase,
     autoContinue,
     setAutoContinue,
     autoPickTop1,

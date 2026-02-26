@@ -48,14 +48,6 @@ function IconChat({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
-function IconSpark({ className = "h-3.5 w-3.5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 16l.8 2.2L8 19l-2.2.8L5 22l-.8-2.2L2 19l2.2-.8L5 16zM19 14l.7 1.9L22 16.7l-2.3.8L19 20l-.7-2.5-2.3-.8 2.3-.8L19 14z" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function IconPackage({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
@@ -82,14 +74,6 @@ function IconClock({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
-function IconSend({ className = "h-3.5 w-3.5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-      <path d="M4 12l16-7-4 7 4 7-16-7z" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function roleClass(type: ChatEntry["type"]): string {
   if (type === "user") {
     return "aurora-chat-bubble aurora-chat-user";
@@ -101,22 +85,6 @@ function roleClass(type: ChatEntry["type"]): string {
     return "aurora-chat-bubble aurora-chat-artifact";
   }
   return "aurora-chat-bubble aurora-chat-system";
-}
-
-function statusClass(status: string): string {
-  if (status === "completed") {
-    return "border-indigo-200/65 bg-indigo-300/20 text-indigo-50";
-  }
-  if (status === "running") {
-    return "border-violet-200/70 bg-violet-400/20 text-violet-50";
-  }
-  if (status === "wait_user") {
-    return "border-cyan-200/70 bg-cyan-400/20 text-cyan-50";
-  }
-  if (status === "failed") {
-    return "border-rose-300/60 bg-rose-400/15 text-rose-100";
-  }
-  return "border-indigo-200/28 bg-slate-900/70 text-slate-300";
 }
 
 function modelClass(source: ModelSource): string {
@@ -211,26 +179,23 @@ export function ChatDock({
   };
 
   return (
-    <article className="aurora-panel flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="aurora-title-label flex items-center gap-1.5 text-xs uppercase tracking-[0.2em]">
-            <IconSpark className="h-3 w-3" />
-            Chat Dock
-          </p>
-          <h2 className="aurora-title-primary flex items-center gap-2 text-lg font-semibold">
-            <IconChat className="h-4 w-4" />
-            Command Console
-          </h2>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-2">
-          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
-            {status}
-          </span>
-          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
-            {modelSource}
-          </span>
-        </div>
+    <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
+      <div className="aurora-status-pill flex items-center justify-between gap-2 rounded-xl px-3 py-2">
+        <span className="flex items-center gap-1.5 text-sm font-semibold tracking-[0.2em] text-indigo-50">
+          <span className="h-3 w-3 rounded-full border border-cyan-100/80 bg-cyan-200/20 shadow-[0_0_10px_rgba(125,224,255,0.6)]" />
+          {status.toUpperCase()}
+        </span>
+        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
+          {modelSource}
+        </span>
+      </div>
+
+      <div className="mt-3">
+        <h2 className="aurora-title-primary flex items-center gap-2 text-xl font-semibold">
+          <IconChat className="h-4 w-4" />
+          Command Console
+        </h2>
+        <div className="aurora-console-divider mt-2" />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -261,12 +226,12 @@ export function ChatDock({
       </div>
 
       {actionHub ? (
-        <div className="aurora-surface mt-3 rounded-xl p-3">
+        <div className="aurora-command-shell mt-3 rounded-xl p-3">
           <p className="aurora-title-label flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em]">
             <IconCommand className="h-3 w-3" />
             Next Suggested Command
           </p>
-          <p className="mt-2 rounded-md border border-indigo-200/45 bg-indigo-400/16 px-2 py-1 text-sm font-semibold text-indigo-100">
+          <p className="aurora-command-chip mt-2 rounded-md px-2 py-1.5 text-sm font-semibold text-indigo-100">
             {actionHub.suggestedCommand || "/help"}
           </p>
           <p className="aurora-copy-soft mt-2 text-[11px]">{actionHub.suggestedReason || actionHub.hint}</p>
@@ -328,7 +293,7 @@ export function ChatDock({
 
           <div className="space-y-2">
             <div
-              className={`rounded-lg border px-3 py-2 text-[11px] ${
+              className={`aurora-safety-banner rounded-lg border px-3 py-2 text-[11px] ${
                 shouldQueueIntervention
                   ? "border-cyan-200/45 bg-cyan-500/10 text-cyan-50"
                   : "border-indigo-200/40 bg-indigo-400/15 text-indigo-50"
@@ -346,7 +311,7 @@ export function ChatDock({
             <div className="relative">
               <textarea
                 className="aurora-input min-h-[82px] w-full rounded-2xl px-3 py-2.5 text-sm"
-                placeholder='Try "/run" or ask naturally.'
+                placeholder='Type "/?" for commands or send natural language.'
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
@@ -410,14 +375,11 @@ export function ChatDock({
             </div>
 
             <button
-              className="aurora-btn-primary w-full rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
+              className="aurora-btn-primary aurora-btn-command w-full rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
               onClick={() => void execute(input)}
               disabled={busy || input.trim().length === 0}
             >
-              <span className="flex items-center justify-center gap-1.5">
-                <IconSend className="h-3.5 w-3.5" />
-                Send Command {busy ? "(processing)" : ""}
-              </span>
+              Send Command {busy ? "(processing)" : ""}
             </button>
           </div>
         </div>

@@ -73,6 +73,78 @@ test("orchestrator pauses when confidence is below threshold", async () => {
   assert.equal(response.current_step, "intent_gate");
 });
 
+test("interview_collect keeps pre-seeded q0 intent confidence", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "Aurora Builder",
+    audience: "Founders",
+    style_keywords: ["calm", "editorial"],
+    q0_intent_confidence: 2,
+    auto_continue: false,
+    auto_pick_top1: true
+  });
+
+  const response = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_q0_seed_001"
+    }
+  });
+
+  const refreshed = await storage.getSession(session.id);
+  assert.equal(response.current_step, "intent_gate");
+  assert.equal(refreshed.intent_confidence, 2);
+  assert.equal(refreshed.variation_width, "wide");
+});
+
+test("spec_draft transitions to brand_narrative and persists narrative artifact", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "Aurora Direction Engine",
+    audience: "Founders",
+    style_keywords: ["bold", "minimal", "ritual"],
+    q0_intent_confidence: 5,
+    auto_continue: false,
+    auto_pick_top1: true
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_narrative_001"
+    }
+  });
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_narrative_002"
+    }
+  });
+  const draftRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_narrative_003"
+    }
+  });
+  assert.equal(draftRun.current_step, "brand_narrative");
+
+  const narrativeRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_narrative_004"
+    }
+  });
+  assert.equal(narrativeRun.current_step, "candidates_generate");
+  assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
+});
+
 test("approve_build requires explicit proceed when auto_pick_top1 is disabled", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({

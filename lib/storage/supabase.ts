@@ -338,6 +338,14 @@ function fromRuntimeEventRow(row: JsonMap): RuntimeEventRecord {
 
 export class SupabaseStorageRepository implements StorageRepository {
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
+    const variationWidth =
+      typeof input.q0_intent_confidence === "number"
+        ? input.q0_intent_confidence <= 2
+          ? "wide"
+          : input.q0_intent_confidence === 3
+            ? "medium"
+            : "narrow"
+        : null;
     const rows = await requestRows<JsonMap>({
       method: "POST",
       path: "sessions",
@@ -346,6 +354,8 @@ export class SupabaseStorageRepository implements StorageRepository {
         product: input.product,
         audience: input.audience,
         style_keywords: input.style_keywords,
+        intent_confidence: input.q0_intent_confidence ?? null,
+        variation_width: variationWidth,
         auto_continue: input.auto_continue,
         auto_pick_top1: input.auto_pick_top1,
         current_step: "interview_collect",

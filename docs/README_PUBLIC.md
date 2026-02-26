@@ -3,9 +3,9 @@
 AB_Aurora helps builders who have a **real project idea** but **no clear design/aesthetic direction** turn intent into a complete brand system and verified UI code.
 
 ## What it does
-- Guided interview (works even with zero references)
+- Guided interview with mandatory Q0 confidence input (works even with zero references)
 - Stage-based pipeline with auto progression and wait-user gates
-- Builds: persona/story → naming → moodboard → UI plan → tokens
+- Builds: draft spec → brand narrative → naming/moodboard/UI options → tokens
 - Generates **share-ready social images** (X/IG/Story) that fit the brand/product
 - Respects users with strong conviction and moves faster when direction is clear
 - Generates verified code (Next.js + Tailwind) with lint/typecheck (bounded self-heal)
