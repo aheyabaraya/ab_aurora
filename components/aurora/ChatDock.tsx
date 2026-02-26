@@ -190,27 +190,19 @@ export function ChatDock({
         </span>
       </div>
 
-      <div className="mt-3">
-        <h2 className="aurora-title-primary flex items-center gap-2 text-xl font-semibold">
-          <IconChat className="h-4 w-4" />
-          Command Console
-        </h2>
-        <div className="aurora-console-divider mt-2" />
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            currentTab === "chat" ? "aurora-pill-active" : ""
-          }`}
-          onClick={() => setActiveTab("chat")}
-        >
-          <span className="flex items-center gap-1.5">
-            <IconChat className="h-3 w-3" />
-            Chat
-          </span>
-        </button>
-        {showArtifactsTab ? (
+      {showArtifactsTab ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+              currentTab === "chat" ? "aurora-pill-active" : ""
+            }`}
+            onClick={() => setActiveTab("chat")}
+          >
+            <span className="flex items-center gap-1.5">
+              <IconChat className="h-3 w-3" />
+              Chat
+            </span>
+          </button>
           <button
             className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
               currentTab === "artifacts" ? "aurora-pill-active" : ""
@@ -222,19 +214,18 @@ export function ChatDock({
               Package Outputs
             </span>
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {actionHub ? (
-        <div className="aurora-command-shell mt-3 rounded-xl p-3">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em]">
+        <div className="aurora-command-shell mt-2 rounded-xl px-2.5 py-2">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em]">
             <IconCommand className="h-3 w-3" />
-            Next Suggested Command
+            Next
           </p>
-          <p className="aurora-command-chip mt-2 rounded-md px-2 py-1.5 text-sm font-semibold text-indigo-100">
+          <p className="aurora-command-chip mt-1 rounded-md px-2 py-1 text-sm font-semibold text-indigo-100">
             {actionHub.suggestedCommand || "/help"}
           </p>
-          <p className="aurora-copy-soft mt-2 text-[11px]">{actionHub.suggestedReason || actionHub.hint}</p>
         </div>
       ) : null}
 
@@ -267,9 +258,18 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "chat" ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
           <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-xl p-2.5">
             <div className="h-full space-y-2.5 overflow-auto pr-1">
+              <div
+                className={`aurora-safety-banner rounded-lg border px-3 py-2 text-[11px] ${
+                  shouldQueueIntervention
+                    ? "border-cyan-200/45 bg-cyan-500/10 text-cyan-50"
+                    : "border-indigo-200/40 bg-indigo-400/15 text-indigo-50"
+                }`}
+              >
+                {shouldQueueIntervention ? "Queued: 다음 stage 시작 시 적용됩니다." : "Safe: 현재 stage에 바로 반영됩니다."}
+              </div>
               {entries.map((entry) => (
                 <div
                   key={entry.id}
@@ -292,16 +292,6 @@ export function ChatDock({
           </div>
 
           <div className="space-y-2">
-            <div
-              className={`aurora-safety-banner rounded-lg border px-3 py-2 text-[11px] ${
-                shouldQueueIntervention
-                  ? "border-cyan-200/45 bg-cyan-500/10 text-cyan-50"
-                  : "border-indigo-200/40 bg-indigo-400/15 text-indigo-50"
-              }`}
-            >
-              {shouldQueueIntervention ? "Queued: 다음 stage 시작 시 적용됩니다." : "Safe: 현재 stage에 바로 반영됩니다."}
-            </div>
-
             {commandNotice ? (
               <div className="aurora-surface-soft rounded-xl px-3 py-2 text-[11px] text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
