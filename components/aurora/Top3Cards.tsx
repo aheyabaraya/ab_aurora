@@ -60,7 +60,7 @@ export function Top3Cards({
                   <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Rank #{candidate.rank}</p>
                   <p className="text-[11px] text-slate-400">Score {candidate.score.toFixed(3)}</p>
                 </div>
-                <h3 className="text-sm font-semibold text-cyan-100">{candidate.naming.recommended}</h3>
+                <h3 className="aurora-title-primary text-sm font-semibold">{candidate.naming.recommended}</h3>
                 <p className="line-clamp-3 text-xs text-slate-300">{candidate.rationale}</p>
                 <button
                   className={`w-full rounded-md px-3 py-2 text-xs font-semibold transition ${
@@ -85,7 +85,7 @@ export function Top3Cards({
 
       {buildRequired ? (
         <div className="aurora-panel rounded-xl border-amber-300/50 bg-amber-400/10 p-3 text-sm text-amber-100">
-          <p className="mb-2 text-xs uppercase tracking-[0.2em]">Build Confirmation</p>
+          <p className="aurora-title-label mb-2 text-xs uppercase tracking-[0.2em]">Build Confirmation</p>
           <p className="mb-3 text-xs text-amber-50/90">
             {preferChatCommands
               ? "Auto pick is off. Use /build in chat to confirm approve_build once."

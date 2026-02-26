@@ -25,28 +25,28 @@ type ChatDockProps = {
   sessionReady: boolean;
   guided: boolean;
   defaultTab: TabId;
+  showArtifactsTab?: boolean;
   status?: string;
   modelSource?: ModelSource;
   actionHub?: RightPanelViewModel | null;
   onSendChat?: (message: string) => void;
   onQuickAction?: (actionId: QuickActionId) => void;
   onExecuteSlash?: (raw: string) => Promise<CommandExecutionResult>;
-  onSwitchUiMode?: (mode: "guided" | "pro") => void;
   onForceQueued: (queueId: string) => void;
   onDiscardQueued: (queueId: string) => void;
 };
 
 function roleClass(type: ChatEntry["type"]): string {
   if (type === "user") {
-    return "border-indigo-200/35 bg-indigo-400/12";
+    return "border-violet-200/55 bg-violet-400/18";
   }
   if (type === "assistant") {
-    return "border-indigo-200/25 bg-indigo-500/10";
+    return "border-indigo-200/35 bg-indigo-400/12";
   }
   if (type === "artifact-note") {
-    return "border-cyan-200/30 bg-cyan-400/12";
+    return "border-cyan-200/35 bg-cyan-400/12";
   }
-  return "border-violet-200/35 bg-violet-400/12";
+  return "border-slate-400/35 bg-slate-400/12";
 }
 
 function statusClass(status: string): string {
@@ -89,41 +89,50 @@ function formatTime(value: string): string {
 export function ChatDock({
   entries,
   artifacts,
-  jobs,
   queuedCommands,
   shouldQueueIntervention,
   busy,
   sessionReady,
-  guided,
   defaultTab,
+  showArtifactsTab = false,
   status = "idle",
   modelSource = "UNKNOWN",
   actionHub,
   onSendChat,
   onExecuteSlash,
-  onSwitchUiMode,
   onForceQueued,
   onDiscardQueued
 }: ChatDockProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const initialTab = defaultTab === "artifacts" && showArtifactsTab ? "artifacts" : "chat";
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [input, setInput] = useState("");
   const [commandNotice, setCommandNotice] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
+  const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
 
-  const slashMatches = useMemo(() => filterSlashCommands(input).slice(0, 10), [input]);
-  const showSlashPopover = activeTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
+  const normalizedInput = input.trim().toLowerCase();
+  const showRuntimeCommands = normalizedInput.startsWith("/runtime");
+  const slashMatches = useMemo(() => {
+    return filterSlashCommands(input)
+      .filter((command) => showRuntimeCommands || command.category !== "runtime")
+      .slice(0, 10);
+  }, [input, showRuntimeCommands]);
+  const showSlashPopover = currentTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
   const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
 
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
+    const isSlash = trimmed.startsWith("/");
     if (trimmed.length === 0) {
       return;
     }
 
     if (!onExecuteSlash) {
-      if (trimmed.startsWith("/")) {
+      if (isSlash) {
         setCommandNotice("Slash command execution is not configured.");
+        setInput("");
+        setHighlightIndex(0);
         return;
       }
       if (!sessionReady) {
@@ -145,26 +154,18 @@ export function ChatDock({
     } else {
       setCommandNotice("");
     }
-    if (result.accepted) {
+    if (isSlash || result.accepted) {
       setInput("");
       setHighlightIndex(0);
     }
-  };
-
-  const handleJobsTabClick = () => {
-    if (guided) {
-      onSwitchUiMode?.("pro");
-      return;
-    }
-    setActiveTab("jobs");
   };
 
   return (
     <article className="aurora-panel flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-indigo-100/75">Chat Dock</p>
-          <h2 className="text-lg font-semibold text-indigo-50">Command Console</h2>
+          <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Chat Dock</p>
+          <h2 className="aurora-title-primary text-lg font-semibold">Command Console</h2>
         </div>
         <div className="mt-1 flex flex-wrap gap-2">
           <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
@@ -179,33 +180,27 @@ export function ChatDock({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            activeTab === "chat" ? "aurora-pill-active" : ""
+            currentTab === "chat" ? "aurora-pill-active" : ""
           }`}
           onClick={() => setActiveTab("chat")}
         >
           Chat
         </button>
-        <button
-          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            activeTab === "artifacts" ? "aurora-pill-active" : ""
-          }`}
-          onClick={() => setActiveTab("artifacts")}
-        >
-          Artifacts
-        </button>
-        <button
-          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            !guided && activeTab === "jobs" ? "aurora-pill-active" : ""
-          }`}
-          onClick={handleJobsTabClick}
-        >
-          {guided ? "Jobs (Pro)" : "Jobs"}
-        </button>
+        {showArtifactsTab ? (
+          <button
+            className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+              currentTab === "artifacts" ? "aurora-pill-active" : ""
+            }`}
+            onClick={() => setActiveTab("artifacts")}
+          >
+            Package Outputs
+          </button>
+        ) : null}
       </div>
 
       {actionHub ? (
         <div className="aurora-surface mt-3 rounded-xl p-3">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-indigo-100">Next Suggested Command</p>
+          <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Next Suggested Command</p>
           <p className="mt-2 rounded-md border border-indigo-200/45 bg-indigo-400/18 px-2 py-1 text-sm font-semibold text-indigo-50">
             {actionHub.suggestedCommand || "/help"}
           </p>
@@ -215,7 +210,7 @@ export function ChatDock({
 
       {queuedCommands.length > 0 ? (
         <div className="mt-3 space-y-2 rounded-xl border border-cyan-200/35 bg-cyan-400/10 p-2">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-100">Queued</p>
+          <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Queued</p>
           {queuedCommands.map((queueItem) => (
             <div key={queueItem.id} className="aurora-surface-soft rounded-md p-2">
               <p className="text-xs text-cyan-50">{queueItem.label}</p>
@@ -238,18 +233,23 @@ export function ChatDock({
         </div>
       ) : null}
 
-      {activeTab === "chat" ? (
+      {currentTab === "chat" ? (
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
           <div className="aurora-surface min-h-0 flex-1 overflow-hidden rounded-xl p-2">
             <div className="h-full space-y-2 overflow-auto">
               {entries.map((entry) => (
-                <div key={entry.id} className={`rounded-md border p-2 text-xs ${roleClass(entry.type)}`}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <p className="uppercase tracking-wide text-slate-300">{entry.type}</p>
-                    <p className="text-[10px] text-slate-400">{formatTime(entry.createdAt)}</p>
+                <div
+                  key={entry.id}
+                  className={`flex ${entry.type === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div className={`max-w-[88%] rounded-md border p-2 text-xs ${roleClass(entry.type)}`}>
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <p className="uppercase tracking-wide text-slate-300">{entry.type}</p>
+                      <p className="text-[10px] text-slate-400">{formatTime(entry.createdAt)}</p>
+                    </div>
+                    {entry.subtitle ? <p className="mb-1 text-[10px] text-slate-400">{entry.subtitle}</p> : null}
+                    <p className="whitespace-pre-wrap text-slate-100">{entry.content}</p>
                   </div>
-                  {entry.subtitle ? <p className="mb-1 text-[10px] text-slate-400">{entry.subtitle}</p> : null}
-                  <p className="whitespace-pre-wrap text-slate-100">{entry.content}</p>
                 </div>
               ))}
               {entries.length === 0 ? <p className="text-xs text-slate-400">No chat history yet.</p> : null}
@@ -350,7 +350,7 @@ export function ChatDock({
         </div>
       ) : null}
 
-      {activeTab === "artifacts" ? (
+      {currentTab === "artifacts" ? (
         <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-xl p-2">
           <div className="space-y-2">
             {artifacts.map((artifact) => (
@@ -360,22 +360,7 @@ export function ChatDock({
                 <p className="text-[11px] text-slate-400">{formatTime(artifact.created_at)}</p>
               </div>
             ))}
-            {artifacts.length === 0 ? <p className="text-xs text-slate-400">No artifacts yet.</p> : null}
-          </div>
-        </div>
-      ) : null}
-
-      {!guided && activeTab === "jobs" ? (
-        <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-xl p-2">
-          <div className="space-y-2">
-            {jobs.map((job) => (
-              <div key={job.id} className="aurora-surface-soft rounded-md p-2 text-xs">
-                <p className="font-semibold text-slate-100">{job.step}</p>
-                <p className="text-slate-300">{job.status}</p>
-                {job.error ? <p className="text-rose-300">{job.error}</p> : null}
-              </div>
-            ))}
-            {jobs.length === 0 ? <p className="text-xs text-slate-400">No jobs yet.</p> : null}
+            {artifacts.length === 0 ? <p className="text-xs text-slate-400">Package outputs are not ready yet.</p> : null}
           </div>
         </div>
       ) : null}

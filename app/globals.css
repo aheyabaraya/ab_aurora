@@ -152,6 +152,18 @@ body {
   box-shadow: inset 0 1px 0 rgba(223, 233, 255, 0.2);
 }
 
+.aurora-title-primary {
+  color: var(--aurora-veil);
+  text-shadow:
+    0 0 18px rgba(145, 172, 247, 0.22),
+    0 0 1px rgba(220, 230, 255, 0.55);
+}
+
+.aurora-title-label {
+  color: rgba(167, 190, 255, 0.9);
+  text-shadow: 0 0 14px rgba(108, 142, 235, 0.16);
+}
+
 @media (max-width: 1024px) {
   .aurora-page {
     background-image:

@@ -31,7 +31,7 @@ export function ExploreScene({
     return (
       <div className="aurora-panel rounded-2xl p-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-indigo-50">Generating Top-3...</p>
+          <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Generating Top-3...</p>
           <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
             {modelSource}
           </span>

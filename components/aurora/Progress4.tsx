@@ -31,7 +31,7 @@ export function Progress4({ scene }: Progress4Props) {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Current Scene: {scene}</p>
+        <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Current Scene: {scene}</p>
       </div>
     </div>
   );

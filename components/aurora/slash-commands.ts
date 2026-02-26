@@ -112,48 +112,6 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     queueable: true
   },
   {
-    id: "start_runtime_goal",
-    category: "runtime",
-    canonical: "/runtime start",
-    aliasesKo: ["/런타임 시작"],
-    help: "Create a runtime goal.",
-    requiresSession: true
-  },
-  {
-    id: "runtime_step",
-    category: "runtime",
-    canonical: "/runtime step",
-    aliasesKo: ["/런타임 스텝"],
-    help: "Run one runtime step.",
-    requiresSession: true,
-    requiresRuntimeGoal: true
-  },
-  {
-    id: "pause_runtime",
-    category: "runtime",
-    canonical: "/runtime pause",
-    aliasesKo: ["/런타임 일시정지", "/런타임 멈춤"],
-    help: "Pause runtime loop.",
-    requiresSession: true
-  },
-  {
-    id: "resume_runtime",
-    category: "runtime",
-    canonical: "/runtime resume",
-    aliasesKo: ["/런타임 재개"],
-    help: "Resume runtime loop.",
-    requiresSession: true
-  },
-  {
-    id: "force_replan",
-    category: "runtime",
-    canonical: "/runtime replan",
-    aliasesKo: ["/런타임 리플랜", "/런타임 강제재계획"],
-    help: "Force replan and step.",
-    requiresSession: true,
-    requiresRuntimeGoal: true
-  },
-  {
     id: "help",
     category: "utility",
     canonical: "/help",

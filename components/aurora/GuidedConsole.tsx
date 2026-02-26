@@ -15,13 +15,10 @@ type AuroraController = ReturnType<typeof useAuroraController>;
 
 type GuidedConsoleProps = {
   controller: AuroraController;
-  onSwitchUiMode: (mode: "guided" | "pro") => void;
 };
 
-export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps) {
+export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const {
-    mode,
-    setMode,
     product,
     setProduct,
     audience,
@@ -32,6 +29,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     setAutoContinue,
     autoPickTop1,
     setAutoPickTop1,
+    canStartSession,
     sessionId,
     sessionPayload,
     jobsPayload,
@@ -51,6 +49,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     rightPanelViewModel,
     top3ModelSource,
     executeSlashCommand,
+    handleStartSession,
     handleSelectCandidate,
     handleConfirmBuild,
     handleRegenerateTop3,
@@ -64,6 +63,11 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
 
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
+  const latestFailedJob = useMemo(() => {
+    return [...(jobsPayload?.jobs ?? [])]
+      .filter((job) => job.status === "failed" && Boolean(job.error))
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+  }, [jobsPayload?.jobs]);
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
 
@@ -73,14 +77,14 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
         <div className="space-y-4">
           <article className="aurora-panel aurora-card-shift rounded-2xl p-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">
-                {sessionId ? "Runtime Status" : "Setup"}
+              <p className="aurora-title-label text-xs uppercase tracking-[0.24em]">
+                {sessionId ? "Session Status" : "Setup"}
               </p>
             </div>
 
             {!sessionId ? (
               <div className="mt-4 space-y-3">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Core Brief</p>
+                <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Core Brief</p>
 
                 <label className="block text-sm">
                   <span className="text-slate-300">Product</span>
@@ -112,44 +116,44 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                   />
                 </label>
 
-                <details className="aurora-surface-soft rounded-lg px-3 py-2">
-                  <summary className="cursor-pointer text-sm text-slate-300">Advanced options</summary>
-                  <div className="mt-3 space-y-3">
-                    <label className="block text-sm">
-                      <span className="text-slate-300">Mode</span>
-                      <select
-                        className="aurora-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
-                        value={mode}
-                        onChange={(event) => setMode(event.target.value as "mode_a" | "mode_b")}
-                      >
-                        <option value="mode_a">Mode A (Reference)</option>
-                        <option value="mode_b">Mode B (Guided)</option>
-                      </select>
-                    </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={autoContinue}
+                    onChange={(event) => setAutoContinue(event.target.checked)}
+                  />
+                  Auto continue
+                </label>
 
-                    <label className="flex items-center gap-2 text-sm text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={autoContinue}
-                        onChange={(event) => setAutoContinue(event.target.checked)}
-                      />
-                      Auto continue
-                    </label>
-
-                    <label className="flex items-center gap-2 text-sm text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={autoPickTop1}
-                        onChange={(event) => setAutoPickTop1(event.target.checked)}
-                      />
-                      Auto pick top-1
-                    </label>
-                  </div>
-                </details>
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={autoPickTop1}
+                    onChange={(event) => setAutoPickTop1(event.target.checked)}
+                  />
+                  Auto pick top-1
+                </label>
 
                 <p className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
                   실행 버튼은 우측 Chat Dock의 Next Action에서만 노출됩니다.
                 </p>
+
+                <button
+                  className="aurora-btn-primary w-full rounded-lg px-3 py-2 text-sm font-semibold"
+                  onClick={() => void handleStartSession()}
+                  disabled={busy || !canStartSession}
+                >
+                  Start Session
+                </button>
+                <p className="text-[11px] text-slate-400">또는 Chat Dock에서 `/start`를 입력할 수 있습니다.</p>
+
+                <div className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
+                  <p className="aurora-title-label mb-2 uppercase tracking-[0.2em]">Guided Flow</p>
+                  <p>1) DEFINE: `/start` 후 `/run`</p>
+                  <p>2) EXPLORE: `/run`으로 Top-3 생성</p>
+                  <p>3) DECIDE: `/pick 1|2|3` 후 필요 시 `/build`</p>
+                  <p>4) PACKAGE: `/export`로 패키지 완료</p>
+                </div>
               </div>
             ) : (
               <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
@@ -160,6 +164,15 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <p>Selected: {sessionPayload?.selected_candidate_id ?? "none"}</p>
               </div>
             )}
+
+            {latestFailedJob ? (
+              <details className="aurora-surface-soft mt-3 rounded-lg px-3 py-2 text-xs">
+                <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
+                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
+                  {latestFailedJob.error}
+                </pre>
+              </details>
+            ) : null}
 
             {error ? (
               <div className="mt-4 rounded-lg border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
@@ -190,8 +203,8 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
           <article className="aurora-panel aurora-card-shift rounded-2xl p-5">
             <header className="mb-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
-                <h1 className="text-2xl font-semibold text-indigo-50">Aurora Guided Flow</h1>
+                <p className="aurora-title-label text-xs uppercase tracking-[0.24em]">Scene Canvas</p>
+                <h1 className="aurora-title-primary text-2xl font-semibold">Aurora Guided Flow</h1>
               </div>
             </header>
 
@@ -208,7 +221,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                       }}
                     />
                     <div className="space-y-2 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Define</p>
+                      <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Define</p>
                       <p className="text-sm text-slate-200">
                         브리프를 작성한 뒤 우측 Chat Dock에서 `/start` 명령으로 세션을 시작하세요.
                       </p>
@@ -268,11 +281,11 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
             sessionReady={Boolean(sessionId)}
             guided
             defaultTab="chat"
+            showArtifactsTab={currentScene === "PACKAGE"}
             status={rightPanelViewModel.status}
             modelSource={rightPanelViewModel.modelSource}
             actionHub={rightPanelViewModel}
             onExecuteSlash={(raw) => executeSlashCommand(raw)}
-            onSwitchUiMode={onSwitchUiMode}
             onForceQueued={(queueId) => void handleForceQueued(queueId)}
             onDiscardQueued={handleDiscardQueued}
           />
@@ -282,7 +295,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
       {showSignIn ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4">
           <div className="aurora-panel w-full max-w-md rounded-2xl p-4">
-            <p className="text-sm font-semibold text-indigo-50">API Sign-in</p>
+            <p className="aurora-title-primary text-sm font-semibold">API Sign-in</p>
             <p className="mt-1 text-xs text-slate-300">Set x-api-token for protected routes.</p>
             <input
               className="aurora-input mt-3 w-full rounded-lg px-3 py-2 text-sm"

@@ -53,6 +53,34 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function containsSchemaValidationNoise(content: string): boolean {
+  return (
+    content.includes("invalid_type") ||
+    content.includes("Expected object, received") ||
+    (content.includes("candidates") && content.includes("ui_plan"))
+  );
+}
+
+function summarizeMessageForTimeline(input: { role: "user" | "assistant" | "system"; content: string }): string {
+  const raw = input.content?.trim() ?? "";
+  if (raw.length === 0) {
+    return raw;
+  }
+
+  if (input.role !== "user" && containsSchemaValidationNoise(raw)) {
+    return [
+      "후보 생성 단계에서 스키마 검증 실패가 발생했습니다.",
+      "추천: /run 으로 재시도하세요.",
+      "상세 오류는 좌측 Setup/Runtime의 Latest failure details에서 확인할 수 있습니다."
+    ].join("\n");
+  }
+
+  if (input.role !== "user" && raw.length > 640) {
+    return `${raw.slice(0, 640)}...`;
+  }
+  return raw;
+}
+
 export type ChatApiResponse = {
   runtime_meta?: {
     goal_id?: string;
@@ -107,6 +135,11 @@ export function getCommandExecutionMeta(response: ChatApiResponse | null | undef
 }
 
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
+  const status = payload?.session.status;
+  if (status === "failed" && stage === "candidates_generate") {
+    return "EXPLORE 후보 생성이 실패했습니다. /run 으로 재시도하고, 상세 오류는 좌측 Latest failure details에서 확인하세요.";
+  }
+
   if (stage === "top3_select") {
     const candidates = (payload?.latest_top3 ?? []).slice(0, 3);
     const optionLines = candidates.map((candidate, index) => {
@@ -466,7 +499,7 @@ export function useAuroraController() {
         {
           id: `stage_${crypto.randomUUID()}`,
           type: "system",
-          content: `Scene transitioned to ${scene} (${currentStage}).\n${guide}`,
+          content: `${scene} scene으로 전환되었습니다 (${currentStage}).\n${guide}`,
           createdAt: nowIso(),
           subtitle: "stage update"
         }
@@ -1119,7 +1152,10 @@ export function useAuroraController() {
     const messageEntries = (sessionPayload?.recent_messages ?? []).map((message) => ({
       id: message.id,
       type: message.role,
-      content: message.content,
+      content: summarizeMessageForTimeline({
+        role: message.role,
+        content: message.content
+      }),
       createdAt: message.created_at
     }));
 
@@ -1211,6 +1247,7 @@ export function useAuroraController() {
     setAutoContinue,
     autoPickTop1,
     setAutoPickTop1,
+    canStartSession,
     sessionId,
     sessionPayload,
     jobsPayload,

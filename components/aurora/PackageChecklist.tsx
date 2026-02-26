@@ -129,7 +129,7 @@ export function PackageChecklist({
         <div key={item.key} className="aurora-panel rounded-xl p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-indigo-50">
+              <p className="aurora-title-primary text-sm font-semibold">
                 {statusMark(item.status)} {item.label}
               </p>
               <p className="mt-1 text-xs text-slate-300">{item.preview}</p>

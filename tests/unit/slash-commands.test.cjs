@@ -31,27 +31,21 @@ test("parseSlashCommand returns null for unknown command", () => {
   assert.equal(parsed, null);
 });
 
-test("validateSlashCommandContext enforces session/runtime requirements", () => {
-  const runtimeStep = parseSlashCommand("/runtime step");
-  assert.ok(runtimeStep);
+test("validateSlashCommandContext enforces session requirements", () => {
+  const buildCommand = parseSlashCommand("/build");
+  assert.ok(buildCommand);
 
-  const withoutSession = validateSlashCommandContext(runtimeStep.spec, {
+  const withoutSession = validateSlashCommandContext(buildCommand.spec, {
     sessionReady: false,
     runtimeGoalReady: false
   });
   assert.equal(withoutSession, "Session is required. Run /start first.");
 
-  const withoutGoal = validateSlashCommandContext(runtimeStep.spec, {
+  const withSession = validateSlashCommandContext(buildCommand.spec, {
     sessionReady: true,
     runtimeGoalReady: false
   });
-  assert.equal(withoutGoal, "Runtime goal is required. Run /runtime start first.");
-
-  const allowed = validateSlashCommandContext(runtimeStep.spec, {
-    sessionReady: true,
-    runtimeGoalReady: true
-  });
-  assert.equal(allowed, null);
+  assert.equal(withSession, null);
 });
 
 test("filterSlashCommands lists relevant slash entries", () => {

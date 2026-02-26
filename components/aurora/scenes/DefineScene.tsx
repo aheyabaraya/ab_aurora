@@ -17,7 +17,7 @@ export function DefineScene({ stage }: DefineSceneProps) {
           }}
         />
         <div className="space-y-2 p-4 text-sm text-slate-200">
-          <p>Interview + intent gate + draft spec are merged as one DEFINE scene.</p>
+          <p className="aurora-title-primary">Interview + intent gate + draft spec are merged as one DEFINE scene.</p>
           <p>Current stage: {stage}</p>
         </div>
       </div>

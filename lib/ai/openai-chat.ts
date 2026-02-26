@@ -33,6 +33,26 @@ function isKoreanPreferred(message: string): boolean {
   return /[가-힣]/.test(message);
 }
 
+function summarizePipelineMessage(raw: string): string {
+  const compact = raw.trim().replace(/\s+/g, " ");
+  if (compact.length === 0) {
+    return "상태 정보를 받지 못했습니다.";
+  }
+
+  const schemaError =
+    compact.includes("invalid_type") ||
+    compact.includes("Expected object, received") ||
+    (compact.includes("candidates") && compact.includes("ui_plan"));
+  if (schemaError) {
+    return "후보 생성 결과가 요구 스키마와 일치하지 않아 검증에 실패했습니다. /run 으로 재시도하세요.";
+  }
+
+  if (compact.length > 260) {
+    return `${compact.slice(0, 260)}...`;
+  }
+  return compact;
+}
+
 export async function generateAssistantChatReply(input: AssistantChatReplyInput): Promise<string> {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is required for OpenAI chat replies.");
@@ -41,6 +61,7 @@ export async function generateAssistantChatReply(input: AssistantChatReplyInput)
   const languageGuide = isKoreanPreferred(input.userMessage)
     ? "답변은 한국어로 작성하세요."
     : "Reply in English.";
+  const pipelineSummary = summarizePipelineMessage(input.pipelineMessage);
 
   const prompt = [
     languageGuide,
@@ -54,7 +75,7 @@ export async function generateAssistantChatReply(input: AssistantChatReplyInput)
     "",
     `User message: ${input.userMessage}`,
     `Interpreted action: ${input.actionType}`,
-    `Pipeline message: ${input.pipelineMessage}`,
+    `Pipeline message: ${pipelineSummary}`,
     `Session snapshot: ${JSON.stringify(input.sessionSnapshot)}`,
     "Option hints:",
     formatHints(input.optionHints)
@@ -109,7 +130,7 @@ export function buildRateLimitedAssistantReply(input: {
 }): string {
   const head = "요청은 처리되었지만 OpenAI 채팅 한도에 도달했습니다. 잠시 후 다시 시도해주세요.";
   const options = formatHints(input.optionHints);
-  return `${head}\n\n상태: ${input.pipelineMessage}\n\n지금 가능한 명령:\n${options}`;
+  return `${head}\n\n상태: ${summarizePipelineMessage(input.pipelineMessage)}\n\n지금 가능한 명령:\n${options}`;
 }
 
 export function buildFallbackAssistantReply(input: {
@@ -119,7 +140,7 @@ export function buildFallbackAssistantReply(input: {
   const options = formatHints(input.optionHints);
   return [
     "일시적으로 OpenAI 응답 생성에 실패했습니다. 실행 결과를 기준으로 계속 진행할 수 있습니다.",
-    `상태: ${input.pipelineMessage}`,
+    `상태: ${summarizePipelineMessage(input.pipelineMessage)}`,
     "",
     "선택 가능한 명령:",
     options
