@@ -4,17 +4,21 @@
 
 :root {
   color-scheme: dark;
-  --aurora-bg-top: rgba(2, 6, 20, 0.95);
-  --aurora-bg-mid: rgba(7, 12, 31, 0.68);
-  --aurora-bg-bottom: rgba(2, 6, 18, 0.96);
-  --aurora-cyan: #64dbe3;
-  --aurora-luna: #9eb8ff;
-  --aurora-luna-strong: #7fa6ff;
-  --aurora-veil: #dce6ff;
+  --aurora-bg-top: rgba(1, 3, 12, 0.96);
+  --aurora-bg-mid: rgba(7, 11, 30, 0.8);
+  --aurora-bg-bottom: rgba(2, 4, 14, 0.97);
+  --aurora-cyan: #86c8ff;
+  --aurora-violet: #7d57ff;
+  --aurora-violet-soft: #9d8bff;
+  --aurora-luna: #b4c6ff;
+  --aurora-luna-strong: #8ea8ff;
+  --aurora-veil: #c7d2f2;
+  --aurora-text-body: #bdc9ea;
+  --aurora-text-soft: #8f9dc2;
   --aurora-ember-gold: #d8b46f;
-  --aurora-panel-border: rgba(143, 177, 255, 0.28);
-  --aurora-panel-bg: rgba(9, 15, 36, 0.56);
-  --aurora-input-bg: rgba(8, 13, 32, 0.72);
+  --aurora-panel-border: rgba(126, 145, 208, 0.38);
+  --aurora-panel-bg: rgba(8, 12, 29, 0.64);
+  --aurora-input-bg: rgba(8, 11, 27, 0.82);
   --aurora-bg-desktop: url("/aurora/bg_abstract_orbline_1920x1080.webp");
   --aurora-bg-mobile: url("/aurora/bg_abstract_orbline_1080x1920.webp");
   --aurora-sigil-tile: url("/aurora/sigil_tile_1024.png");
@@ -27,13 +31,18 @@
 body {
   margin: 0;
   font-family: "Sora", "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
-  background-color: #040913;
+  background-color: #05070f;
+  color: var(--aurora-text-body);
 }
 
 .aurora-page {
   position: relative;
   isolation: isolate;
   background-image:
+    radial-gradient(circle at 18% 10%, rgba(125, 87, 255, 0.22) 0%, rgba(125, 87, 255, 0) 40%),
+    radial-gradient(circle at 82% 18%, rgba(134, 200, 255, 0.16) 0%, rgba(134, 200, 255, 0) 46%),
+    radial-gradient(circle at 58% 78%, rgba(94, 109, 214, 0.22) 0%, rgba(94, 109, 214, 0) 42%),
+    radial-gradient(circle at 46% 36%, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 58%),
     linear-gradient(180deg, var(--aurora-bg-top) 0%, var(--aurora-bg-mid) 58%, var(--aurora-bg-bottom) 100%),
     var(--aurora-bg-desktop);
   background-size: cover;
@@ -45,11 +54,15 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: var(--aurora-sigil-tile);
-  background-size: 720px;
+  background-image:
+    radial-gradient(circle, rgba(196, 214, 255, 0.14) 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(160, 181, 248, 0.12) 1px, transparent 1.4px),
+    var(--aurora-sigil-tile);
+  background-size: 160px 160px, 220px 220px, 720px;
+  background-position: 0 0, 48px 76px, center;
   background-repeat: repeat;
-  opacity: 0.08;
-  mix-blend-mode: overlay;
+  opacity: 0.065;
+  mix-blend-mode: screen;
   pointer-events: none;
   z-index: -1;
 }
@@ -57,74 +70,87 @@ body {
 .aurora-panel {
   border: 1px solid var(--aurora-panel-border);
   background:
-    linear-gradient(145deg, rgba(26, 39, 85, 0.24) 0%, rgba(9, 14, 34, 0.78) 38%, rgba(6, 10, 25, 0.88) 100%),
+    linear-gradient(160deg, rgba(56, 69, 134, 0.2) 0%, rgba(11, 15, 36, 0.86) 38%, rgba(7, 10, 26, 0.92) 100%),
     var(--aurora-panel-bg);
   box-shadow:
-    inset 0 1px 0 rgba(220, 230, 255, 0.06),
-    0 24px 44px -34px rgba(94, 132, 225, 0.58);
-  backdrop-filter: blur(14px);
+    inset 0 1px 0 rgba(213, 224, 255, 0.08),
+    0 18px 42px -28px rgba(78, 94, 192, 0.65),
+    0 0 0 1px rgba(153, 173, 236, 0.08);
+  backdrop-filter: blur(16px) saturate(115%);
 }
 
 .aurora-surface {
-  border: 1px solid rgba(143, 177, 255, 0.24);
-  background: linear-gradient(145deg, rgba(23, 36, 78, 0.2) 0%, rgba(8, 13, 31, 0.68) 45%, rgba(6, 10, 25, 0.82) 100%);
+  border: 1px solid rgba(124, 144, 214, 0.3);
+  background:
+    linear-gradient(150deg, rgba(79, 94, 168, 0.16) 0%, rgba(9, 13, 33, 0.76) 38%, rgba(6, 10, 23, 0.88) 100%);
 }
 
 .aurora-surface-soft {
-  border: 1px solid rgba(130, 154, 218, 0.18);
-  background: rgba(8, 13, 31, 0.52);
+  border: 1px solid rgba(109, 126, 184, 0.26);
+  background: rgba(8, 12, 29, 0.64);
+}
+
+.aurora-copy {
+  color: var(--aurora-text-body);
+}
+
+.aurora-copy-soft {
+  color: var(--aurora-text-soft);
 }
 
 .aurora-input {
-  border: 1px solid rgba(129, 157, 226, 0.35);
+  border: 1px solid rgba(120, 136, 192, 0.48);
   background: var(--aurora-input-bg);
-  color: #ecf2ff;
-  box-shadow: inset 0 1px 0 rgba(220, 230, 255, 0.05);
+  color: var(--aurora-text-body);
+  box-shadow:
+    inset 0 1px 0 rgba(205, 218, 255, 0.06),
+    inset 0 -8px 24px rgba(50, 61, 118, 0.22);
 }
 
 .aurora-input::placeholder {
-  color: rgba(195, 206, 239, 0.58);
+  color: rgba(149, 161, 199, 0.85);
 }
 
 .aurora-input:focus {
   outline: none;
-  border-color: rgba(165, 190, 255, 0.8);
+  border-color: rgba(153, 173, 242, 0.9);
   box-shadow:
-    0 0 0 2px rgba(120, 157, 255, 0.2),
-    inset 0 1px 0 rgba(220, 230, 255, 0.07);
+    0 0 0 2px rgba(125, 87, 255, 0.22),
+    0 8px 20px -12px rgba(125, 87, 255, 0.62),
+    inset 0 1px 0 rgba(220, 230, 255, 0.08);
 }
 
 .aurora-btn-primary {
-  border: 1px solid rgba(166, 190, 255, 0.58);
-  background: linear-gradient(135deg, rgba(182, 204, 255, 0.3) 0%, rgba(118, 153, 255, 0.18) 100%);
-  color: #e8efff;
+  border: 1px solid rgba(154, 165, 230, 0.66);
+  background: linear-gradient(135deg, rgba(97, 110, 172, 0.54) 0%, rgba(74, 53, 164, 0.66) 100%);
+  color: #d8e1ff;
   box-shadow:
-    inset 0 1px 0 rgba(227, 236, 255, 0.34),
-    0 10px 20px -14px rgba(130, 169, 255, 0.7);
+    inset 0 1px 0 rgba(226, 234, 255, 0.24),
+    0 14px 28px -18px rgba(93, 76, 193, 0.76);
   transition: 160ms ease;
 }
 
 .aurora-btn-primary:hover {
-  border-color: rgba(184, 205, 255, 0.74);
-  background: linear-gradient(135deg, rgba(189, 209, 255, 0.36) 0%, rgba(130, 164, 255, 0.24) 100%);
+  border-color: rgba(172, 184, 244, 0.84);
+  background: linear-gradient(135deg, rgba(110, 126, 192, 0.6) 0%, rgba(88, 62, 191, 0.72) 100%);
 }
 
 .aurora-btn-secondary {
-  border: 1px solid rgba(141, 170, 240, 0.42);
-  background: rgba(11, 20, 46, 0.58);
-  color: #cfdeff;
+  border: 1px solid rgba(129, 146, 205, 0.5);
+  background: rgba(14, 20, 46, 0.74);
+  color: #bac8f0;
   transition: 160ms ease;
 }
 
 .aurora-btn-secondary:hover {
-  border-color: rgba(166, 190, 255, 0.62);
-  background: rgba(20, 34, 75, 0.58);
+  border-color: rgba(149, 166, 224, 0.72);
+  background: rgba(22, 32, 74, 0.72);
 }
 
 .aurora-btn-ghost {
-  border: 1px solid rgba(145, 160, 201, 0.34);
-  background: rgba(8, 13, 28, 0.45);
-  color: #c6d1f2;
+  border: 1px solid rgba(118, 132, 177, 0.38);
+  background: rgba(8, 11, 25, 0.62);
+  color: #afbddf;
   transition: 160ms ease;
 }
 
@@ -140,33 +166,74 @@ body {
 }
 
 .aurora-pill {
-  border: 1px solid rgba(137, 165, 233, 0.35);
-  background: rgba(10, 18, 42, 0.56);
-  color: #c7d4f6;
+  border: 1px solid rgba(122, 139, 191, 0.45);
+  background: rgba(12, 17, 40, 0.74);
+  color: #aab8de;
 }
 
 .aurora-pill-active {
-  border-color: rgba(170, 194, 255, 0.72);
-  background: linear-gradient(135deg, rgba(167, 189, 255, 0.27) 0%, rgba(96, 130, 225, 0.2) 100%);
-  color: #e6eeff;
-  box-shadow: inset 0 1px 0 rgba(223, 233, 255, 0.2);
+  border-color: rgba(157, 171, 232, 0.78);
+  background: linear-gradient(135deg, rgba(100, 114, 184, 0.52) 0%, rgba(77, 53, 171, 0.58) 100%);
+  color: #dbe5ff;
+  box-shadow:
+    inset 0 1px 0 rgba(223, 233, 255, 0.2),
+    0 6px 16px -10px rgba(112, 85, 236, 0.62);
 }
 
 .aurora-title-primary {
   color: var(--aurora-veil);
   text-shadow:
-    0 0 18px rgba(145, 172, 247, 0.22),
-    0 0 1px rgba(220, 230, 255, 0.55);
+    0 0 20px rgba(146, 125, 255, 0.24),
+    0 0 1px rgba(214, 224, 255, 0.58);
 }
 
 .aurora-title-label {
-  color: rgba(167, 190, 255, 0.9);
-  text-shadow: 0 0 14px rgba(108, 142, 235, 0.16);
+  color: rgba(161, 179, 237, 0.9);
+  text-shadow: 0 0 14px rgba(119, 135, 228, 0.18);
+}
+
+.aurora-chat-track {
+  border: 1px solid rgba(117, 134, 186, 0.3);
+  background:
+    linear-gradient(165deg, rgba(43, 52, 102, 0.18) 0%, rgba(9, 13, 31, 0.78) 45%, rgba(6, 10, 24, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(211, 222, 255, 0.05);
+}
+
+.aurora-chat-bubble {
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 18px -14px rgba(78, 93, 160, 0.65);
+}
+
+.aurora-chat-user {
+  border: 1px solid rgba(158, 129, 255, 0.42);
+  background: linear-gradient(145deg, rgba(107, 75, 209, 0.38) 0%, rgba(72, 49, 154, 0.52) 100%);
+  border-radius: 16px 16px 8px 16px;
+}
+
+.aurora-chat-assistant {
+  border: 1px solid rgba(136, 158, 228, 0.34);
+  background: linear-gradient(145deg, rgba(71, 90, 156, 0.26) 0%, rgba(11, 17, 38, 0.72) 100%);
+  border-radius: 16px 16px 16px 8px;
+}
+
+.aurora-chat-system {
+  border: 1px solid rgba(138, 154, 205, 0.3);
+  background: rgba(25, 33, 66, 0.64);
+  border-radius: 14px;
+}
+
+.aurora-chat-artifact {
+  border: 1px solid rgba(139, 178, 230, 0.34);
+  background: rgba(35, 60, 98, 0.42);
+  border-radius: 14px;
 }
 
 @media (max-width: 1024px) {
   .aurora-page {
     background-image:
+      radial-gradient(circle at 18% 10%, rgba(125, 87, 255, 0.22) 0%, rgba(125, 87, 255, 0) 42%),
+      radial-gradient(circle at 84% 16%, rgba(134, 200, 255, 0.16) 0%, rgba(134, 200, 255, 0) 46%),
+      radial-gradient(circle at 58% 78%, rgba(94, 109, 214, 0.2) 0%, rgba(94, 109, 214, 0) 44%),
       linear-gradient(180deg, var(--aurora-bg-top) 0%, var(--aurora-bg-mid) 58%, var(--aurora-bg-bottom) 100%),
       var(--aurora-bg-mobile);
   }

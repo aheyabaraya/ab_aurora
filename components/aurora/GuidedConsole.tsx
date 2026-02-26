@@ -149,10 +149,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                 <div className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
                   <p className="aurora-title-label mb-2 uppercase tracking-[0.2em]">Guided Flow</p>
-                  <p>1) DEFINE: `/start` 후 `/run`</p>
-                  <p>2) EXPLORE: `/run`으로 Top-3 생성</p>
-                  <p>3) DECIDE: `/pick 1|2|3` 후 필요 시 `/build`</p>
-                  <p>4) PACKAGE: `/export`로 패키지 완료</p>
+                  <p>✦ DEFINE: `/start` 후 `/run`</p>
+                  <p>◉ EXPLORE: `/run`으로 Top-3 생성</p>
+                  <p>◆ DECIDE: `/pick 1|2|3` 후 필요 시 `/build`</p>
+                  <p>⬦ PACKAGE: `/export`로 패키지 완료</p>
                 </div>
               </div>
             ) : (

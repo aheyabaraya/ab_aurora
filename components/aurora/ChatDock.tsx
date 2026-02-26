@@ -36,17 +36,71 @@ type ChatDockProps = {
   onDiscardQueued: (queueId: string) => void;
 };
 
+type IconProps = {
+  className?: string;
+};
+
+function IconChat({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <path d="M7 17.5l-3.5 2 .9-4A8 8 0 1112 20a8 8 0 01-5-.5z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconSpark({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 16l.8 2.2L8 19l-2.2.8L5 22l-.8-2.2L2 19l2.2-.8L5 16zM19 14l.7 1.9L22 16.7l-2.3.8L19 20l-.7-2.5-2.3-.8 2.3-.8L19 14z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconPackage({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <path d="M4 8.5L12 4l8 4.5v7L12 20l-8-4.5v-7z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 4v16M4 8.5l8 4.5 8-4.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconCommand({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <path d="M8 8h8M8 16h8M9.5 8A2.5 2.5 0 117 5.5 2.5 2.5 0 019.5 8zm0 8A2.5 2.5 0 117 13.5 2.5 2.5 0 019.5 16zM17 8a2.5 2.5 0 112.5 2.5A2.5 2.5 0 0117 8zm0 8a2.5 2.5 0 112.5 2.5A2.5 2.5 0 0117 16z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconClock({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconSend({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
+      <path d="M4 12l16-7-4 7 4 7-16-7z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function roleClass(type: ChatEntry["type"]): string {
   if (type === "user") {
-    return "border-violet-200/55 bg-violet-400/18";
+    return "aurora-chat-bubble aurora-chat-user";
   }
   if (type === "assistant") {
-    return "border-indigo-200/35 bg-indigo-400/12";
+    return "aurora-chat-bubble aurora-chat-assistant";
   }
   if (type === "artifact-note") {
-    return "border-cyan-200/35 bg-cyan-400/12";
+    return "aurora-chat-bubble aurora-chat-artifact";
   }
-  return "border-slate-400/35 bg-slate-400/12";
+  return "aurora-chat-bubble aurora-chat-system";
 }
 
 function statusClass(status: string): string {
@@ -111,13 +165,9 @@ export function ChatDock({
   const [isComposing, setIsComposing] = useState(false);
   const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
 
-  const normalizedInput = input.trim().toLowerCase();
-  const showRuntimeCommands = normalizedInput.startsWith("/runtime");
   const slashMatches = useMemo(() => {
-    return filterSlashCommands(input)
-      .filter((command) => showRuntimeCommands || command.category !== "runtime")
-      .slice(0, 10);
-  }, [input, showRuntimeCommands]);
+    return filterSlashCommands(input).slice(0, 10);
+  }, [input]);
   const showSlashPopover = currentTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
   const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
 
@@ -164,8 +214,14 @@ export function ChatDock({
     <article className="aurora-panel flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Chat Dock</p>
-          <h2 className="aurora-title-primary text-lg font-semibold">Command Console</h2>
+          <p className="aurora-title-label flex items-center gap-1.5 text-xs uppercase tracking-[0.2em]">
+            <IconSpark className="h-3 w-3" />
+            Chat Dock
+          </p>
+          <h2 className="aurora-title-primary flex items-center gap-2 text-lg font-semibold">
+            <IconChat className="h-4 w-4" />
+            Command Console
+          </h2>
         </div>
         <div className="mt-1 flex flex-wrap gap-2">
           <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
@@ -184,7 +240,10 @@ export function ChatDock({
           }`}
           onClick={() => setActiveTab("chat")}
         >
-          Chat
+          <span className="flex items-center gap-1.5">
+            <IconChat className="h-3 w-3" />
+            Chat
+          </span>
         </button>
         {showArtifactsTab ? (
           <button
@@ -193,24 +252,33 @@ export function ChatDock({
             }`}
             onClick={() => setActiveTab("artifacts")}
           >
-            Package Outputs
+            <span className="flex items-center gap-1.5">
+              <IconPackage className="h-3 w-3" />
+              Package Outputs
+            </span>
           </button>
         ) : null}
       </div>
 
       {actionHub ? (
         <div className="aurora-surface mt-3 rounded-xl p-3">
-          <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Next Suggested Command</p>
-          <p className="mt-2 rounded-md border border-indigo-200/45 bg-indigo-400/18 px-2 py-1 text-sm font-semibold text-indigo-50">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em]">
+            <IconCommand className="h-3 w-3" />
+            Next Suggested Command
+          </p>
+          <p className="mt-2 rounded-md border border-indigo-200/45 bg-indigo-400/16 px-2 py-1 text-sm font-semibold text-indigo-100">
             {actionHub.suggestedCommand || "/help"}
           </p>
-          <p className="mt-2 text-[11px] text-slate-300/95">{actionHub.suggestedReason || actionHub.hint}</p>
+          <p className="aurora-copy-soft mt-2 text-[11px]">{actionHub.suggestedReason || actionHub.hint}</p>
         </div>
       ) : null}
 
       {queuedCommands.length > 0 ? (
         <div className="mt-3 space-y-2 rounded-xl border border-cyan-200/35 bg-cyan-400/10 p-2">
-          <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Queued</p>
+          <p className="aurora-title-label flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em]">
+            <IconClock className="h-3 w-3" />
+            Queued
+          </p>
           {queuedCommands.map((queueItem) => (
             <div key={queueItem.id} className="aurora-surface-soft rounded-md p-2">
               <p className="text-xs text-cyan-50">{queueItem.label}</p>
@@ -235,24 +303,26 @@ export function ChatDock({
 
       {currentTab === "chat" ? (
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <div className="aurora-surface min-h-0 flex-1 overflow-hidden rounded-xl p-2">
-            <div className="h-full space-y-2 overflow-auto">
+          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-xl p-2.5">
+            <div className="h-full space-y-2.5 overflow-auto pr-1">
               {entries.map((entry) => (
                 <div
                   key={entry.id}
                   className={`flex ${entry.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[88%] rounded-md border p-2 text-xs ${roleClass(entry.type)}`}>
+                  <div className={`max-w-[88%] p-2.5 text-xs ${roleClass(entry.type)}`}>
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <p className="uppercase tracking-wide text-slate-300">{entry.type}</p>
-                      <p className="text-[10px] text-slate-400">{formatTime(entry.createdAt)}</p>
+                      <p className="aurora-copy-soft uppercase tracking-wide">
+                        {entry.type === "user" ? "You" : entry.type === "assistant" ? "Assistant" : entry.type}
+                      </p>
+                      <p className="text-[10px] text-slate-400/90">{formatTime(entry.createdAt)}</p>
                     </div>
-                    {entry.subtitle ? <p className="mb-1 text-[10px] text-slate-400">{entry.subtitle}</p> : null}
-                    <p className="whitespace-pre-wrap text-slate-100">{entry.content}</p>
+                    {entry.subtitle ? <p className="aurora-copy-soft mb-1 text-[10px]">{entry.subtitle}</p> : null}
+                    <p className="aurora-copy whitespace-pre-wrap">{entry.content}</p>
                   </div>
                 </div>
               ))}
-              {entries.length === 0 ? <p className="text-xs text-slate-400">No chat history yet.</p> : null}
+              {entries.length === 0 ? <p className="aurora-copy-soft text-sm">No chat history yet.</p> : null}
             </div>
           </div>
 
@@ -268,15 +338,15 @@ export function ChatDock({
             </div>
 
             {commandNotice ? (
-              <div className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
+              <div className="aurora-surface-soft rounded-xl px-3 py-2 text-[11px] text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
               </div>
             ) : null}
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[74px] w-full rounded-lg px-3 py-2 text-sm"
-                placeholder='Type "/" for commands or send natural language.'
+                className="aurora-input min-h-[82px] w-full rounded-2xl px-3 py-2.5 text-sm"
+                placeholder='Try "/run" or ask naturally.'
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
@@ -319,14 +389,14 @@ export function ChatDock({
               />
 
               {showSlashPopover ? (
-                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-lg border border-indigo-200/35 bg-slate-950/95 p-1 shadow-xl">
+                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-xl border border-indigo-200/35 bg-slate-950/95 p-1.5 shadow-xl">
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}
-                      className={`w-full rounded-md px-2 py-2 text-left text-xs ${
+                      className={`w-full rounded-lg px-2.5 py-2 text-left text-xs ${
                         index === highlightIndex
                           ? "border border-indigo-200/45 bg-indigo-400/20 text-indigo-50"
-                          : "border border-transparent text-slate-200 hover:bg-slate-800/80"
+                          : "border border-transparent text-slate-200 hover:bg-slate-800/70"
                       }`}
                       onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => void execute(command.canonical)}
@@ -340,11 +410,14 @@ export function ChatDock({
             </div>
 
             <button
-              className="aurora-btn-primary w-full rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-60"
+              className="aurora-btn-primary w-full rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
               onClick={() => void execute(input)}
               disabled={busy || input.trim().length === 0}
             >
-              Send Command {busy ? "(processing)" : ""}
+              <span className="flex items-center justify-center gap-1.5">
+                <IconSend className="h-3.5 w-3.5" />
+                Send Command {busy ? "(processing)" : ""}
+              </span>
             </button>
           </div>
         </div>
