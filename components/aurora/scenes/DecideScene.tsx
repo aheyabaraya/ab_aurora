@@ -24,10 +24,10 @@ export function DecideScene({
 }: DecideSceneProps) {
   const modelBadgeClass =
     modelSource === "OPENAI"
-      ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100"
+      ? "border-indigo-200/70 bg-indigo-400/20 text-indigo-50"
       : modelSource === "MOCK"
         ? "border-slate-500 bg-slate-700/40 text-slate-200"
-        : "border-slate-700 bg-slate-900/70 text-slate-400";
+        : "border-indigo-200/24 bg-slate-900/70 text-slate-400";
 
   return (
     <div className="space-y-3">

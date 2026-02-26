@@ -9,7 +9,7 @@ type DefineSceneProps = {
 export function DefineScene({ stage }: DefineSceneProps) {
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
+      <div className="aurora-panel overflow-hidden rounded-2xl">
         <div
           className="h-56 bg-cover bg-center"
           style={{

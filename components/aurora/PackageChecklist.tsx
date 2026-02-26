@@ -126,10 +126,10 @@ export function PackageChecklist({
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.key} className="rounded-xl border border-cyan-300/20 bg-slate-950/65 p-3">
+        <div key={item.key} className="aurora-panel rounded-xl p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-cyan-100">
+              <p className="text-sm font-semibold text-indigo-50">
                 {statusMark(item.status)} {item.label}
               </p>
               <p className="mt-1 text-xs text-slate-300">{item.preview}</p>
@@ -137,7 +137,7 @@ export function PackageChecklist({
 
             {item.key === "export_zip" ? (
               <button
-                className="rounded-md border border-cyan-300/40 px-3 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-60"
+                className="aurora-btn-primary rounded-md px-3 py-1 text-xs font-semibold"
                 onClick={onExportZip}
                 disabled={!packReady || busy}
               >
@@ -145,7 +145,7 @@ export function PackageChecklist({
               </button>
             ) : (
               <button
-                className="rounded-md border border-amber-300/40 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-400/10 disabled:opacity-60"
+                className="aurora-btn-secondary rounded-md px-3 py-1 text-xs font-semibold"
                 onClick={item.regenerate === "top3" ? onRegenerateTop3 : onRegenerateOutputs}
                 disabled={busy}
               >

@@ -71,7 +71,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
     <main className="aurora-page min-h-screen px-4 py-6 text-slate-100 md:px-6" style={pageStyle}>
       <section className="mx-auto grid max-w-[90rem] gap-4 xl:grid-cols-[1.7fr_1fr]">
         <div className="space-y-4">
-          <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 shadow-[0_16px_36px_-24px_rgba(34,211,238,0.45)] backdrop-blur">
+          <article className="aurora-panel aurora-card-shift rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">
                 {sessionId ? "Runtime Status" : "Setup"}
@@ -85,7 +85,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <label className="block text-sm">
                   <span className="text-slate-300">Product</span>
                   <input
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    className="aurora-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
                     value={product}
                     onChange={(event) => setProduct(event.target.value)}
                     placeholder="e.g. AI landing page builder for solo founders"
@@ -95,7 +95,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <label className="block text-sm">
                   <span className="text-slate-300">Audience</span>
                   <input
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    className="aurora-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
                     value={audience}
                     onChange={(event) => setAudience(event.target.value)}
                     placeholder="e.g. early-stage builders shipping in public"
@@ -105,20 +105,20 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <label className="block text-sm">
                   <span className="text-slate-300">Style keywords</span>
                   <input
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                    className="aurora-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
                     value={styleKeywords}
                     onChange={(event) => setStyleKeywords(event.target.value)}
                     placeholder="e.g. editorial, calm, ritual"
                   />
                 </label>
 
-                <details className="rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2">
+                <details className="aurora-surface-soft rounded-lg px-3 py-2">
                   <summary className="cursor-pointer text-sm text-slate-300">Advanced options</summary>
                   <div className="mt-3 space-y-3">
                     <label className="block text-sm">
                       <span className="text-slate-300">Mode</span>
                       <select
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        className="aurora-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
                         value={mode}
                         onChange={(event) => setMode(event.target.value as "mode_a" | "mode_b")}
                       >
@@ -147,7 +147,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                   </div>
                 </details>
 
-                <p className="rounded-lg border border-cyan-300/20 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
+                <p className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
                   실행 버튼은 우측 Chat Dock의 Next Action에서만 노출됩니다.
                 </p>
               </div>
@@ -167,7 +167,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                 <div className="mt-2 flex flex-wrap gap-2">
                   {canRetry ? (
                     <button
-                      className="rounded-md border border-rose-300/60 px-2 py-1 text-[11px] hover:bg-rose-500/15"
+                      className="aurora-btn-ghost rounded-md px-2 py-1 text-[11px]"
                       onClick={() => void handleRetryLastAction()}
                     >
                       Retry
@@ -175,7 +175,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
                   ) : null}
                   {errorStatus === 401 ? (
                     <button
-                      className="rounded-md border border-cyan-300/60 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/15"
+                      className="aurora-btn-primary rounded-md px-2 py-1 text-[11px]"
                       onClick={() => setShowSignIn(true)}
                     >
                       Sign-in
@@ -187,11 +187,11 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
 
           </article>
 
-          <article className="aurora-card-shift rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-5 backdrop-blur">
+          <article className="aurora-panel aurora-card-shift rounded-2xl p-5">
             <header className="mb-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Scene Canvas</p>
-                <h1 className="text-2xl font-semibold text-cyan-100">Aurora Guided Flow</h1>
+                <h1 className="text-2xl font-semibold text-indigo-50">Aurora Guided Flow</h1>
               </div>
             </header>
 
@@ -200,7 +200,7 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
             <div className="mt-5">
               <SceneRouter scene={currentScene} stage={stage}>
                 {!sessionId ? (
-                  <div className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/70">
+                  <div className="aurora-panel overflow-hidden rounded-2xl">
                     <div
                       className="h-52 bg-cover bg-center"
                       style={{
@@ -281,24 +281,24 @@ export function GuidedConsole({ controller, onSwitchUiMode }: GuidedConsoleProps
 
       {showSignIn ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-cyan-300/30 bg-slate-950 p-4">
-            <p className="text-sm font-semibold text-cyan-100">API Sign-in</p>
+          <div className="aurora-panel w-full max-w-md rounded-2xl p-4">
+            <p className="text-sm font-semibold text-indigo-50">API Sign-in</p>
             <p className="mt-1 text-xs text-slate-300">Set x-api-token for protected routes.</p>
             <input
-              className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+              className="aurora-input mt-3 w-full rounded-lg px-3 py-2 text-sm"
               value={tokenDraft}
               onChange={(event) => setTokenDraft(event.target.value)}
               placeholder="x-api-token"
             />
             <div className="mt-3 flex gap-2">
               <button
-                className="rounded-lg border border-cyan-300/45 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10"
+                className="aurora-btn-primary rounded-lg px-3 py-2 text-xs font-semibold"
                 onClick={handleSaveApiToken}
               >
                 Save
               </button>
               <button
-                className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                className="aurora-btn-ghost rounded-lg px-3 py-2 text-xs"
                 onClick={() => setShowSignIn(false)}
               >
                 Close

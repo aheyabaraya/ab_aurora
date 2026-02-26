@@ -38,41 +38,41 @@ type ChatDockProps = {
 
 function roleClass(type: ChatEntry["type"]): string {
   if (type === "user") {
-    return "border-cyan-300/40 bg-cyan-500/10";
+    return "border-indigo-200/35 bg-indigo-400/12";
   }
   if (type === "assistant") {
-    return "border-slate-700 bg-slate-900/70";
+    return "border-indigo-200/25 bg-indigo-500/10";
   }
   if (type === "artifact-note") {
-    return "border-emerald-300/40 bg-emerald-500/10";
+    return "border-cyan-200/30 bg-cyan-400/12";
   }
-  return "border-amber-300/40 bg-amber-400/10";
+  return "border-violet-200/35 bg-violet-400/12";
 }
 
 function statusClass(status: string): string {
   if (status === "completed") {
-    return "border-emerald-300/60 bg-emerald-400/15 text-emerald-100";
+    return "border-indigo-200/65 bg-indigo-300/20 text-indigo-50";
   }
   if (status === "running") {
-    return "border-cyan-300/60 bg-cyan-400/15 text-cyan-100";
+    return "border-violet-200/70 bg-violet-400/20 text-violet-50";
   }
   if (status === "wait_user") {
-    return "border-amber-300/60 bg-amber-400/15 text-amber-100";
+    return "border-cyan-200/70 bg-cyan-400/20 text-cyan-50";
   }
   if (status === "failed") {
     return "border-rose-300/60 bg-rose-400/15 text-rose-100";
   }
-  return "border-slate-700 bg-slate-900/70 text-slate-300";
+  return "border-indigo-200/28 bg-slate-900/70 text-slate-300";
 }
 
 function modelClass(source: ModelSource): string {
   if (source === "OPENAI") {
-    return "border-cyan-300/60 bg-cyan-400/15 text-cyan-100";
+    return "border-indigo-200/60 bg-indigo-400/20 text-indigo-50";
   }
   if (source === "MOCK") {
     return "border-slate-500 bg-slate-700/40 text-slate-200";
   }
-  return "border-slate-700 bg-slate-900/70 text-slate-400";
+  return "border-indigo-200/20 bg-slate-900/70 text-slate-400";
 }
 
 function formatTime(value: string): string {
@@ -160,11 +160,11 @@ export function ChatDock({
   };
 
   return (
-    <article className="flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl border border-cyan-300/20 bg-slate-950/55 p-4 backdrop-blur">
+    <article className="aurora-panel flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Chat Dock</p>
-          <h2 className="text-lg font-semibold text-cyan-100">Command Console</h2>
+          <p className="text-xs uppercase tracking-[0.2em] text-indigo-100/75">Chat Dock</p>
+          <h2 className="text-lg font-semibold text-indigo-50">Command Console</h2>
         </div>
         <div className="mt-1 flex flex-wrap gap-2">
           <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${statusClass(status)}`}>
@@ -178,28 +178,24 @@ export function ChatDock({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button
-          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            activeTab === "chat" ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100" : "border-slate-700 text-slate-300"
+          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            activeTab === "chat" ? "aurora-pill-active" : ""
           }`}
           onClick={() => setActiveTab("chat")}
         >
           Chat
         </button>
         <button
-          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            activeTab === "artifacts"
-              ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
-              : "border-slate-700 text-slate-300"
+          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            activeTab === "artifacts" ? "aurora-pill-active" : ""
           }`}
           onClick={() => setActiveTab("artifacts")}
         >
           Artifacts
         </button>
         <button
-          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
-            !guided && activeTab === "jobs"
-              ? "border-cyan-300/70 bg-cyan-500/20 text-cyan-100"
-              : "border-slate-700 text-slate-300"
+          className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            !guided && activeTab === "jobs" ? "aurora-pill-active" : ""
           }`}
           onClick={handleJobsTabClick}
         >
@@ -208,30 +204,30 @@ export function ChatDock({
       </div>
 
       {actionHub ? (
-        <div className="mt-3 rounded-xl border border-cyan-300/25 bg-slate-900/70 p-3">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-200">Next Suggested Command</p>
-          <p className="mt-2 rounded-md border border-cyan-300/35 bg-cyan-500/10 px-2 py-1 text-sm font-semibold text-cyan-100">
+        <div className="aurora-surface mt-3 rounded-xl p-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-indigo-100">Next Suggested Command</p>
+          <p className="mt-2 rounded-md border border-indigo-200/45 bg-indigo-400/18 px-2 py-1 text-sm font-semibold text-indigo-50">
             {actionHub.suggestedCommand || "/help"}
           </p>
-          <p className="mt-2 text-[11px] text-slate-300">{actionHub.suggestedReason || actionHub.hint}</p>
+          <p className="mt-2 text-[11px] text-slate-300/95">{actionHub.suggestedReason || actionHub.hint}</p>
         </div>
       ) : null}
 
       {queuedCommands.length > 0 ? (
-        <div className="mt-3 space-y-2 rounded-xl border border-amber-300/35 bg-amber-500/10 p-2">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-amber-100">Queued</p>
+        <div className="mt-3 space-y-2 rounded-xl border border-cyan-200/35 bg-cyan-400/10 p-2">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-100">Queued</p>
           {queuedCommands.map((queueItem) => (
-            <div key={queueItem.id} className="rounded-md border border-amber-300/30 bg-slate-950/40 p-2">
-              <p className="text-xs text-amber-50">{queueItem.label}</p>
+            <div key={queueItem.id} className="aurora-surface-soft rounded-md p-2">
+              <p className="text-xs text-cyan-50">{queueItem.label}</p>
               <div className="mt-2 flex gap-2">
                 <button
-                  className="rounded-md border border-amber-300/60 px-2 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-400/15"
+                  className="aurora-btn-primary rounded-md px-2 py-1 text-[11px] font-semibold"
                   onClick={() => onForceQueued(queueItem.id)}
                 >
                   Force Replan
                 </button>
                 <button
-                  className="rounded-md border border-slate-600 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
+                  className="aurora-btn-ghost rounded-md px-2 py-1 text-[11px]"
                   onClick={() => onDiscardQueued(queueItem.id)}
                 >
                   Dismiss
@@ -244,7 +240,7 @@ export function ChatDock({
 
       {activeTab === "chat" ? (
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/50 p-2">
+          <div className="aurora-surface min-h-0 flex-1 overflow-hidden rounded-xl p-2">
             <div className="h-full space-y-2 overflow-auto">
               {entries.map((entry) => (
                 <div key={entry.id} className={`rounded-md border p-2 text-xs ${roleClass(entry.type)}`}>
@@ -264,22 +260,22 @@ export function ChatDock({
             <div
               className={`rounded-lg border px-3 py-2 text-[11px] ${
                 shouldQueueIntervention
-                  ? "border-amber-300/45 bg-amber-500/10 text-amber-100"
-                  : "border-cyan-300/35 bg-cyan-500/10 text-cyan-100"
+                  ? "border-cyan-200/45 bg-cyan-500/10 text-cyan-50"
+                  : "border-indigo-200/40 bg-indigo-400/15 text-indigo-50"
               }`}
             >
               {shouldQueueIntervention ? "Queued: 다음 stage 시작 시 적용됩니다." : "Safe: 현재 stage에 바로 반영됩니다."}
             </div>
 
             {commandNotice ? (
-              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
+              <div className="aurora-surface-soft rounded-lg px-3 py-2 text-[11px] text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
               </div>
             ) : null}
 
             <div className="relative">
               <textarea
-                className="min-h-[74px] w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                className="aurora-input min-h-[74px] w-full rounded-lg px-3 py-2 text-sm"
                 placeholder='Type "/" for commands or send natural language.'
                 value={input}
                 onChange={(event) => {
@@ -323,12 +319,14 @@ export function ChatDock({
               />
 
               {showSlashPopover ? (
-                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-lg border border-cyan-300/25 bg-slate-950/95 p-1 shadow-xl">
+                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-lg border border-indigo-200/35 bg-slate-950/95 p-1 shadow-xl">
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}
                       className={`w-full rounded-md px-2 py-2 text-left text-xs ${
-                        index === highlightIndex ? "bg-cyan-500/15 text-cyan-100" : "text-slate-200 hover:bg-slate-800"
+                        index === highlightIndex
+                          ? "border border-indigo-200/45 bg-indigo-400/20 text-indigo-50"
+                          : "border border-transparent text-slate-200 hover:bg-slate-800/80"
                       }`}
                       onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => void execute(command.canonical)}
@@ -342,7 +340,7 @@ export function ChatDock({
             </div>
 
             <button
-              className="w-full rounded-lg border border-cyan-300/40 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-60"
+              className="aurora-btn-primary w-full rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-60"
               onClick={() => void execute(input)}
               disabled={busy || input.trim().length === 0}
             >
@@ -353,11 +351,11 @@ export function ChatDock({
       ) : null}
 
       {activeTab === "artifacts" ? (
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700 bg-slate-900/50 p-2">
+        <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-xl p-2">
           <div className="space-y-2">
             {artifacts.map((artifact) => (
-              <div key={artifact.id} className="rounded-md border border-slate-700 p-2 text-xs">
-                <p className="font-semibold text-cyan-100">{artifact.title}</p>
+              <div key={artifact.id} className="aurora-surface-soft rounded-md p-2 text-xs">
+                <p className="font-semibold text-indigo-100">{artifact.title}</p>
                 <p className="text-slate-400">{artifact.kind}</p>
                 <p className="text-[11px] text-slate-400">{formatTime(artifact.created_at)}</p>
               </div>
@@ -368,10 +366,10 @@ export function ChatDock({
       ) : null}
 
       {!guided && activeTab === "jobs" ? (
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700 bg-slate-900/50 p-2">
+        <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-xl p-2">
           <div className="space-y-2">
             {jobs.map((job) => (
-              <div key={job.id} className="rounded-md border border-slate-700 p-2 text-xs">
+              <div key={job.id} className="aurora-surface-soft rounded-md p-2 text-xs">
                 <p className="font-semibold text-slate-100">{job.step}</p>
                 <p className="text-slate-300">{job.status}</p>
                 {job.error ? <p className="text-rose-300">{job.error}</p> : null}

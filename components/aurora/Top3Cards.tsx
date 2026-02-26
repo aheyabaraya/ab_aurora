@@ -32,10 +32,10 @@ export function Top3Cards({
           return (
             <article
               key={candidate.id}
-              className={`overflow-hidden rounded-2xl border ${
+              className={`aurora-panel overflow-hidden rounded-2xl ${
                 selected
-                  ? "border-amber-300/70 bg-slate-950/80 shadow-[0_0_24px_rgba(251,191,36,0.22)]"
-                  : "border-cyan-300/20 bg-slate-950/65"
+                  ? "border-amber-300/70 shadow-[0_0_24px_rgba(251,191,36,0.22)]"
+                  : ""
               }`}
             >
               <div className="relative aspect-[3/4] w-full overflow-hidden">
@@ -63,10 +63,10 @@ export function Top3Cards({
                 <h3 className="text-sm font-semibold text-cyan-100">{candidate.naming.recommended}</h3>
                 <p className="line-clamp-3 text-xs text-slate-300">{candidate.rationale}</p>
                 <button
-                  className={`w-full rounded-md border px-3 py-2 text-xs font-semibold transition ${
+                  className={`w-full rounded-md px-3 py-2 text-xs font-semibold transition ${
                     selected
-                      ? "border-amber-300/80 bg-amber-300/15 text-amber-100"
-                      : "border-cyan-300/40 text-cyan-100 hover:bg-cyan-400/10"
+                      ? "border border-amber-300/80 bg-amber-300/16 text-amber-100"
+                      : "aurora-btn-secondary"
                   }`}
                   onClick={() => onSelect(candidate.id)}
                   disabled={busy}
@@ -84,7 +84,7 @@ export function Top3Cards({
       </div>
 
       {buildRequired ? (
-        <div className="rounded-xl border border-amber-300/50 bg-amber-400/10 p-3 text-sm text-amber-100">
+        <div className="aurora-panel rounded-xl border-amber-300/50 bg-amber-400/10 p-3 text-sm text-amber-100">
           <p className="mb-2 text-xs uppercase tracking-[0.2em]">Build Confirmation</p>
           <p className="mb-3 text-xs text-amber-50/90">
             {preferChatCommands
@@ -92,7 +92,7 @@ export function Top3Cards({
               : "Auto pick is off. Confirm once to run approve_build and move to package."}
           </p>
           <button
-            className="rounded-lg border border-amber-300/80 bg-amber-300/20 px-4 py-2 text-xs font-semibold text-amber-50 hover:bg-amber-300/30 disabled:opacity-60"
+            className="rounded-lg border border-amber-300/80 bg-amber-300/20 px-4 py-2 text-xs font-semibold text-amber-50 transition hover:bg-amber-300/30 disabled:opacity-60"
             onClick={onConfirmBuild}
             disabled={busy}
           >

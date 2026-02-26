@@ -4,11 +4,17 @@
 
 :root {
   color-scheme: dark;
-  --aurora-bg-top: rgba(5, 12, 24, 0.9);
-  --aurora-bg-mid: rgba(5, 12, 24, 0.56);
-  --aurora-bg-bottom: rgba(5, 12, 24, 0.9);
+  --aurora-bg-top: rgba(2, 6, 20, 0.95);
+  --aurora-bg-mid: rgba(7, 12, 31, 0.68);
+  --aurora-bg-bottom: rgba(2, 6, 18, 0.96);
   --aurora-cyan: #64dbe3;
+  --aurora-luna: #9eb8ff;
+  --aurora-luna-strong: #7fa6ff;
+  --aurora-veil: #dce6ff;
   --aurora-ember-gold: #d8b46f;
+  --aurora-panel-border: rgba(143, 177, 255, 0.28);
+  --aurora-panel-bg: rgba(9, 15, 36, 0.56);
+  --aurora-input-bg: rgba(8, 13, 32, 0.72);
   --aurora-bg-desktop: url("/aurora/bg_abstract_orbline_1920x1080.webp");
   --aurora-bg-mobile: url("/aurora/bg_abstract_orbline_1080x1920.webp");
   --aurora-sigil-tile: url("/aurora/sigil_tile_1024.png");
@@ -46,6 +52,104 @@ body {
   mix-blend-mode: overlay;
   pointer-events: none;
   z-index: -1;
+}
+
+.aurora-panel {
+  border: 1px solid var(--aurora-panel-border);
+  background:
+    linear-gradient(145deg, rgba(26, 39, 85, 0.24) 0%, rgba(9, 14, 34, 0.78) 38%, rgba(6, 10, 25, 0.88) 100%),
+    var(--aurora-panel-bg);
+  box-shadow:
+    inset 0 1px 0 rgba(220, 230, 255, 0.06),
+    0 24px 44px -34px rgba(94, 132, 225, 0.58);
+  backdrop-filter: blur(14px);
+}
+
+.aurora-surface {
+  border: 1px solid rgba(143, 177, 255, 0.24);
+  background: linear-gradient(145deg, rgba(23, 36, 78, 0.2) 0%, rgba(8, 13, 31, 0.68) 45%, rgba(6, 10, 25, 0.82) 100%);
+}
+
+.aurora-surface-soft {
+  border: 1px solid rgba(130, 154, 218, 0.18);
+  background: rgba(8, 13, 31, 0.52);
+}
+
+.aurora-input {
+  border: 1px solid rgba(129, 157, 226, 0.35);
+  background: var(--aurora-input-bg);
+  color: #ecf2ff;
+  box-shadow: inset 0 1px 0 rgba(220, 230, 255, 0.05);
+}
+
+.aurora-input::placeholder {
+  color: rgba(195, 206, 239, 0.58);
+}
+
+.aurora-input:focus {
+  outline: none;
+  border-color: rgba(165, 190, 255, 0.8);
+  box-shadow:
+    0 0 0 2px rgba(120, 157, 255, 0.2),
+    inset 0 1px 0 rgba(220, 230, 255, 0.07);
+}
+
+.aurora-btn-primary {
+  border: 1px solid rgba(166, 190, 255, 0.58);
+  background: linear-gradient(135deg, rgba(182, 204, 255, 0.3) 0%, rgba(118, 153, 255, 0.18) 100%);
+  color: #e8efff;
+  box-shadow:
+    inset 0 1px 0 rgba(227, 236, 255, 0.34),
+    0 10px 20px -14px rgba(130, 169, 255, 0.7);
+  transition: 160ms ease;
+}
+
+.aurora-btn-primary:hover {
+  border-color: rgba(184, 205, 255, 0.74);
+  background: linear-gradient(135deg, rgba(189, 209, 255, 0.36) 0%, rgba(130, 164, 255, 0.24) 100%);
+}
+
+.aurora-btn-secondary {
+  border: 1px solid rgba(141, 170, 240, 0.42);
+  background: rgba(11, 20, 46, 0.58);
+  color: #cfdeff;
+  transition: 160ms ease;
+}
+
+.aurora-btn-secondary:hover {
+  border-color: rgba(166, 190, 255, 0.62);
+  background: rgba(20, 34, 75, 0.58);
+}
+
+.aurora-btn-ghost {
+  border: 1px solid rgba(145, 160, 201, 0.34);
+  background: rgba(8, 13, 28, 0.45);
+  color: #c6d1f2;
+  transition: 160ms ease;
+}
+
+.aurora-btn-ghost:hover {
+  background: rgba(21, 31, 64, 0.52);
+}
+
+.aurora-btn-primary:disabled,
+.aurora-btn-secondary:disabled,
+.aurora-btn-ghost:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.aurora-pill {
+  border: 1px solid rgba(137, 165, 233, 0.35);
+  background: rgba(10, 18, 42, 0.56);
+  color: #c7d4f6;
+}
+
+.aurora-pill-active {
+  border-color: rgba(170, 194, 255, 0.72);
+  background: linear-gradient(135deg, rgba(167, 189, 255, 0.27) 0%, rgba(96, 130, 225, 0.2) 100%);
+  color: #e6eeff;
+  box-shadow: inset 0 1px 0 rgba(223, 233, 255, 0.2);
 }
 
 @media (max-width: 1024px) {

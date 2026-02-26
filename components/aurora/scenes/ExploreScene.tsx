@@ -22,24 +22,24 @@ export function ExploreScene({
 }: ExploreSceneProps) {
   const modelBadgeClass =
     modelSource === "OPENAI"
-      ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100"
+      ? "border-indigo-200/70 bg-indigo-400/20 text-indigo-50"
       : modelSource === "MOCK"
         ? "border-slate-500 bg-slate-700/40 text-slate-200"
-        : "border-slate-700 bg-slate-900/70 text-slate-400";
+        : "border-indigo-200/24 bg-slate-900/70 text-slate-400";
 
   if (candidates.length === 0) {
     return (
-      <div className="rounded-2xl border border-cyan-300/25 bg-slate-950/70 p-4">
+      <div className="aurora-panel rounded-2xl p-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">Generating Top-3...</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-indigo-50">Generating Top-3...</p>
           <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
             {modelSource}
           </span>
         </div>
         <div className="mt-3 space-y-2">
-          <div className="h-3 w-full animate-pulse rounded bg-cyan-500/20" />
-          <div className="h-3 w-4/5 animate-pulse rounded bg-cyan-500/20" />
-          <div className="h-3 w-3/5 animate-pulse rounded bg-cyan-500/20" />
+          <div className="h-3 w-full animate-pulse rounded bg-indigo-500/24" />
+          <div className="h-3 w-4/5 animate-pulse rounded bg-indigo-500/24" />
+          <div className="h-3 w-3/5 animate-pulse rounded bg-indigo-500/24" />
         </div>
       </div>
     );

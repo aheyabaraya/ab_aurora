@@ -16,12 +16,12 @@ export function Progress4({ scene }: Progress4Props) {
           return (
             <div
               key={step}
-              className={`rounded-lg border px-3 py-2 text-center text-[11px] tracking-[0.2em] ${
+              className={`rounded-lg px-3 py-2 text-center text-[11px] tracking-[0.2em] ${
                 done
-                  ? "border-emerald-300/50 bg-emerald-500/10 text-emerald-100"
+                  ? "aurora-pill-active"
                   : active
-                    ? "border-cyan-300/60 bg-cyan-500/10 text-cyan-100"
-                    : "border-slate-700/90 bg-slate-900/70 text-slate-400"
+                    ? "border border-violet-200/75 bg-violet-400/20 text-violet-50"
+                    : "aurora-pill text-slate-300"
               }`}
             >
               {step}
