@@ -68,6 +68,7 @@ export class MemoryStorageRepository implements StorageRepository {
     const timestamp = nowIso();
     const session: SessionRecord = {
       id: createId("sess"),
+      owner_user_id: input.owner_user_id ?? null,
       mode: input.mode,
       product: input.product,
       audience: input.audience,

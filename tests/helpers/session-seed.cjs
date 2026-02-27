@@ -44,13 +44,15 @@ async function seedSessionViaApi(input = {}) {
     preset,
     ...(input.body ?? {})
   };
+  const ownerUserId = typeof input.ownerUserId === "string" ? input.ownerUserId : null;
 
   const response = await post(
     new Request("http://localhost/api/dev/seed/session", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-seed-token": token
+        "x-seed-token": token,
+        ...(ownerUserId ? { "x-owner-user-id": ownerUserId } : {})
       },
       body: JSON.stringify(body)
     })

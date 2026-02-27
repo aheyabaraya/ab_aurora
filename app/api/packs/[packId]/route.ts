@@ -1,4 +1,9 @@
-import { getRequestId, jsonError, jsonOk } from "../../../../lib/api/http";
+import {
+  requireEntitlement,
+  requirePackOwnership,
+  requireUser
+} from "../../../../lib/auth/guards";
+import { getRequestId, jsonOk } from "../../../../lib/api/http";
 import { getStorageRepository } from "../../../../lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +15,27 @@ export async function GET(
   }
 ) {
   const requestId = getRequestId(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
+  }
+
   const { packId } = await context.params;
   const storage = getStorageRepository();
-  const pack = await storage.getPack(packId);
-  if (!pack) {
-    return jsonError("Resource not found", 404, requestId);
+  const packAuth = await requirePackOwnership({
+    storage,
+    auth: auth.value,
+    packId,
+    requestId
+  });
+  if (!packAuth.ok) {
+    return packAuth.response;
   }
+  const pack = packAuth.value;
 
   return jsonOk({
     pack_meta: pack.meta,

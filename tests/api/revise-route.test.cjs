@@ -2,11 +2,18 @@ process.env.NODE_ENV = "test";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  AUTH_TEST_USER_ID,
+  createAuthFetchMock,
+  authJsonHeaders
+} = require("../helpers/auth-fetch.cjs");
 
 const START_SESSION_ROUTE_PATH = "../../.tmp-tests/app/api/session/start/route.js";
 const REVISE_ROUTE_PATH = "../../.tmp-tests/app/api/revise/route.js";
 const ENV_MODULE_PATH = "../../.tmp-tests/lib/env.js";
 const AUTH_MODULE_PATH = "../../.tmp-tests/lib/auth/api-token.js";
+const GUARDS_MODULE_PATH = "../../.tmp-tests/lib/auth/guards.js";
+const ONBOARDING_SERVICE_PATH = "../../.tmp-tests/lib/onboarding/service.js";
 const STORAGE_INDEX_MODULE_PATH = "../../.tmp-tests/lib/storage/index.js";
 const sequential = { concurrency: false };
 
@@ -33,7 +40,7 @@ function loadRevisePostWithEnv(envPatch) {
   }
 
   try {
-    clearCachedModules([REVISE_ROUTE_PATH, ENV_MODULE_PATH, AUTH_MODULE_PATH]);
+    clearCachedModules([REVISE_ROUTE_PATH, ENV_MODULE_PATH, AUTH_MODULE_PATH, GUARDS_MODULE_PATH, ONBOARDING_SERVICE_PATH]);
     return require(REVISE_ROUTE_PATH).POST;
   } finally {
     for (const [key, value] of Object.entries(saved)) {
@@ -58,7 +65,14 @@ function loadStartSessionPostWithEnv(envPatch) {
   }
 
   try {
-    clearCachedModules([START_SESSION_ROUTE_PATH, STORAGE_INDEX_MODULE_PATH, ENV_MODULE_PATH, AUTH_MODULE_PATH]);
+    clearCachedModules([
+      START_SESSION_ROUTE_PATH,
+      STORAGE_INDEX_MODULE_PATH,
+      ENV_MODULE_PATH,
+      AUTH_MODULE_PATH,
+      GUARDS_MODULE_PATH,
+      ONBOARDING_SERVICE_PATH
+    ]);
     return require(START_SESSION_ROUTE_PATH).POST;
   } finally {
     for (const [key, value] of Object.entries(saved)) {
@@ -75,6 +89,14 @@ async function json(response) {
   return response.json();
 }
 
+test.before(() => {
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true
+  });
+});
+
 async function createSession() {
   const startSession = loadStartSessionPostWithEnv({
     NODE_ENV: "test",
@@ -84,9 +106,7 @@ async function createSession() {
   const response = await startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "Aurora Direction Engine",
@@ -104,11 +124,10 @@ async function createSession() {
   return body.session_id;
 }
 
-test("revise route returns 401 when API token is required and missing", sequential, async () => {
+test("revise route returns 401 when bearer auth is missing", sequential, async () => {
   const revisePost = loadRevisePostWithEnv({
-    NODE_ENV: "production",
-    API_TOKEN_REQUIRED: "true",
-    API_BEARER_TOKEN: "required-token",
+    NODE_ENV: "test",
+    AUTH_V2_ENABLED: "true",
     RUNTIME_ENABLED: "false"
   });
 
@@ -140,9 +159,7 @@ test("revise route returns 400 for invalid payload", sequential, async () => {
   const response = await revisePost(
     new Request("http://localhost/api/revise", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: "",
         constraint: ""
@@ -166,9 +183,7 @@ test("revise route executes runtime flow when runtime is enabled", sequential, a
   const response = await revisePost(
     new Request("http://localhost/api/revise", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
         constraint: "reduce futuristic and keep ritual calm"
@@ -194,9 +209,7 @@ test("revise route executes legacy pipeline when runtime is disabled", sequentia
   const response = await revisePost(
     new Request("http://localhost/api/revise", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
         constraint: "make it more editorial",

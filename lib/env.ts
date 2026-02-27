@@ -49,6 +49,7 @@ const envSchema = z
     AGENT_UI_MODE: z.enum(["chat_flat", "agent_stage"]).default("agent_stage"),
     AUTO_CONTINUE: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     AUTO_PICK_TOP1: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+    AUTH_V2_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     API_TOKEN_REQUIRED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     ALLOW_FILE_STORAGE_IN_PRODUCTION: z
       .enum(["true", "false"])
@@ -84,6 +85,10 @@ const envSchema = z
       .preprocess(emptyToUndefined, z.union([z.string().min(1), z.undefined()]))
       .transform((value) => value ?? "dev-service-role-key"),
     API_BEARER_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    ONBOARDING_CODE_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(300),
+    ONBOARDING_STATE_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(600),
+    MOCK_ISSUER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+    MOCK_ISSUER_NAME: z.string().min(1).max(120).default("ab_aurora_mock"),
     OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_MODEL_TEXT: z.string().default("gpt-4o"),
     OPENAI_MODEL_IMAGE: z.string().default("gpt-image-1"),

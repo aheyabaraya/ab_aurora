@@ -1,4 +1,8 @@
-import { assertApiToken } from "../../../../../lib/auth/api-token";
+import {
+  requireEntitlement,
+  requireGoalOwnership,
+  requireUser
+} from "../../../../../lib/auth/guards";
 import { getRequestId, jsonError, jsonOk } from "../../../../../lib/api/http";
 import { getRuntimeGoalSnapshot } from "../../../../../lib/runtime/runner";
 import { getStorageRepository } from "../../../../../lib/storage";
@@ -12,13 +16,26 @@ export async function GET(
   }
 ) {
   const requestId = getRequestId(new Headers(request.headers));
-  const auth = assertApiToken(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
   if (!auth.ok) {
-    return jsonError("Unauthorized", 401, requestId);
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
   }
 
   const { goalId } = await context.params;
   const storage = getStorageRepository();
+  const goalAuth = await requireGoalOwnership({
+    storage,
+    auth: auth.value,
+    goalId,
+    requestId
+  });
+  if (!goalAuth.ok) {
+    return goalAuth.response;
+  }
   const snapshot = await getRuntimeGoalSnapshot({
     storage,
     goal_id: goalId

@@ -132,6 +132,7 @@ function fromSessionRow(row: JsonMap): SessionRecord {
 
   return {
     id: String(row.id),
+    owner_user_id: typeof row.owner_user_id === "string" ? row.owner_user_id : null,
     mode: row.mode === "mode_a" ? "mode_a" : "mode_b",
     product: String(row.product ?? ""),
     audience: String(row.audience ?? ""),
@@ -350,6 +351,7 @@ export class SupabaseStorageRepository implements StorageRepository {
       method: "POST",
       path: "sessions",
       body: {
+        owner_user_id: input.owner_user_id ?? null,
         mode: input.mode,
         product: input.product,
         audience: input.audience,

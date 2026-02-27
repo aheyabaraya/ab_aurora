@@ -131,7 +131,10 @@ function loadDb(): DbShape {
   const text = readFileSync(runtimeFile, "utf8");
   const parsed = JSON.parse(text) as Partial<DbShape>;
   return {
-    sessions: parsed.sessions ?? [],
+    sessions: (parsed.sessions ?? []).map((session) => ({
+      ...session,
+      owner_user_id: typeof session.owner_user_id === "string" ? session.owner_user_id : null
+    })),
     messages: parsed.messages ?? [],
     jobs: parsed.jobs ?? [],
     artifacts: parsed.artifacts ?? [],
@@ -176,6 +179,7 @@ export class FileStorageRepository implements StorageRepository {
     const timestamp = nowIso();
     const session: SessionRecord = {
       id: createId("sess"),
+      owner_user_id: input.owner_user_id ?? null,
       mode: input.mode,
       product: input.product,
       audience: input.audience,

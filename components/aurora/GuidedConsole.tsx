@@ -44,8 +44,6 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     canRetry,
     showSignIn,
     setShowSignIn,
-    tokenDraft,
-    setTokenDraft,
     currentScene,
     chatEntries,
     queuedCommands,
@@ -109,20 +107,14 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const signInModal = showSignIn ? (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4">
       <div className="aurora-panel w-full max-w-md rounded-2xl p-4">
-        <p className="aurora-title-primary text-sm font-semibold">API Sign-in</p>
-        <p className="mt-1 text-xs text-slate-300">Set x-api-token for protected routes.</p>
-        <input
-          className="aurora-input mt-3 w-full rounded-lg px-3 py-2 text-sm"
-          value={tokenDraft}
-          onChange={(event) => setTokenDraft(event.target.value)}
-          placeholder="x-api-token"
-        />
+        <p className="aurora-title-primary text-sm font-semibold">Session Sign-in</p>
+        <p className="mt-1 text-xs text-slate-300">Re-bootstrap anonymous Supabase session for protected routes.</p>
         <div className="mt-3 flex gap-2">
           <button
             className="aurora-btn-primary rounded-lg px-3 py-2 text-xs font-semibold"
-            onClick={handleSaveApiToken}
+            onClick={() => void handleSaveApiToken()}
           >
-            Save
+            Reconnect
           </button>
           <button
             className="aurora-btn-ghost rounded-lg px-3 py-2 text-xs"

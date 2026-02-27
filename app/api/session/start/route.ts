@@ -1,14 +1,21 @@
 import { sessionStartRequestSchema } from "../../../../lib/agent/schemas";
-import { assertApiToken } from "../../../../lib/auth/api-token";
-import { getRequestId, jsonError, jsonOk, jsonRouteError } from "../../../../lib/api/http";
+import {
+  requireEntitlement,
+  requireUser
+} from "../../../../lib/auth/guards";
+import { getRequestId, jsonOk, jsonRouteError } from "../../../../lib/api/http";
 import { getStorageRepository } from "../../../../lib/storage";
 import { env } from "../../../../lib/env";
 
 export async function POST(request: Request) {
   const requestId = getRequestId(new Headers(request.headers));
-  const auth = assertApiToken(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
   if (!auth.ok) {
-    return jsonError("Unauthorized", 401, requestId);
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
   }
 
   try {
@@ -23,7 +30,8 @@ export async function POST(request: Request) {
       design_direction_note: input.design_direction_note,
       q0_intent_confidence: input.q0_intent_confidence,
       auto_continue: input.auto_continue ?? env.AUTO_CONTINUE,
-      auto_pick_top1: input.auto_pick_top1 ?? env.AUTO_PICK_TOP1
+      auto_pick_top1: input.auto_pick_top1 ?? env.AUTO_PICK_TOP1,
+      owner_user_id: auth.value.userId
     });
     await storage.appendMessage({
       session_id: session.id,

@@ -5,11 +5,18 @@ process.env.CHAT_OPENAI_LIMIT_PER_DAY = "2";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  AUTH_TEST_USER_ID,
+  createAuthFetchMock,
+  authJsonHeaders
+} = require("../helpers/auth-fetch.cjs");
 
 const CHAT_ROUTE_PATH = "../../.tmp-tests/app/api/chat/route.js";
 const SESSION_START_ROUTE_PATH = "../../.tmp-tests/app/api/session/start/route.js";
 const RUN_STEP_ROUTE_PATH = "../../.tmp-tests/app/api/agent/run-step/route.js";
 const SESSION_GET_ROUTE_PATH = "../../.tmp-tests/app/api/sessions/[sessionId]/route.js";
+const GUARDS_MODULE_PATH = "../../.tmp-tests/lib/auth/guards.js";
+const ONBOARDING_SERVICE_PATH = "../../.tmp-tests/lib/onboarding/service.js";
 const ENV_MODULE_PATH = "../../.tmp-tests/lib/env.js";
 const STORAGE_INDEX_PATH = "../../.tmp-tests/lib/storage/index.js";
 
@@ -174,6 +181,8 @@ function loadHandlersWithEnv(envPatch = {}) {
     SESSION_START_ROUTE_PATH,
     RUN_STEP_ROUTE_PATH,
     SESSION_GET_ROUTE_PATH,
+    GUARDS_MODULE_PATH,
+    ONBOARDING_SERVICE_PATH,
     STORAGE_INDEX_PATH,
     ENV_MODULE_PATH
   ]);
@@ -212,13 +221,18 @@ function findAssistantMessageBySource(messages, source) {
 }
 
 test.before(() => {
-  global.fetch = mockOpenAiFetch();
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch()
+  });
 });
 
 test("session start route returns initial session data", async () => {
   const request = new Request("http://localhost/api/session/start", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       mode: "mode_b",
       product: "AB Aurora Direction Engine For Product Teams",
@@ -237,7 +251,7 @@ test("session start route returns initial session data", async () => {
   assert.ok(body.session_id);
   assert.equal(body.current_step, "interview_collect");
 
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: body.session_id })
   });
   const sessionBody = await json(sessionResponse);
@@ -252,7 +266,7 @@ test("session start route returns initial session data", async () => {
 test("session start route remains backward compatible when q0 is omitted", async () => {
   const request = new Request("http://localhost/api/session/start", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       mode: "mode_b",
       product: "AB Aurora Direction Engine For Product Teams",
@@ -267,7 +281,7 @@ test("session start route remains backward compatible when q0 is omitted", async
   const response = await startSession(request);
   assert.equal(response.status, 200);
   const body = await json(response);
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: body.session_id })
   });
   const sessionBody = await json(sessionResponse);
@@ -278,7 +292,7 @@ test("session start route remains backward compatible when q0 is omitted", async
 test("run-step route executes auto pipeline and stores Top-3", async () => {
   const createRequest = new Request("http://localhost/api/session/start", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       mode: "mode_b",
       product: "AB Aurora Direction Engine For Product Teams",
@@ -294,7 +308,7 @@ test("run-step route executes auto pipeline and stores Top-3", async () => {
 
   const runRequest = new Request("http://localhost/api/agent/run-step", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       session_id: sessionPayload.session_id,
       idempotency_key: "idem_route_runstep_001"
@@ -307,7 +321,7 @@ test("run-step route executes auto pipeline and stores Top-3", async () => {
   assert.equal(runBody.latest_top3.length, 3);
   assert.equal(runBody.runtime_meta.enabled, true);
 
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: sessionPayload.session_id })
   });
   const sessionBody = await json(sessionResponse);
@@ -317,7 +331,7 @@ test("run-step route executes auto pipeline and stores Top-3", async () => {
 test("chat route parses select action and returns openai assistant metadata", async () => {
   const createRequest = new Request("http://localhost/api/session/start", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       mode: "mode_b",
       product: "AB Aurora Direction Engine For Product Teams",
@@ -333,7 +347,7 @@ test("chat route parses select action and returns openai assistant metadata", as
   await runStep(
     new Request("http://localhost/api/agent/run-step", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         idempotency_key: "idem_route_runstep_002"
@@ -343,7 +357,7 @@ test("chat route parses select action and returns openai assistant metadata", as
 
   const chatRequest = new Request("http://localhost/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authJsonHeaders(),
     body: JSON.stringify({
       session_id: createBody.session_id,
       message: "2번 후보로 바꿔"
@@ -361,7 +375,7 @@ test("chat route parses select action and returns openai assistant metadata", as
   assert.equal(typeof chatBody.rate_limit.used, "number");
   assert.equal(typeof chatBody.rate_limit.remaining, "number");
 
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: createBody.session_id })
   });
   const sessionBody = await json(sessionResponse);
@@ -379,12 +393,17 @@ test("chat route returns 503 when OPENAI_API_KEY is not configured", async () =>
     OPENAI_API_KEY: undefined,
     CHAT_OPENAI_LIMIT_PER_DAY: "2"
   });
-  global.fetch = mockOpenAiFetch();
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch()
+  });
 
   const createResponse = await keylessHandlers.startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "AB Aurora Direction Engine For Product Teams",
@@ -401,7 +420,7 @@ test("chat route returns 503 when OPENAI_API_KEY is not configured", async () =>
   const chatResponse = await keylessHandlers.chatRoute(
     new Request("http://localhost/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         message: "pick 1"
@@ -412,11 +431,16 @@ test("chat route returns 503 when OPENAI_API_KEY is not configured", async () =>
 });
 
 test("chat route marks rate-limited responses while continuing action execution", async () => {
-  global.fetch = mockOpenAiFetch();
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch()
+  });
   const createResponse = await startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "AB Aurora Direction Engine For Product Teams",
@@ -432,7 +456,7 @@ test("chat route marks rate-limited responses while continuing action execution"
   await runStep(
     new Request("http://localhost/api/agent/run-step", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         idempotency_key: "idem_route_runstep_003"
@@ -443,7 +467,7 @@ test("chat route marks rate-limited responses while continuing action execution"
   const chatPayload = (message) =>
     new Request("http://localhost/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         message
@@ -462,7 +486,7 @@ test("chat route marks rate-limited responses while continuing action execution"
   assert.equal(third.rate_limited, true);
   assert.equal(third.applied, true);
 
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: createBody.session_id })
   });
   const sessionBody = await json(sessionResponse);
@@ -472,11 +496,16 @@ test("chat route marks rate-limited responses while continuing action execution"
 });
 
 test("chat route falls back when OpenAI returns error", async () => {
-  global.fetch = mockOpenAiFetch();
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch()
+  });
   const createResponse = await startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "AB Aurora Direction Engine For Product Teams",
@@ -492,7 +521,7 @@ test("chat route falls back when OpenAI returns error", async () => {
   await runStep(
     new Request("http://localhost/api/agent/run-step", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         idempotency_key: "idem_route_runstep_004"
@@ -500,11 +529,16 @@ test("chat route falls back when OpenAI returns error", async () => {
     })
   );
 
-  global.fetch = mockOpenAiFetch({ failChat: true });
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch({ failChat: true })
+  });
   const response = await chatRoute(
     new Request("http://localhost/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: createBody.session_id,
         message: "pick 1"
@@ -516,7 +550,7 @@ test("chat route falls back when OpenAI returns error", async () => {
   assert.equal(body.assistant_source, "fallback");
   assert.equal(body.applied, true);
 
-  const sessionResponse = await getSession(new Request("http://localhost"), {
+  const sessionResponse = await getSession(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: createBody.session_id })
   });
   const sessionBody = await json(sessionResponse);

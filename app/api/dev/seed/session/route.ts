@@ -26,8 +26,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = seedSessionRequestSchema.parse(body);
     const storage = getStorageRepository();
+    const ownerUserIdHeader = request.headers.get("x-owner-user-id");
+    const owner_user_id = ownerUserIdHeader && ownerUserIdHeader.trim().length > 0 ? ownerUserIdHeader.trim() : null;
     const seeded = await buildSessionSeed({
       storage,
+      owner_user_id,
       preset: parsed.preset,
       mode: parsed.mode,
       product: parsed.product,

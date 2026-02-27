@@ -62,8 +62,6 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
     canRetry,
     showSignIn,
     setShowSignIn,
-    tokenDraft,
-    setTokenDraft,
     currentScene,
     activeStepIndex,
     chatEntries,
@@ -395,20 +393,14 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
       {showSignIn ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4">
           <div className="w-full max-w-md rounded-2xl border border-cyan-300/30 bg-slate-950 p-4">
-            <p className="text-sm font-semibold text-cyan-100">API Sign-in</p>
-            <p className="mt-1 text-xs text-slate-300">Set x-api-token for protected routes.</p>
-            <input
-              className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-              value={tokenDraft}
-              onChange={(event) => setTokenDraft(event.target.value)}
-              placeholder="x-api-token"
-            />
+            <p className="text-sm font-semibold text-cyan-100">Session Sign-in</p>
+            <p className="mt-1 text-xs text-slate-300">Re-bootstrap anonymous Supabase session for protected routes.</p>
             <div className="mt-3 flex gap-2">
               <button
                 className="rounded-lg border border-cyan-300/45 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10"
-                onClick={handleSaveApiToken}
+                onClick={() => void handleSaveApiToken()}
               >
-                Save
+                Reconnect
               </button>
               <button
                 className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"

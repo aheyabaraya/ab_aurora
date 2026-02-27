@@ -24,6 +24,7 @@ import {
   parseSlashCommand,
   validateSlashCommandContext
 } from "./slash-commands";
+import { getSupabaseBrowserClient } from "../../lib/auth/supabase-client";
 
 class ApiError extends Error {
   status: number;
@@ -269,7 +270,7 @@ export function useAuroraController() {
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
-  const [apiToken, setApiToken] = useState("");
+  const [apiToken] = useState("");
   const [tokenDraft, setTokenDraft] = useState("");
   const [showSignIn, setShowSignIn] = useState(false);
 
@@ -286,23 +287,22 @@ export function useAuroraController() {
     queuedRef.current = queuedCommands;
   }, [queuedCommands]);
 
-  useEffect(() => {
-    const storedToken = window.sessionStorage.getItem("ab_aurora_api_token") ?? "";
-    if (storedToken) {
-      setApiToken(storedToken);
-      setTokenDraft(storedToken);
-    }
-  }, []);
-
   const requestJson = useCallback(
     async <T>(url: string, init?: RequestInitWithBody): Promise<T> => {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(init?.headers ? (init.headers as Record<string, string>) : {})
       };
-      if (apiToken.trim().length > 0) {
-        headers["x-api-token"] = apiToken.trim();
+
+      const supabase = getSupabaseBrowserClient();
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+      if (!accessToken) {
+        throw new ApiError("Unauthorized", 401, {
+          error: "Unauthorized"
+        });
       }
+      headers.Authorization = `Bearer ${accessToken}`;
 
       const response = await fetch(url, {
         ...init,
@@ -323,7 +323,7 @@ export function useAuroraController() {
 
       return body as T;
     },
-    [apiToken]
+    []
   );
 
   const handleActionError = useCallback((actionError: unknown, retryAction?: ActionFn) => {
@@ -1378,19 +1378,17 @@ export function useAuroraController() {
     await runWithRecovery(retryAction, retryAction);
   }, [runWithRecovery]);
 
-  const handleSaveApiToken = useCallback(() => {
-    const normalized = tokenDraft.trim();
-    setApiToken(normalized);
-    window.sessionStorage.setItem("ab_aurora_api_token", normalized);
+  const handleSaveApiToken = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signInAnonymously();
     setShowSignIn(false);
     setError(null);
     setErrorStatus(null);
-  }, [tokenDraft]);
+  }, []);
 
   const handleClearApiToken = useCallback(() => {
-    setApiToken("");
     setTokenDraft("");
-    window.sessionStorage.removeItem("ab_aurora_api_token");
+    void getSupabaseBrowserClient().auth.signOut();
   }, []);
 
   const chatEntries = useMemo<ChatEntry[]>(() => {

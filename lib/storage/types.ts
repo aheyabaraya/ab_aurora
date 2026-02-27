@@ -25,6 +25,7 @@ import type {
 } from "../runtime/types";
 
 export interface CreateSessionInput {
+  owner_user_id?: string | null;
   mode: SessionMode;
   product: string;
   audience: string;

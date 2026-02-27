@@ -1,8 +1,12 @@
 import { randomUUID } from "crypto";
 import { runStepRequestSchema } from "../../../../lib/agent/schemas";
 import { runAgentPipeline } from "../../../../lib/agent/orchestrator";
-import { assertApiToken } from "../../../../lib/auth/api-token";
-import { getRequestId, jsonError, jsonOk, jsonRouteError } from "../../../../lib/api/http";
+import {
+  requireEntitlement,
+  requireSessionOwnership,
+  requireUser
+} from "../../../../lib/auth/guards";
+import { getRequestId, jsonOk, jsonRouteError } from "../../../../lib/api/http";
 import { env } from "../../../../lib/env";
 import {
   ensureRuntimeGoalForSession,
@@ -14,9 +18,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const requestId = getRequestId(new Headers(request.headers));
-  const auth = assertApiToken(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
   if (!auth.ok) {
-    return jsonError("Unauthorized", 401, requestId);
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
   }
 
   try {
@@ -28,6 +36,16 @@ export async function POST(request: Request) {
     });
 
     const storage = getStorageRepository();
+    const sessionAuth = await requireSessionOwnership({
+      storage,
+      auth: auth.value,
+      sessionId: parsed.session_id,
+      requestId
+    });
+    if (!sessionAuth.ok) {
+      return sessionAuth.response;
+    }
+
     if (env.RUNTIME_ENABLED) {
       const goal = await ensureRuntimeGoalForSession({
         storage,
@@ -46,10 +64,9 @@ export async function POST(request: Request) {
         idempotency_key: parsed.idempotency_key
       });
 
-      const session = await storage.getSession(parsed.session_id);
-      if (!session) {
-        throw new Error(`Session not found: ${parsed.session_id}`);
-      }
+      const sessionBeforeStep = sessionAuth.value;
+      const sessionAfterStep =
+        (await storage.getSession(parsed.session_id)) ?? sessionBeforeStep;
 
       const legacyOutput =
         runtimeResponse.last_action?.output &&
@@ -67,21 +84,22 @@ export async function POST(request: Request) {
       const nextStepFromTool =
         typeof nestedRunResponse?.next_step === "string"
           ? nestedRunResponse.next_step
-          : session.current_step;
+          : sessionAfterStep.current_step;
       const toolJobId =
         typeof nestedRunResponse?.job_id === "string"
           ? nestedRunResponse.job_id
           : null;
 
-      return jsonOk({
-        status: session.status,
-        current_step: session.current_step,
+        return jsonOk({
+        status: sessionAfterStep.status,
+        current_step: sessionAfterStep.current_step,
         next_step: nextStepFromTool,
-        wait_user: runtimeResponse.wait_user || session.status === "wait_user",
+        wait_user:
+          runtimeResponse.wait_user || sessionAfterStep.status === "wait_user",
         job_id: toolJobId,
         artifacts: artifactsDelta,
-        selected_candidate_id: session.selected_candidate_id,
-        latest_top3: session.latest_top3,
+        selected_candidate_id: sessionAfterStep.selected_candidate_id,
+        latest_top3: sessionAfterStep.latest_top3,
         message: runtimeResponse.message,
         runtime_meta: {
           enabled: true,

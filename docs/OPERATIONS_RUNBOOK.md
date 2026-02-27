@@ -180,7 +180,8 @@ MONAD_PRIVATE_KEY=
 | Key | Development | Preview (`develop`) | Production (`main`) |
 |---|---|---|---|
 | `RUNTIME_ENABLED` | `true` | `true` | phase1:`false`, phase2:`true` |
-| `API_TOKEN_REQUIRED` | `false` | `false` (or team policy) | `true` |
+| `AUTH_V2_ENABLED` | `true` | `true` | `true` |
+| `API_TOKEN_REQUIRED` | `false` | `false` | `true` (internal/dev routes only) |
 | `SECURITY_HEADERS_STRICT` | `true` | `true` | `true` |
 | `OPENAI_FALLBACK_MODE` | `deterministic_mock` | `deterministic_mock` | `deterministic_mock` then `none` after stability |
 
@@ -195,9 +196,9 @@ MONAD_PRIVATE_KEY=
 ## 4) Security Hardening Verification
 
 Checklist:
-- `API_TOKEN_REQUIRED=true` in production.
-- `x-api-token` missing in production returns `401`.
-- Timing-safe token comparison is active (`lib/auth/api-token.ts`).
+- `AUTH_V2_ENABLED=true` in production.
+- user APIs require `Authorization: Bearer <supabase access token>`.
+- internal/dev routes can still enforce `x-api-token` (`lib/auth/api-token.ts`).
 - Error responses include `request_id` and hide internals.
 - Sensitive fields are redacted in logs.
 - Security headers present in responses:

@@ -9,7 +9,11 @@ import {
   generateAssistantChatReply,
   type ChatOptionHint
 } from "../../../lib/ai/openai-chat";
-import { assertApiToken } from "../../../lib/auth/api-token";
+import {
+  requireEntitlement,
+  requireSessionOwnership,
+  requireUser
+} from "../../../lib/auth/guards";
 import { getRequestId, jsonError, jsonOk, jsonRouteError } from "../../../lib/api/http";
 import { env } from "../../../lib/env";
 import {
@@ -106,19 +110,29 @@ async function safeTrackUsage(storage: ReturnType<typeof getStorageRepository>, 
 
 export async function POST(request: Request) {
   const requestId = getRequestId(new Headers(request.headers));
-  const auth = assertApiToken(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
   if (!auth.ok) {
-    return jsonError("Unauthorized", 401, requestId);
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
   }
 
   try {
     const body = await request.json();
     const input = chatRequestSchema.parse(body);
     const storage = getStorageRepository();
-    const session = await storage.getSession(input.session_id);
-    if (!session) {
-      return jsonError("Resource not found", 404, requestId);
+    const sessionAuth = await requireSessionOwnership({
+      storage,
+      auth: auth.value,
+      sessionId: input.session_id,
+      requestId
+    });
+    if (!sessionAuth.ok) {
+      return sessionAuth.response;
     }
+    const session = sessionAuth.value;
 
     if (!env.OPENAI_API_KEY) {
       return jsonError("OPENAI_API_KEY is required for /api/chat.", 503, requestId);

@@ -3,6 +3,11 @@ process.env.RUNTIME_ENABLED = "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  AUTH_TEST_USER_ID,
+  createAuthFetchMock,
+  authJsonHeaders
+} = require("../helpers/auth-fetch.cjs");
 
 const { POST: startSession } = require("../../.tmp-tests/app/api/session/start/route.js");
 const { POST: runtimeStart } = require("../../.tmp-tests/app/api/runtime/start/route.js");
@@ -13,13 +18,19 @@ async function json(response) {
   return await response.json();
 }
 
+test.before(() => {
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true
+  });
+});
+
 test("runtime start/step/goals endpoints execute end-to-end", async () => {
   const createResponse = await startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "AB Aurora Direction Engine",
@@ -42,9 +53,7 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
   const startedResponse = await runtimeStart(
     new Request("http://localhost/api/runtime/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify(startReqBody)
     })
   );
@@ -55,9 +64,7 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
   const startedAgainResponse = await runtimeStart(
     new Request("http://localhost/api/runtime/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify(startReqBody)
     })
   );
@@ -72,9 +79,7 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
   const stepResponse = await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify(stepRequestBody)
     })
   );
@@ -85,15 +90,13 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
   const stepReplayResponse = await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify(stepRequestBody)
     })
   );
   assert.equal(stepReplayResponse.status, 200);
 
-  const snapshotResponse = await runtimeGoalGet(new Request("http://localhost"), {
+  const snapshotResponse = await runtimeGoalGet(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ goalId: started.goal_id })
   });
   assert.equal(snapshotResponse.status, 200);
@@ -111,9 +114,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   const createResponse = await startSession(
     new Request("http://localhost/api/session/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         mode: "mode_b",
         product: "Aurora Direction Engine for Product Teams and Brand Operators",
@@ -130,9 +131,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   const startedResponse = await runtimeStart(
     new Request("http://localhost/api/runtime/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: created.session_id,
         goal_type: "deliver_demo_pack",
@@ -145,9 +144,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         goal_id: started.goal_id,
         idempotency_key: "idem_runtime_build_gate_002"
@@ -158,9 +155,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         goal_id: started.goal_id,
         action_override: {
@@ -177,9 +172,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   const gatedResponse = await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         goal_id: started.goal_id,
         idempotency_key: "idem_runtime_build_gate_004"
@@ -196,9 +189,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
   const resumedResponse = await runtimeStep(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         goal_id: started.goal_id,
         action_override: {

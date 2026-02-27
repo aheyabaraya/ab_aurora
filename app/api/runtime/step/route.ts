@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
-import { assertApiToken } from "../../../../lib/auth/api-token";
-import { getRequestId, jsonError, jsonOk, jsonRouteError } from "../../../../lib/api/http";
+import {
+  requireEntitlement,
+  requireGoalOwnership,
+  requireUser
+} from "../../../../lib/auth/guards";
+import { getRequestId, jsonOk, jsonRouteError } from "../../../../lib/api/http";
 import { runtimeStepRequestSchema } from "../../../../lib/runtime/schemas";
 import { stepRuntimeGoal } from "../../../../lib/runtime/runner";
 import { getStorageRepository } from "../../../../lib/storage";
@@ -9,9 +13,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const requestId = getRequestId(new Headers(request.headers));
-  const auth = assertApiToken(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
   if (!auth.ok) {
-    return jsonError("Unauthorized", 401, requestId);
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
   }
 
   try {
@@ -23,6 +31,15 @@ export async function POST(request: Request) {
     });
 
     const storage = getStorageRepository();
+    const goalAuth = await requireGoalOwnership({
+      storage,
+      auth: auth.value,
+      goalId: parsed.goal_id,
+      requestId
+    });
+    if (!goalAuth.ok) {
+      return goalAuth.response;
+    }
     const response = await stepRuntimeGoal({
       storage,
       goal_id: parsed.goal_id,

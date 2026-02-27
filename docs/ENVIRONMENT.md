@@ -83,11 +83,23 @@ Current behavior note:
 
 ## 3) Security variables
 
+- `AUTH_V2_ENABLED`
+  - default: `true`
+  - when `true`, user APIs require `Authorization: Bearer <supabase access token>`
+  - when `false`, legacy token guard path can be used for rollback
 - `API_BEARER_TOKEN`
-  - shared value used by `x-api-token` header
+  - internal/dev shared value used by legacy `x-api-token` paths
 - `API_TOKEN_REQUIRED`
   - default: `false`
-  - production recommendation: `true`
+  - production recommendation: `true` only for internal/dev guarded routes
+- `ONBOARDING_CODE_TTL_SEC`
+  - default: `300`
+- `ONBOARDING_STATE_TTL_SEC`
+  - default: `600`
+- `MOCK_ISSUER_ENABLED`
+  - default: `true`
+- `MOCK_ISSUER_NAME`
+  - default: `ab_aurora_mock`
 - `ALLOW_FILE_STORAGE_IN_PRODUCTION`
   - default: `false`
   - production recommendation: `false` (enable only for temporary smoke tests; storage is ephemeral)
@@ -166,18 +178,18 @@ High-cost triggers during UI testing:
 
 ### Development (local)
 - `RUNTIME_ENABLED=false` (for behavior-test conservative profile)
-- `API_TOKEN_REQUIRED=false`
+- `AUTH_V2_ENABLED=true`
 - `OPENAI_FALLBACK_MODE=deterministic_mock`
 
 ### Preview (`develop`)
 - `RUNTIME_ENABLED=true`
-- `API_TOKEN_REQUIRED=false` (or team policy)
+- `AUTH_V2_ENABLED=true`
 - `SECURITY_HEADERS_STRICT=true`
 
 ### Production (`main`) phase rollout
 - Phase 1:
   - `RUNTIME_ENABLED=false`
-  - `API_TOKEN_REQUIRED=true`
+  - `AUTH_V2_ENABLED=true`
   - `SECURITY_HEADERS_STRICT=true`
 - Phase 2 after smoke:
   - `RUNTIME_ENABLED=true`

@@ -60,6 +60,7 @@ export interface Candidate {
 
 export interface SessionRecord {
   id: string;
+  owner_user_id: string | null;
   mode: SessionMode;
   product: string;
   audience: string;

@@ -7,6 +7,11 @@ process.env.OPENAI_API_KEY = "test-openai-key";
 const { randomUUID } = require("node:crypto");
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  AUTH_TEST_USER_ID,
+  createAuthFetchMock,
+  authJsonHeaders
+} = require("../helpers/auth-fetch.cjs");
 
 const { POST: devSeedPost } = require("../../.tmp-tests/app/api/dev/seed/session/route.js");
 const { POST: runStepPost } = require("../../.tmp-tests/app/api/agent/run-step/route.js");
@@ -147,7 +152,12 @@ function mockOpenAiFetch() {
 }
 
 test.before(() => {
-  global.fetch = mockOpenAiFetch();
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID,
+    hasAuroraAccess: true,
+    onboardingComplete: true,
+    delegate: mockOpenAiFetch()
+  });
 });
 
 function assertMessageSortedDesc(messages) {
@@ -194,7 +204,8 @@ test("POST /api/dev/seed/session creates deterministic presets", async () => {
     const { response, body } = await seedSessionViaApi({
       post: devSeedPost,
       preset,
-      token: "seed-test-token"
+      token: "seed-test-token",
+      ownerUserId: AUTH_TEST_USER_ID
     });
     assert.equal(response.status, 200);
     assert.equal(body.preset, preset);
@@ -286,16 +297,15 @@ test("seeded session exposes recent_messages in descending order", async () => {
   const seeded = await seedSessionViaApi({
     post: devSeedPost,
     preset: "top3_ready",
-    token: "seed-test-token"
+    token: "seed-test-token",
+    ownerUserId: AUTH_TEST_USER_ID
   });
   const sessionId = seeded.body.session_id;
 
   const chatResponse = await chatPost(
     new Request("http://localhost/api/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
         message: "Pick #1"
@@ -304,7 +314,7 @@ test("seeded session exposes recent_messages in descending order", async () => {
   );
   assert.equal(chatResponse.status, 200);
 
-  const sessionResponse = await sessionGetById(new Request("http://localhost"), {
+  const sessionResponse = await sessionGetById(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId })
   });
   assert.equal(sessionResponse.status, 200);
@@ -332,9 +342,7 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   const runStepResponse = await runStepPost(
     new Request("http://localhost/api/agent/run-step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: unknownSessionId,
         idempotency_key: "idem_seed_matrix_run_step_001"
@@ -346,9 +354,7 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   const chatResponse = await chatPost(
     new Request("http://localhost/api/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: unknownSessionId,
         message: "pick #1"
@@ -360,9 +366,7 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   const reviseResponse = await revisePost(
     new Request("http://localhost/api/revise", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: unknownSessionId,
         constraint: "make it calmer"
@@ -374,9 +378,7 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   const runtimeStartResponse = await runtimeStartPost(
     new Request("http://localhost/api/runtime/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         session_id: unknownSessionId,
         goal_type: "deliver_demo_pack",
@@ -389,9 +391,7 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   const runtimeStepResponse = await runtimeStepPost(
     new Request("http://localhost/api/runtime/step", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authJsonHeaders(),
       body: JSON.stringify({
         goal_id: unknownGoalId,
         idempotency_key: "idem_seed_matrix_runtime_step_001"
@@ -400,23 +400,21 @@ test("session-dependent APIs return deterministic 404/400 for invalid IDs", asyn
   );
   assert.equal(runtimeStepResponse.status, 404);
 
-  const sessionsMissingQuery = await sessionsGet(
-    new Request("http://localhost/api/sessions")
-  );
+  const sessionsMissingQuery = await sessionsGet(new Request("http://localhost/api/sessions", { headers: authJsonHeaders() }));
   assert.equal(sessionsMissingQuery.status, 400);
 
   const sessionsUnknownId = await sessionsGet(
-    new Request(`http://localhost/api/sessions?session_id=${unknownSessionId}`)
+    new Request(`http://localhost/api/sessions?session_id=${unknownSessionId}`, { headers: authJsonHeaders() })
   );
   assert.equal(sessionsUnknownId.status, 404);
 
-  const sessionDetailMissing = await sessionGetById(new Request("http://localhost"), {
+  const sessionDetailMissing = await sessionGetById(new Request("http://localhost", { headers: authJsonHeaders() }), {
     params: Promise.resolve({ sessionId: unknownSessionId })
   });
   assert.equal(sessionDetailMissing.status, 404);
 
   const jobsUnknownSession = await jobsGet(
-    new Request(`http://localhost/api/jobs?session_id=${unknownSessionId}`)
+    new Request(`http://localhost/api/jobs?session_id=${unknownSessionId}`, { headers: authJsonHeaders() })
   );
   assert.equal(jobsUnknownSession.status, 404);
 });

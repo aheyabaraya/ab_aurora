@@ -1,4 +1,9 @@
-import { getRequestId, jsonError, jsonOk } from "../../../../lib/api/http";
+import {
+  requireEntitlement,
+  requireJobOwnership,
+  requireUser
+} from "../../../../lib/auth/guards";
+import { getRequestId, jsonOk } from "../../../../lib/api/http";
 import { getStorageRepository } from "../../../../lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +15,27 @@ export async function GET(
   }
 ) {
   const requestId = getRequestId(new Headers(request.headers));
+  const auth = await requireUser(request, requestId);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  const entitlement = await requireEntitlement(auth.value, requestId);
+  if (!entitlement.ok) {
+    return entitlement.response;
+  }
+
   const { jobId } = await context.params;
   const storage = getStorageRepository();
-  const job = await storage.getJob(jobId);
-  if (!job) {
-    return jsonError("Resource not found", 404, requestId);
+  const jobAuth = await requireJobOwnership({
+    storage,
+    auth: auth.value,
+    jobId,
+    requestId
+  });
+  if (!jobAuth.ok) {
+    return jobAuth.response;
   }
+  const job = jobAuth.value;
 
   const artifacts = await storage.listArtifactsBySession(job.session_id);
   const relatedArtifacts = artifacts.filter((artifact) => artifact.job_id === jobId);

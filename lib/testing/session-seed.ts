@@ -146,6 +146,7 @@ function assertPresetState(input: {
 export interface BuildSessionSeedInput {
   storage: StorageRepository;
   preset: SeedSessionPreset;
+  owner_user_id?: string | null;
   mode?: SessionMode;
   product?: string;
   audience?: string;
@@ -172,6 +173,7 @@ export async function buildSessionSeed(input: BuildSessionSeedInput): Promise<Bu
     input.preset === "build_confirm_required" ? false : input.auto_pick_top1 ?? true;
 
   const session = await input.storage.createSession({
+    owner_user_id: input.owner_user_id ?? null,
     mode: input.mode ?? "mode_b",
     product: input.product ?? DEFAULT_PRODUCT,
     audience: input.audience ?? DEFAULT_AUDIENCE,
