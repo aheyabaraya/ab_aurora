@@ -9,6 +9,13 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     help: "Start a new session from the current brief."
   },
   {
+    id: "setup_brief",
+    category: "session",
+    canonical: "/setup",
+    aliasesKo: ["/설정"],
+    help: "Set setup fields before start. Example: /setup q0 4"
+  },
+  {
     id: "run_step",
     category: "pipeline",
     canonical: "/run",
@@ -145,7 +152,7 @@ export function filterSlashCommands(query: string): SlashCommandSpec[] {
   }
 
   return SLASH_COMMANDS.filter((spec) => {
-    return expandAliases(spec).some((alias) => alias.includes(normalized));
+    return expandAliases(spec).some((alias) => alias.includes(normalized) || normalized.startsWith(`${alias} `));
   });
 }
 

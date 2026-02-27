@@ -62,7 +62,7 @@ test("start session is disabled when setup input is invalid", () => {
 
   assert.equal(model.primaryAction?.id, "start_session");
   assert.equal(model.primaryAction?.disabled, true);
-  assert.equal(model.suggestedCommand, "/start");
+  assert.equal(model.suggestedCommand, "/setup note keep serif headline hierarchy");
 });
 
 test("package scene sets export as primary and disables until pack is ready", () => {

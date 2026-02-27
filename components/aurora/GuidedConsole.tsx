@@ -25,6 +25,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     setAudience,
     styleKeywords,
     setStyleKeywords,
+    designDirectionNote,
+    setDesignDirectionNote,
     q0IntentConfidence,
     setQ0IntentConfidence,
     onboardingPhase,
@@ -184,20 +186,46 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                   />
                 </label>
 
+                <label className="block text-sm">
+                  <span className="text-slate-200">Design Requirement *</span>
+                  <textarea
+                    className="aurora-input mt-1.5 min-h-[84px] w-full rounded-lg px-3 py-2.5 text-sm"
+                    value={designDirectionNote}
+                    onChange={(event) => setDesignDirectionNote(event.target.value)}
+                    placeholder="e.g. Keep serif headline hierarchy, avoid glossy gradients, preserve dense content blocks"
+                    disabled={onboardingPhase === "flipping"}
+                  />
+                </label>
+
                 <div className="aurora-surface-soft rounded-xl px-3 py-3">
-                  <p className="text-sm text-slate-100">Q0 Design Confidence (1-5)</p>
-                  <div className="mt-2 grid grid-cols-5 gap-2">
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`aurora-q0-pill ${q0IntentConfidence === value ? "is-active" : ""}`}
-                        onClick={() => setQ0IntentConfidence(value)}
-                        disabled={onboardingPhase === "flipping"}
-                      >
-                        {value}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-slate-100">Q0 Design Confidence (1-5)</p>
+                    <span className="aurora-inline-help group" tabIndex={0} role="button" aria-label="Design confidence definition">
+                      !
+                      <span className="aurora-help-tooltip">
+                        Design confidence는 본인이 원하는 디자인 무드/톤/스타일 방향을 얼마나 명확히 알고 있는지를 나타내는
+                        자기평가 점수(1~5)입니다. AB_Aurora에서는 이 Q0 값을 초기 판단 기준으로 써서 intent_confidence와
+                        변주 폭(wide/medium/narrow)을 정합니다.
+                      </span>
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <select
+                      className="aurora-input w-full rounded-lg px-3 py-2 text-sm"
+                      value={q0IntentConfidence ?? ""}
+                      onChange={(event) => {
+                        const next = Number(event.target.value);
+                        setQ0IntentConfidence(Number.isInteger(next) ? next : null);
+                      }}
+                      disabled={onboardingPhase === "flipping"}
+                    >
+                      <option value="">Select confidence score</option>
+                      <option value="1">1 - no idea</option>
+                      <option value="2">2 - vague hints</option>
+                      <option value="3">3 - some direction</option>
+                      <option value="4">4 - clear direction</option>
+                      <option value="5">5 - very clear/fixed</option>
+                    </select>
                   </div>
                 </div>
               </div>

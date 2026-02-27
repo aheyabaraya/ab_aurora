@@ -34,11 +34,13 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
       disabled: !input.canStartSession,
       disabledReason: input.canStartSession
         ? undefined
-        : "Product, Audience, Style keywords, Q0를 먼저 입력하세요."
+        : "Product, Audience, Style keywords, Design requirement, Q0를 먼저 입력하세요. (/setup ... 가능)"
     };
-    model.hint = "브리프 입력 후 세션을 시작하세요.";
-    model.suggestedCommand = "/start";
-    model.suggestedReason = "세션이 아직 시작되지 않았습니다.";
+    model.hint = "브리프 입력 후 세션을 시작하세요. 채팅에서 /setup 명령으로도 입력할 수 있습니다.";
+    model.suggestedCommand = input.canStartSession ? "/start" : "/setup note keep serif headline hierarchy";
+    model.suggestedReason = input.canStartSession
+      ? "세션을 시작할 준비가 완료되었습니다."
+      : "세션 시작 전에 note를 포함한 setup 값을 먼저 채우세요.";
     return model;
   }
 

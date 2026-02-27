@@ -25,6 +25,7 @@ test("runtime start/step/goals endpoints execute end-to-end", async () => {
         product: "AB Aurora Direction Engine",
         audience: "Founders",
         style_keywords: ["bold", "minimal", "editorial"],
+        design_direction_note: "Keep serif hierarchy and avoid glossy gradients.",
         auto_continue: true,
         auto_pick_top1: true
       })
@@ -118,6 +119,7 @@ test("runtime requires explicit proceed at approve_build when auto_pick_top1 is 
         product: "Aurora Direction Engine for Product Teams and Brand Operators",
         audience: "Founders",
         style_keywords: ["bold", "minimal", "editorial"],
+        design_direction_note: "Keep serif hierarchy and avoid glossy gradients.",
         auto_continue: true,
         auto_pick_top1: false
       })

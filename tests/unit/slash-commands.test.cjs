@@ -16,6 +16,12 @@ test("parseSlashCommand parses canonical english commands", () => {
   assert.equal(parsed?.spec.canonical, "/run");
 });
 
+test("parseSlashCommand parses setup command", () => {
+  const parsed = parseSlashCommand("/setup");
+  assert.equal(parsed?.id, "setup_brief");
+  assert.equal(parsed?.spec.canonical, "/setup");
+});
+
 test("parseSlashCommand parses korean aliases", () => {
   const parsed = parseSlashCommand("/빌드");
   assert.equal(parsed?.id, "confirm_build");
@@ -51,6 +57,11 @@ test("validateSlashCommandContext enforces session requirements", () => {
 test("filterSlashCommands lists relevant slash entries", () => {
   const commands = filterSlashCommands("/to");
   assert.equal(commands.some((item) => item.id === "tone_editorial"), true);
+});
+
+test("filterSlashCommands keeps setup visible when argument prefix exists", () => {
+  const commands = filterSlashCommands("/setup q0");
+  assert.equal(commands.some((item) => item.id === "setup_brief"), true);
 });
 
 test("buildSlashHelpText includes command descriptions", () => {

@@ -92,6 +92,7 @@ async function createSession() {
         product: "Aurora Direction Engine",
         audience: "Founders",
         style_keywords: ["editorial", "calm"],
+        design_direction_note: "Keep serif hierarchy and avoid glossy gradients.",
         auto_continue: false,
         auto_pick_top1: false
       })

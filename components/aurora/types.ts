@@ -184,6 +184,7 @@ export type SlashCommandCategory = "pipeline" | "tone" | "runtime" | "session" |
 
 export type SlashCommandId =
   | GuidedActionId
+  | "setup_brief"
   | "tone_editorial"
   | "tone_calmer"
   | "tone_ritual"

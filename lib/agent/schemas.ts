@@ -37,6 +37,7 @@ export const sessionStartRequestSchema = z.object({
   product: z.string().min(3).max(240),
   audience: z.string().min(3).max(240),
   style_keywords: z.array(z.string().min(1).max(64)).min(1).max(10),
+  design_direction_note: z.string().min(3).max(400),
   q0_intent_confidence: z.number().int().min(1).max(5).optional(),
   auto_continue: z.boolean().optional(),
   auto_pick_top1: z.boolean().optional()

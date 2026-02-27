@@ -354,6 +354,7 @@ export class SupabaseStorageRepository implements StorageRepository {
         product: input.product,
         audience: input.audience,
         style_keywords: input.style_keywords,
+        constraint: input.design_direction_note?.trim() ? input.design_direction_note.trim() : null,
         intent_confidence: input.q0_intent_confidence ?? null,
         variation_width: variationWidth,
         auto_continue: input.auto_continue,

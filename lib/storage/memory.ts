@@ -72,7 +72,7 @@ export class MemoryStorageRepository implements StorageRepository {
       product: input.product,
       audience: input.audience,
       style_keywords: input.style_keywords,
-      constraint: null,
+      constraint: input.design_direction_note?.trim() ? input.design_direction_note.trim() : null,
       current_step: "interview_collect",
       status: "idle",
       auto_continue: input.auto_continue,

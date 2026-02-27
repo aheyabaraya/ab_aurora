@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       product: input.product,
       audience: input.audience,
       style_keywords: input.style_keywords,
+      design_direction_note: input.design_direction_note,
       q0_intent_confidence: input.q0_intent_confidence,
       auto_continue: input.auto_continue ?? env.AUTO_CONTINUE,
       auto_pick_top1: input.auto_pick_top1 ?? env.AUTO_PICK_TOP1

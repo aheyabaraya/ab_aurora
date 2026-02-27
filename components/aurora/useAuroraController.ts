@@ -134,6 +134,76 @@ export function getCommandExecutionMeta(response: ChatApiResponse | null | undef
   };
 }
 
+type SetupField = "product" | "audience" | "style" | "q0" | "note";
+
+type ParsedSetupCommand = {
+  field: SetupField;
+  value: string;
+};
+
+function parseSetupCommand(raw: string): ParsedSetupCommand | null {
+  const trimmed = raw.trim();
+  const match = /^\/setup\s+(product|audience|style|q0|note)\s+(.+)$/i.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+  return {
+    field: match[1].toLowerCase() as SetupField,
+    value: match[2].trim()
+  };
+}
+
+type SetupChecklistInput = {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  designDirectionNote: string;
+  q0IntentConfidence: number | null;
+};
+
+function collectMissingSetupFields(input: SetupChecklistInput): string[] {
+  const missing: string[] = [];
+  if (input.product.trim().length < 3) {
+    missing.push("product");
+  }
+  if (input.audience.trim().length < 3) {
+    missing.push("audience");
+  }
+  if (input.styleKeywords.length < 1) {
+    missing.push("style keywords");
+  }
+  if (input.designDirectionNote.trim().length < 3) {
+    missing.push("design requirement");
+  }
+  if (input.q0IntentConfidence === null) {
+    missing.push("q0");
+  }
+  return missing;
+}
+
+function formatSetupChecklistMessage(input: SetupChecklistInput): string {
+  const styleValue = input.styleKeywords.length > 0 ? input.styleKeywords.join(", ") : "<required>";
+  const q0Value = input.q0IntentConfidence === null ? "<required>" : String(input.q0IntentConfidence);
+  const missing = collectMissingSetupFields(input);
+
+  return [
+    "Start blocked. Fill required setup fields:",
+    `product : ${input.product.trim().length > 0 ? input.product.trim() : "<required>"}`,
+    `audience : ${input.audience.trim().length > 0 ? input.audience.trim() : "<required>"}`,
+    `style keywords : ${styleValue}`,
+    `design requirement : ${input.designDirectionNote.trim().length > 0 ? input.designDirectionNote.trim() : "<required>"}`,
+    `q0 : ${q0Value}`,
+    `Missing: ${missing.join(", ")}`,
+    "Quick setup commands:",
+    "/setup product <text>",
+    "/setup audience <text>",
+    "/setup style <keyword1, keyword2>",
+    "/setup note <specific design requirement>",
+    "/setup q0 <1-5>",
+    "/start"
+  ].join("\n");
+}
+
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
   const status = payload?.session.status;
   if (status === "failed" && stage === "candidates_generate") {
@@ -173,12 +243,17 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
 
 type ActionFn = () => Promise<void>;
 type OnboardingPhase = "setup" | "flipping" | "workspace";
+type StartSessionResult = {
+  ok: boolean;
+  message?: string;
+};
 
 export function useAuroraController() {
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
   const [product, setProduct] = useState("");
   const [audience, setAudience] = useState("");
   const [styleKeywords, setStyleKeywords] = useState("");
+  const [designDirectionNote, setDesignDirectionNote] = useState("");
   const [q0IntentConfidence, setQ0IntentConfidence] = useState<number | null>(null);
   const [autoContinue, setAutoContinue] = useState(true);
   const [autoPickTop1, setAutoPickTop1] = useState(true);
@@ -367,14 +442,19 @@ export function useAuroraController() {
       .filter(Boolean);
   }, [styleKeywords]);
 
+  const missingSetupFields = useMemo(() => {
+    return collectMissingSetupFields({
+      product,
+      audience,
+      styleKeywords: styleKeywordList,
+      designDirectionNote,
+      q0IntentConfidence
+    });
+  }, [audience, designDirectionNote, product, q0IntentConfidence, styleKeywordList]);
+
   const canStartSession = useMemo(() => {
-    return (
-      product.trim().length >= 3 &&
-      audience.trim().length >= 3 &&
-      styleKeywordList.length >= 1 &&
-      q0IntentConfidence !== null
-    );
-  }, [audience, product, q0IntentConfidence, styleKeywordList.length]);
+    return missingSetupFields.length === 0;
+  }, [missingSetupFields]);
 
   const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
     setQueuedCommands((current) => [
@@ -522,10 +602,19 @@ export function useAuroraController() {
     stageRef.current = currentStage;
   }, [flushQueuedCommands, sessionPayload]);
 
-  const handleStartSession = useCallback(async () => {
+  const handleStartSession = useCallback(async (): Promise<StartSessionResult> => {
     if (!canStartSession) {
-      setError("Product, Audience, Style keywords와 Q0(1-5)를 먼저 입력하세요.");
-      return;
+      setError("Product, Audience, Style keywords, Design requirement, Q0(1-5)를 먼저 입력하세요.");
+      return {
+        ok: false,
+        message: formatSetupChecklistMessage({
+          product,
+          audience,
+          styleKeywords: styleKeywordList,
+          designDirectionNote,
+          q0IntentConfidence
+        })
+      };
     }
 
     const run = async () => {
@@ -538,6 +627,7 @@ export function useAuroraController() {
           product,
           audience,
           style_keywords: styleKeywordList,
+          design_direction_note: designDirectionNote.trim(),
           q0_intent_confidence: q0IntentConfidence,
           auto_continue: autoContinue,
           auto_pick_top1: autoPickTop1
@@ -556,12 +646,20 @@ export function useAuroraController() {
       setOnboardingPhase("workspace");
     };
 
-    await runWithRecovery(run, run);
+    const success = await runWithRecovery(run, run);
+    if (!success) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      message: "Session started."
+    };
   }, [
     audience,
     autoContinue,
     autoPickTop1,
     canStartSession,
+    designDirectionNote,
     mode,
     product,
     q0IntentConfidence,
@@ -927,6 +1025,112 @@ export function useAuroraController() {
         };
       }
 
+      if (trimmed.startsWith("/setup")) {
+        if (sessionId) {
+          return {
+            accepted: false,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: "Setup commands are only available before /start. Use /tone or /regen commands after session start."
+          };
+        }
+
+        const parsedSetup = parseSetupCommand(trimmed);
+        if (!parsedSetup) {
+          const message = [
+            "Setup command format:",
+            "/setup product <text>",
+            "/setup audience <text>",
+            "/setup style <comma-separated keywords>",
+            "/setup q0 <1-5>",
+            "/setup note <design direction note>"
+          ].join("\n");
+          return {
+            accepted: false,
+            kind: "slash",
+            commandId: "setup_brief",
+            message
+          };
+        }
+
+        if (parsedSetup.field === "product") {
+          setProduct(parsedSetup.value);
+          setError(null);
+          setErrorStatus(null);
+          return {
+            accepted: true,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: `Setup updated: product = ${parsedSetup.value}`
+          };
+        }
+
+        if (parsedSetup.field === "audience") {
+          setAudience(parsedSetup.value);
+          setError(null);
+          setErrorStatus(null);
+          return {
+            accepted: true,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: `Setup updated: audience = ${parsedSetup.value}`
+          };
+        }
+
+        if (parsedSetup.field === "style") {
+          setStyleKeywords(parsedSetup.value);
+          setError(null);
+          setErrorStatus(null);
+          return {
+            accepted: true,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: `Setup updated: style keywords = ${parsedSetup.value}`
+          };
+        }
+
+        if (parsedSetup.field === "note") {
+          const noteValue = parsedSetup.value.trim();
+          if (noteValue.length < 3) {
+            return {
+              accepted: false,
+              kind: "slash",
+              commandId: "setup_brief",
+              message: "Design requirement note must be at least 3 characters."
+            };
+          }
+          setDesignDirectionNote(noteValue);
+          setError(null);
+          setErrorStatus(null);
+          return {
+            accepted: true,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: "Setup updated: design direction note saved."
+          };
+        }
+
+        const q0Score = Number(parsedSetup.value);
+        if (!Number.isInteger(q0Score) || q0Score < 1 || q0Score > 5) {
+          return {
+            accepted: false,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: "Q0 must be an integer from 1 to 5. Example: /setup q0 4"
+          };
+        }
+
+        setQ0IntentConfidence(q0Score);
+        setError(null);
+        setErrorStatus(null);
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: "setup_brief",
+          message: `Setup updated: q0 = ${q0Score}`
+        };
+      }
+
       const parsed = parseSlashCommand(trimmed);
       if (!parsed) {
         const message = "Unknown slash command. Try /help.";
@@ -976,7 +1180,31 @@ export function useAuroraController() {
       }
 
       if (parsed.id === "start_session") {
-        await handleStartSession();
+        const startResult = await handleStartSession();
+        if (!startResult.ok) {
+          const checklist = startResult.message ?? "Start failed.";
+          setStageMessages((current) => [
+            ...current,
+            {
+              id: `setup_${crypto.randomUUID()}`,
+              type: "system",
+              content: checklist,
+              createdAt: nowIso(),
+              subtitle: "setup required"
+            }
+          ]);
+          return {
+            accepted: false,
+            kind: "slash",
+            commandId: "start_session"
+          };
+        }
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: "start_session",
+          message: startResult.message
+        };
       } else if (parsed.id === "run_step") {
         await handleRunStep();
       } else if (parsed.id === "confirm_build") {
@@ -1260,6 +1488,8 @@ export function useAuroraController() {
     setAudience,
     styleKeywords,
     setStyleKeywords,
+    designDirectionNote,
+    setDesignDirectionNote,
     q0IntentConfidence,
     setQ0IntentConfidence,
     onboardingPhase,
