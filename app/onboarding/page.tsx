@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/auth/supabase-client";
 
@@ -62,38 +62,36 @@ async function isAlreadyOnboarded(accessToken: string): Promise<boolean> {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [sessionBusy, setSessionBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const initSession = async () => {
+    setSessionBusy(true);
     setError(null);
-    (async () => {
+    try {
       const token = await ensureAccessToken();
+      setAccessToken(token);
       const onboarded = await isAlreadyOnboarded(token);
-      if (!active) {
-        return;
-      }
       if (onboarded) {
         router.replace("/");
       }
-    })().catch((bootstrapError) => {
-      if (!active) {
-        return;
-      }
-      const message = bootstrapError instanceof Error ? bootstrapError.message : "Failed to bootstrap onboarding.";
+    } catch (sessionError) {
+      const message = sessionError instanceof Error ? sessionError.message : "Failed to create session.";
       setError(message);
-    });
-    return () => {
-      active = false;
-    };
-  }, [router]);
+    } finally {
+      setSessionBusy(false);
+    }
+  };
 
   const startOnboarding = async () => {
     setBusy(true);
     setError(null);
     try {
-      const accessToken = await ensureAccessToken();
+      if (!accessToken) {
+        throw new Error("Create session first.");
+      }
       const state = randomToken(24);
       const nonce = randomToken(24);
       const codeVerifier = randomToken(48);
@@ -138,23 +136,32 @@ export default function OnboardingPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">AB Aurora</p>
         <h1 className="mt-2 text-xl font-semibold">Supabase Onboarding</h1>
         <p className="mt-2 text-sm text-slate-300">
-          Continue with one-time onboarding code exchange. This is required only once per browser session profile.
+          Continue with one-time onboarding code exchange. First create an anonymous session with the button below.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-emerald-300/50 bg-emerald-400/15 px-4 py-2 text-sm font-semibold text-emerald-100 disabled:opacity-50"
+            onClick={() => {
+              void initSession();
+            }}
+            disabled={sessionBusy || busy}
+          >
+            {sessionBusy ? "Creating Session..." : accessToken ? "Session Ready" : "Create Session"}
+          </button>
           <button
             className="rounded-lg border border-cyan-300/50 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50"
             onClick={() => {
               void startOnboarding();
             }}
-            disabled={busy}
+            disabled={busy || sessionBusy || !accessToken}
           >
             {busy ? "Starting..." : "Start Onboarding"}
           </button>
           <button
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
             onClick={() => router.push("/onboarding/callback")}
-            disabled={busy}
+            disabled={busy || sessionBusy}
           >
             Manual Exchange
           </button>
