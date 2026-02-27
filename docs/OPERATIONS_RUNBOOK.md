@@ -216,18 +216,72 @@ curl -I https://<your-domain>
 
 ---
 
-## 5) Smoke Test (Local, Runtime Enabled)
+## 5) Smoke Test (Onboarding + Bearer Auth)
 
-## 5.1 Start app
+## 5.1 Start app / set base URL
 ```bash
 pnpm dev
+export BASE_URL="http://localhost:3000"
+set -a; source .env.local; set +a
+# deployed example
+# export BASE_URL="https://ab-aurora.vercel.app"
 ```
 
-## 5.2 Start session
+## 5.2 Browser onboarding flow
+1. Open `${BASE_URL}/onboarding`.
+2. Click `Start Onboarding`.
+3. Confirm redirect to `/onboarding/callback?code=...&state=...`.
+4. Click `Exchange Code`.
+5. Confirm redirect to `/` and workspace loads.
+
+## 5.3 401 check (missing auth)
 ```bash
-curl -sS -X POST http://localhost:3000/api/session/start \
+curl -i -sS -X POST "${BASE_URL}/api/session/start" \
   -H 'content-type: application/json' \
-  -H 'x-api-token: <API_BEARER_TOKEN>' \
+  -d '{
+    "mode":"mode_b",
+    "product":"AI landing page builder",
+    "audience":"solo founders",
+    "style_keywords":["bold","editorial","futuristic"],
+    "auto_continue":true,
+    "auto_pick_top1":true
+  }' | head -n 1
+```
+Expected: `HTTP/1.1 401`.
+
+## 5.4 403 check (authenticated but not entitled)
+```bash
+export ACCESS_TOKEN_NO_ENTITLE=$(node -e '(async()=>{const {createClient}=require("@supabase/supabase-js");const s=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);const {data,error}=await s.auth.signInAnonymously();if(error||!data.session?.access_token){throw new Error(error?.message||"missing token");}process.stdout.write(data.session.access_token);})().catch((e)=>{console.error(e.message);process.exit(1);});')
+
+curl -i -sS -X POST "${BASE_URL}/api/session/start" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN_NO_ENTITLE}" \
+  -d '{
+    "mode":"mode_b",
+    "product":"AI landing page builder",
+    "audience":"solo founders",
+    "style_keywords":["bold","editorial","futuristic"],
+    "auto_continue":true,
+    "auto_pick_top1":true
+  }' | head -n 1
+```
+Expected: `HTTP/1.1 403`.
+
+## 5.5 200 check after onboarding
+Use an onboarded browser token as `ACCESS_TOKEN_ONBOARDED` (same user that completed `/onboarding`):
+```bash
+export ACCESS_TOKEN_ONBOARDED="<supabase-access-token>"
+
+curl -sS -X GET "${BASE_URL}/api/auth/me" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN_ONBOARDED}"
+```
+Expected: `onboarding_complete=true`, `aurora.access` active.
+
+## 5.6 Start session / runtime / chat with bearer
+```bash
+curl -sS -X POST "${BASE_URL}/api/session/start" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN_ONBOARDED}" \
   -d '{
     "mode":"mode_b",
     "product":"AI landing page builder",
@@ -239,61 +293,18 @@ curl -sS -X POST http://localhost:3000/api/session/start \
 ```
 Expected keys: `session_id`, `current_step`, `config`.
 
-## 5.3 Start runtime goal
-```bash
-curl -sS -X POST http://localhost:3000/api/runtime/start \
-  -H 'content-type: application/json' \
-  -H 'x-api-token: <API_BEARER_TOKEN>' \
-  -d '{
-    "session_id":"<SESSION_ID>",
-    "goal_type":"deliver_demo_pack",
-    "idempotency_key":"smoke-goal-001"
-  }'
-```
-Expected keys: `goal_id`, `status`, `initial_plan`, `request_id`.
+## 5.7 404 ownership check
+1. Create session with onboarded user A token.
+2. Request `/api/sessions/<SESSION_ID_FROM_A>` with onboarded user B token.
+3. Expected: `404 Resource not found`.
 
-## 5.4 Step runtime loop
-```bash
-curl -sS -X POST http://localhost:3000/api/runtime/step \
-  -H 'content-type: application/json' \
-  -H 'x-api-token: <API_BEARER_TOKEN>' \
-  -d '{
-    "goal_id":"<GOAL_ID>",
-    "idempotency_key":"smoke-step-001"
-  }'
+## 5.8 owner_user_id write check
+```sql
+select count(*) as null_owner_sessions
+from public.sessions
+where owner_user_id is null;
 ```
-Repeat until `goal_status=completed`.
-
-## 5.5 Chat override
-```bash
-curl -sS -X POST http://localhost:3000/api/chat \
-  -H 'content-type: application/json' \
-  -H 'x-api-token: <API_BEARER_TOKEN>' \
-  -d '{
-    "session_id":"<SESSION_ID>",
-    "message":"2번 후보로 바꿔"
-  }'
-```
-Expected: `interpreted_action.type=select_candidate`, `applied=true`.
-
-## 5.6 Snapshot and artifacts
-```bash
-curl -sS "http://localhost:3000/api/runtime/goals/<GOAL_ID>" -H 'x-api-token: <API_BEARER_TOKEN>'
-curl -sS "http://localhost:3000/api/sessions/<SESSION_ID>" -H 'x-api-token: <API_BEARER_TOKEN>'
-```
-Confirm:
-- `latest_top3` length `>= 3`
-- `selected_candidate_id` exists
-- artifacts include `tokens`, `social_assets`, `code_plan`, `validation`, `pack_meta`
-
-## 5.7 Optional mint disabled check
-```bash
-curl -sS -X POST http://localhost:3000/api/mint \
-  -H 'content-type: application/json' \
-  -H 'x-api-token: <API_BEARER_TOKEN>' \
-  -d '{"pack_id":"<PACK_ID>"}'
-```
-Expected (default): `status=disabled`.
+Expected: no 신규 증가 (`0` target after cleanup/validate).
 
 ---
 
@@ -324,4 +335,19 @@ git status --short
 git add .
 git commit -m "feat: ship runtime-first agent vertical slice"
 git push origin develop
+```
+
+---
+
+## 8) Post-Deploy Monitoring
+
+1. `/api/onboarding/exchange` `400` count and `error_code` distribution.
+2. status ratio trend for user APIs: `401`, `403`, `404`.
+3. `owner_user_id is null` 신규 발생 여부:
+```sql
+select date_trunc('hour', created_at) as hour, count(*) as null_owner_count
+from public.sessions
+where owner_user_id is null
+group by 1
+order by 1 desc;
 ```
