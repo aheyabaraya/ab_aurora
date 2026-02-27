@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../../lib/auth/supabase-client";
 
@@ -27,6 +27,24 @@ type ExchangeSuccess = {
 };
 
 export default function OnboardingCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+          <section className="mx-auto max-w-xl rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">AB Aurora</p>
+            <h1 className="mt-2 text-xl font-semibold">Onboarding Callback</h1>
+            <p className="mt-2 text-sm text-slate-300">Loading callback parameters...</p>
+          </section>
+        </main>
+      }
+    >
+      <OnboardingCallbackContent />
+    </Suspense>
+  );
+}
+
+function OnboardingCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
