@@ -452,11 +452,21 @@ body {
 }
 
 .aurora-progress4-step-no {
-  font-size: 1.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.2rem;
+  font-size: 0.82rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  color: #f8f4dc;
-  text-shadow: 0 0 10px rgba(255, 232, 181, 0.45);
+  color: #f2f7ff;
+  border-radius: 999px;
+  border: 1px solid rgba(151, 183, 255, 0.38);
+  background: rgba(103, 132, 235, 0.2);
+  text-shadow: none;
 }
 
 .aurora-progress4-step-label {
