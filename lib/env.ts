@@ -89,6 +89,14 @@ const envSchema = z
     ONBOARDING_STATE_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(600),
     MOCK_ISSUER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     MOCK_ISSUER_NAME: z.string().min(1).max(120).default("ab_aurora_mock"),
+    ONBOARDING_BYPASS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_MODEL_TEXT: z.string().default("gpt-4o"),
     OPENAI_MODEL_IMAGE: z.string().default("gpt-image-1"),

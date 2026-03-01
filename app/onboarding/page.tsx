@@ -9,6 +9,11 @@ type OnboardingStartResponse = {
   state: string;
 };
 
+type OnboardingBypassResponse = {
+  onboarding_complete?: boolean;
+  error?: string;
+};
+
 function base64UrlFromBytes(bytes: Uint8Array): string {
   let encoded = "";
   for (const byte of bytes) {
@@ -62,9 +67,11 @@ async function isAlreadyOnboarded(accessToken: string): Promise<boolean> {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const canUseBypass = process.env.NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED === "true";
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionBusy, setSessionBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [bypassBusy, setBypassBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const initSession = async () => {
@@ -130,6 +137,34 @@ export default function OnboardingPage() {
     }
   };
 
+  const bypassOnboarding = async () => {
+    setBypassBusy(true);
+    setError(null);
+    try {
+      if (!accessToken) {
+        throw new Error("Create session first.");
+      }
+      const response = await fetch("/api/onboarding/bypass", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      const body = (await response.json()) as OnboardingBypassResponse;
+      if (!response.ok) {
+        throw new Error(body.error ?? `Bypass failed (${response.status}).`);
+      }
+      if (!body.onboarding_complete) {
+        throw new Error("Bypass completed without onboarding access.");
+      }
+      router.replace("/");
+    } catch (bypassError) {
+      const message = bypassError instanceof Error ? bypassError.message : "Bypass failed.";
+      setError(message);
+      setBypassBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <section className="mx-auto max-w-xl rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
@@ -145,7 +180,7 @@ export default function OnboardingPage() {
             onClick={() => {
               void initSession();
             }}
-            disabled={sessionBusy || busy}
+            disabled={sessionBusy || busy || bypassBusy}
           >
             {sessionBusy ? "Creating Session..." : accessToken ? "Session Ready" : "Create Session"}
           </button>
@@ -154,14 +189,25 @@ export default function OnboardingPage() {
             onClick={() => {
               void startOnboarding();
             }}
-            disabled={busy || sessionBusy || !accessToken}
+            disabled={busy || sessionBusy || bypassBusy || !accessToken}
           >
             {busy ? "Starting..." : "Start Onboarding"}
           </button>
+          {canUseBypass ? (
+            <button
+              className="rounded-lg border border-amber-300/50 bg-amber-400/15 px-4 py-2 text-sm font-semibold text-amber-100 disabled:opacity-50"
+              onClick={() => {
+                void bypassOnboarding();
+              }}
+              disabled={busy || sessionBusy || bypassBusy || !accessToken}
+            >
+              {bypassBusy ? "Bypassing..." : "Bypass Onboarding (Test)"}
+            </button>
+          ) : null}
           <button
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
             onClick={() => router.push("/onboarding/callback")}
-            disabled={busy || sessionBusy}
+            disabled={busy || sessionBusy || bypassBusy}
           >
             Manual Exchange
           </button>

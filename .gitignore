@@ -38,6 +38,7 @@ ab-aurora/.env.*
 *.log
 .pnpm-debug.log*
 .eslintcache
+docs/SETUP_LOG.md
 
 # TypeScript
 *.tsbuildinfo
