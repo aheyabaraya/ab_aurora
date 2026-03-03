@@ -41,7 +41,7 @@ async function fetchAuthMe(accessToken: string): Promise<AuthMeResponse> {
   return (await response.json()) as AuthMeResponse;
 }
 
-export function HomeGate() {
+function HomeGateWithSession() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,4 +108,12 @@ export function HomeGate() {
   }
 
   return <AuroraClient />;
+}
+
+export function HomeGate() {
+  const authBypassEnabled = process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
+  if (authBypassEnabled) {
+    return <AuroraClient />;
+  }
+  return <HomeGateWithSession />;
 }

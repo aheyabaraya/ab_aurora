@@ -250,6 +250,7 @@ type StartSessionResult = {
 };
 
 export function useAuroraController() {
+  const authBypassEnabled = process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
   const [product, setProduct] = useState("");
   const [audience, setAudience] = useState("");
@@ -294,15 +295,17 @@ export function useAuroraController() {
         ...(init?.headers ? (init.headers as Record<string, string>) : {})
       };
 
-      const supabase = getSupabaseBrowserClient();
-      const sessionResult = await supabase.auth.getSession();
-      const accessToken = sessionResult.data.session?.access_token;
-      if (!accessToken) {
-        throw new ApiError("Unauthorized", 401, {
-          error: "Unauthorized"
-        });
+      if (!authBypassEnabled) {
+        const supabase = getSupabaseBrowserClient();
+        const sessionResult = await supabase.auth.getSession();
+        const accessToken = sessionResult.data.session?.access_token;
+        if (!accessToken) {
+          throw new ApiError("Unauthorized", 401, {
+            error: "Unauthorized"
+          });
+        }
+        headers.Authorization = `Bearer ${accessToken}`;
       }
-      headers.Authorization = `Bearer ${accessToken}`;
 
       const response = await fetch(url, {
         ...init,
@@ -323,7 +326,7 @@ export function useAuroraController() {
 
       return body as T;
     },
-    []
+    [authBypassEnabled]
   );
 
   const handleActionError = useCallback((actionError: unknown, retryAction?: ActionFn) => {
