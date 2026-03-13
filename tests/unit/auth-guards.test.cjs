@@ -107,6 +107,28 @@ test("requireUser + requireEntitlement enforce supabase identity and entitlement
   assert.equal(entitlement.response.status, 403);
 });
 
+test("requireUser in bypass mode reuses the bearer user's id", async () => {
+  const { requireUser } = withEnv(
+    {
+      AUTH_V2_ENABLED: "true",
+      NEXT_PUBLIC_AUTH_BYPASS_ENABLED: "true"
+    },
+    () => require(GUARDS_MODULE_PATH)
+  );
+  global.fetch = createAuthFetchMock({
+    userId: AUTH_TEST_USER_ID
+  });
+
+  const auth = await requireUser(
+    new Request("http://localhost", { headers: authJsonHeaders({}, AUTH_TEST_ACCESS_TOKEN) }),
+    "req_guard_bypass"
+  );
+
+  assert.equal(auth.ok, true);
+  assert.equal(auth.value.userId, AUTH_TEST_USER_ID);
+  assert.equal(auth.value.authMode, "legacy_token");
+});
+
 test("requireSessionOwnership hides non-owned sessions as 404", async () => {
   const { requireSessionOwnership } = withEnv(
     {
@@ -131,4 +153,3 @@ test("requireSessionOwnership hides non-owned sessions as 404", async () => {
   assert.equal(owned.ok, false);
   assert.equal(owned.response.status, 404);
 });
-

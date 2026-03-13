@@ -244,13 +244,13 @@ export function useAuroraController() {
         ...(init?.headers ? (init.headers as Record<string, string>) : {})
       };
 
-      if (!authBypassEnabled) {
+      try {
         const supabase = getSupabaseBrowserClient();
         let sessionResult = await supabase.auth.getSession();
         let accessToken = sessionResult.data.session?.access_token;
         if (!accessToken) {
           const signIn = await supabase.auth.signInAnonymously();
-          if (signIn.error) {
+          if (signIn.error && !authBypassEnabled) {
             throw new ApiError("Unauthorized", 401, {
               error: signIn.error.message
             });
@@ -258,12 +258,18 @@ export function useAuroraController() {
           sessionResult = await supabase.auth.getSession();
           accessToken = sessionResult.data.session?.access_token;
         }
-        if (!accessToken) {
+        if (!accessToken && !authBypassEnabled) {
           throw new ApiError("Unauthorized", 401, {
             error: "Unauthorized"
           });
         }
-        headers.Authorization = `Bearer ${accessToken}`;
+        if (accessToken) {
+          headers.Authorization = `Bearer ${accessToken}`;
+        }
+      } catch (tokenError) {
+        if (!authBypassEnabled) {
+          throw tokenError;
+        }
       }
 
       const response = await fetch(url, {

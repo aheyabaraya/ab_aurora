@@ -20,7 +20,7 @@ export type AuthContext = {
 };
 
 const LEGACY_FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
-const BYPASS_SUPABASE_GUARDS_FOR_TESTING = true;
+const BYPASS_SUPABASE_GUARDS_FOR_TESTING = process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
 
 type GuardSuccess<T> = {
   ok: true;
@@ -49,10 +49,12 @@ function ok<T>(value: T): GuardSuccess<T> {
 }
 
 export async function requireUser(request: Request, requestId: string): Promise<GuardResult<AuthContext>> {
-  // TEMP: bypass Supabase auth/ownership during local UI testing. Restore before production use.
+  // TEMP: when auth bypass is enabled, keep entitlement/ownership relaxed but prefer a real
+  // Supabase user id from the bearer token so DB foreign keys still point at an existing user.
   if (BYPASS_SUPABASE_GUARDS_FOR_TESTING) {
+    const user = await getSupabaseUserFromRequest(request);
     return ok({
-      userId: LEGACY_FALLBACK_USER_ID,
+      userId: user?.id ?? LEGACY_FALLBACK_USER_ID,
       authMode: "legacy_token"
     });
   }
