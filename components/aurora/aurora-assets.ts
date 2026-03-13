@@ -10,6 +10,7 @@ export const AURORA_ASSETS = {
   backgroundDesktop: assetPath("bg_abstract_orbline_1920x1080.webp"),
   backgroundMobile: assetPath("bg_abstract_orbline_1080x1920.webp"),
   backgroundCosmic: assetPath("cosmic_reference_bg.png"),
+  avatarPortrait: assetPath("aurora.png"),
   heroDesktop: assetPath("hero_orbcore_1920x1080.webp"),
   heroPortrait: assetPath("hero_orbcore_1080x1920.webp"),
   heroSquare: assetPath("hero_orbcore_1080x1350.webp"),

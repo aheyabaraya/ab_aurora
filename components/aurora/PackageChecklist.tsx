@@ -128,7 +128,7 @@ export function PackageChecklist({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="aurora-title-label text-[10px] tracking-[0.24em]">Package Vault</p>
-          <h2 className="aurora-title-primary mt-2 text-[clamp(1.5rem,2.6vw,2rem)] leading-[1.05]">
+          <h2 className="aurora-title-primary mt-2 text-[clamp(1.3rem,2vw,1.65rem)] leading-[1.08]">
             Collect the deliverables before export.
           </h2>
         </div>

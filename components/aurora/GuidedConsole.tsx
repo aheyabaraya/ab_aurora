@@ -157,7 +157,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="max-w-3xl">
                     <p className="aurora-title-label text-[11px] tracking-[0.34em]">Direction Intake</p>
-                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.85rem,3.3vw,2.65rem)] leading-[1.02]">
+                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.55rem,2.7vw,2.15rem)] leading-[1.04]">
                       Shape the session before the first command.
                     </h2>
                     <p className="mt-3 max-w-2xl text-sm text-slate-300">
@@ -291,7 +291,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                   <div>
                     <p className="aurora-title-label text-[11px] tracking-[0.32em]">Live Constellation</p>
-                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.5rem,2.8vw,2.2rem)] leading-[1.05]">
+                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.28rem,2.1vw,1.75rem)] leading-[1.08]">
                       Session status at a glance.
                     </h2>
                     <p className="mt-2 max-w-2xl text-sm text-slate-300">

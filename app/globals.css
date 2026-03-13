@@ -221,8 +221,8 @@ body::after {
 }
 
 .aurora-display-title {
-  font-size: clamp(2.2rem, 4.2vw, 3.3rem);
-  line-height: 1.02;
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  line-height: 1.06;
 }
 
 .aurora-title-label {

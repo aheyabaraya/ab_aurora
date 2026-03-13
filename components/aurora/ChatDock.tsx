@@ -135,6 +135,13 @@ function dockHeadline(sessionReady: boolean, status: string): string {
   return "Command channel is live";
 }
 
+function dockTitle(sessionReady: boolean): string {
+  if (!sessionReady) {
+    return "Waiting for direction";
+  }
+  return "Aurora";
+}
+
 function presenceLabel(sessionReady: boolean, status: string): string {
   if (!sessionReady) {
     return "Unformed";
@@ -230,12 +237,15 @@ export function ChatDock({
   return (
     <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2rem)] min-h-[42rem] flex-col rounded-[32px] p-4 md:p-5">
       <div className="aurora-status-pill rounded-[26px] px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="aurora-title-label text-[10px] tracking-[0.24em]">Companion Dock</p>
-            <h2 className="aurora-title-primary mt-2 text-[clamp(1.55rem,2.3vw,2.05rem)] leading-[1.04]">
-              {dockHeadline(sessionReady, status)}
+        <div className={`flex items-start justify-between gap-3 ${sessionReady ? "flex-row-reverse" : ""}`}>
+          <div className={`flex-1 ${sessionReady ? "text-right" : ""}`}>
+            <p className="aurora-title-label text-[10px] tracking-[0.24em]">
+              {sessionReady ? "Conversation Window" : "Companion Dock"}
+            </p>
+            <h2 className="aurora-title-primary mt-2 text-[clamp(1.3rem,1.8vw,1.7rem)] leading-[1.06]">
+              {dockTitle(sessionReady)}
             </h2>
+            <p className="mt-1 text-xs text-slate-300">{dockHeadline(sessionReady, status)}</p>
           </div>
           <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
             {modelSource}
@@ -253,18 +263,20 @@ export function ChatDock({
           <div className="aurora-avatar-shell">
             <div className="aurora-avatar-image">
               <Image
-                src={AURORA_ASSETS.heroSquare}
+                src={AURORA_ASSETS.avatarPortrait}
                 alt="Aurora companion visual"
                 fill
-                sizes="(min-width: 1280px) 19rem, (min-width: 768px) 28rem, 70vw"
-                className="object-cover"
+                sizes="(min-width: 1280px) 18rem, (min-width: 768px) 24rem, 64vw"
+                className="object-cover object-[center_18%]"
                 priority
               />
             </div>
           </div>
-          <h3 className="aurora-title-primary mt-5 text-[2.4rem] leading-none">Aurora</h3>
-          <p className="mt-2 text-sm text-slate-300">
-            {sessionReady ? "Queued notes and scene guidance stay synchronized with the active flow." : "Start a session to form the live command state."}
+          {!sessionReady ? <h3 className="aurora-title-primary mt-5 text-[1.8rem] leading-none">Aurora</h3> : null}
+          <p className={`text-sm text-slate-300 ${sessionReady ? "mt-4" : "mt-2"}`}>
+            {sessionReady
+              ? "Queued notes and scene guidance stay synchronized with the active flow."
+              : "Start a session to form the live command state."}
           </p>
         </div>
       </div>
