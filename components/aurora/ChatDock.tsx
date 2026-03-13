@@ -112,34 +112,30 @@ function formatTime(value: string): string {
   });
 }
 
-function formatStatusLabel(value: string): string {
-  return value.replaceAll("_", " ");
-}
-
 function dockHeadline(sessionReady: boolean, status: string): string {
   if (!sessionReady) {
-    return "Waiting for direction";
+    return "Start a session and this panel will show guidance, notes, and queued commands.";
   }
   if (status === "running") {
-    return "Flow is in motion";
+    return "Aurora is responding and the latest notes will appear here.";
   }
   if (status === "wait_user") {
-    return "Direction lock pending";
+    return "Aurora is waiting for your next instruction.";
   }
   if (status === "failed") {
-    return "Intervention required";
+    return "The last step needs your input before continuing.";
   }
   if (status === "completed") {
-    return "Package is ready";
+    return "The package is ready and the final notes are shown here.";
   }
-  return "Command channel is live";
+  return "This panel shows the live back-and-forth with Aurora.";
 }
 
 function dockTitle(sessionReady: boolean): string {
   if (!sessionReady) {
-    return "Waiting for direction";
+    return "Conversation appears here.";
   }
-  return "Aurora";
+  return "Aurora conversation";
 }
 
 function presenceLabel(sessionReady: boolean, status: string): string {
@@ -193,7 +189,6 @@ export function ChatDock({
   const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
   const primaryAction = actionHub?.primaryAction ?? null;
   const secondaryAction = actionHub?.secondaryAction ?? null;
-  const statusLabel = formatStatusLabel(status);
 
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
@@ -236,12 +231,9 @@ export function ChatDock({
 
   return (
     <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2rem)] min-h-[42rem] flex-col rounded-[32px] p-4 md:p-5">
-      <div className="aurora-status-pill rounded-[26px] px-4 py-3">
+      <div className="aurora-status-pill min-h-[9.5rem] rounded-[26px] px-4 py-3">
         <div className={`flex items-start justify-between gap-3 ${sessionReady ? "flex-row-reverse" : ""}`}>
           <div className={`flex-1 ${sessionReady ? "text-right" : ""}`}>
-            <p className="aurora-title-label text-[10px] tracking-[0.24em]">
-              {sessionReady ? "Conversation Window" : "Companion Dock"}
-            </p>
             <h2 className="aurora-title-primary mt-2 text-[clamp(1.3rem,1.8vw,1.7rem)] leading-[1.06]">
               {dockTitle(sessionReady)}
             </h2>
@@ -254,8 +246,7 @@ export function ChatDock({
       </div>
 
       <div className="aurora-oracle-card mt-3 rounded-[28px] px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="aurora-title-label text-[10px] tracking-[0.22em]">{statusLabel}</p>
+        <div className="flex items-center justify-end gap-3">
           <span className="aurora-presence-chip">{presenceLabel(sessionReady, status)}</span>
         </div>
 

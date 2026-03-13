@@ -52,8 +52,7 @@ export function ExploreScene({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="aurora-title-label text-[10px] tracking-[0.22em]">Explore</p>
-          <h2 className="aurora-title-primary mt-2 text-[1.28rem]">Compare the strongest visual directions.</h2>
+          <h2 className="aurora-title-primary text-[1.28rem]">Compare the strongest visual directions.</h2>
         </div>
         <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
           {modelSource}

@@ -46,11 +46,8 @@ export function DefineScene({ stage, narrative = null }: DefineSceneProps) {
         <div className="aurora-define-hero-footer">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="aurora-title-label text-[10px] tracking-[0.28em]">
-                {stage === "brand_narrative" ? "Brand Narrative" : "Define"}
-              </p>
               <h2 className="aurora-title-primary mt-3 text-[clamp(1.38rem,2.2vw,1.85rem)] leading-[1.08]">
-                Establish the atmosphere before branching.
+                Set the visual direction before Aurora starts exploring ideas.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-100">{stageSummary(stage)}</p>
             </div>
@@ -65,7 +62,6 @@ export function DefineScene({ stage, narrative = null }: DefineSceneProps) {
         <div className="aurora-panel rounded-[28px] p-4 text-sm text-slate-200">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="aurora-title-label text-[10px] tracking-[0.24em]">Narrative Notes</p>
               <h3 className="aurora-title-primary mt-2 text-[1.2rem]">Brand promise and voice direction.</h3>
             </div>
             <span className="aurora-chip-soft">Define Stack</span>
