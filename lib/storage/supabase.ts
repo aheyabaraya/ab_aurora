@@ -347,25 +347,30 @@ export class SupabaseStorageRepository implements StorageRepository {
             ? "medium"
             : "narrow"
         : null;
+    const sessionInsert: JsonMap = {
+      mode: input.mode,
+      product: input.product,
+      audience: input.audience,
+      style_keywords: input.style_keywords,
+      constraint: input.design_direction_note?.trim() ? input.design_direction_note.trim() : null,
+      intent_confidence: input.q0_intent_confidence ?? null,
+      variation_width: variationWidth,
+      auto_continue: input.auto_continue,
+      auto_pick_top1: input.auto_pick_top1,
+      current_step: "interview_collect",
+      status: "idle",
+      paused: false,
+      revision_count: 0
+    };
+
+    if (typeof input.owner_user_id === "string" && input.owner_user_id.length > 0) {
+      sessionInsert.owner_user_id = input.owner_user_id;
+    }
+
     const rows = await requestRows<JsonMap>({
       method: "POST",
       path: "sessions",
-      body: {
-        owner_user_id: input.owner_user_id ?? null,
-        mode: input.mode,
-        product: input.product,
-        audience: input.audience,
-        style_keywords: input.style_keywords,
-        constraint: input.design_direction_note?.trim() ? input.design_direction_note.trim() : null,
-        intent_confidence: input.q0_intent_confidence ?? null,
-        variation_width: variationWidth,
-        auto_continue: input.auto_continue,
-        auto_pick_top1: input.auto_pick_top1,
-        current_step: "interview_collect",
-        status: "idle",
-        paused: false,
-        revision_count: 0
-      }
+      body: sessionInsert
     });
     return fromSessionRow(rows[0]);
   }
