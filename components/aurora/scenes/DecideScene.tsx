@@ -24,15 +24,19 @@ export function DecideScene({
 }: DecideSceneProps) {
   const modelBadgeClass =
     modelSource === "OPENAI"
-      ? "border-indigo-200/70 bg-indigo-400/20 text-indigo-50"
+      ? "border-indigo-200/50 bg-indigo-400/18 text-indigo-50"
       : modelSource === "MOCK"
-        ? "border-slate-500 bg-slate-700/40 text-slate-200"
-        : "border-indigo-200/24 bg-slate-900/70 text-slate-400";
+        ? "border-slate-500/50 bg-slate-700/30 text-slate-100"
+        : "border-indigo-200/24 bg-slate-900/70 text-slate-300";
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="aurora-title-label text-[10px] tracking-[0.22em]">Decide</p>
+          <h2 className="aurora-title-primary mt-2 text-[1.55rem]">Lock one concept and approve the build path.</h2>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
           {modelSource}
         </span>
       </div>

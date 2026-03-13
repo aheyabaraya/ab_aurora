@@ -22,16 +22,6 @@ type ChecklistItem = {
   regenerate: "outputs" | "top3" | "none";
 };
 
-function statusMark(status: ChecklistStatus): string {
-  if (status === "complete") {
-    return "✅";
-  }
-  if (status === "failed") {
-    return "❌";
-  }
-  return "…";
-}
-
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object") {
     return value as Record<string, unknown>;
@@ -44,6 +34,16 @@ function asStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function statusLabel(status: ChecklistStatus): string {
+  if (status === "complete") {
+    return "Complete";
+  }
+  if (status === "failed") {
+    return "Failed";
+  }
+  return "Pending";
 }
 
 export function PackageChecklist({
@@ -75,7 +75,7 @@ export function PackageChecklist({
       label: "Brand tokens",
       status: byKind.get("tokens") ? "complete" : "pending",
       preview: byKind.get("tokens")
-        ? "Primary/secondary/accent tokens are ready."
+        ? "Primary, secondary, and accent tokens are ready."
         : "Token artifacts will appear after approve_build.",
       regenerate: "outputs"
     },
@@ -86,7 +86,7 @@ export function PackageChecklist({
       preview:
         heroHeadline.length > 0
           ? `KR: ${heroHeadline} / EN: ${heroHeadline}`
-          : "Hero headline is waiting for final spec.",
+          : "Hero headline is waiting for the final spec.",
       regenerate: "outputs"
     },
     {
@@ -95,7 +95,7 @@ export function PackageChecklist({
       status: byKind.get("social_assets") ? "complete" : "pending",
       preview: byKind.get("social_assets")
         ? `Assets: ${Object.keys(socialAssets).join(", ") || "social bundle"}`
-        : "Social outputs pending.",
+        : "Social outputs are still pending.",
       regenerate: "outputs"
     },
     {
@@ -110,46 +110,60 @@ export function PackageChecklist({
       label: "Build plan",
       status: byKind.get("code_plan") ? "complete" : "pending",
       preview: byKind.get("code_plan")
-        ? "Code plan is generated for `/` route."
-        : "Build plan pending.",
+        ? "Code plan is generated for the `/` route."
+        : "Build plan is still being assembled.",
       regenerate: "outputs"
     },
     {
       key: "export_zip",
       label: "Export zip",
       status: packReady ? "complete" : "pending",
-      preview: packReady ? "Ready to export package snapshot." : "Wait until package step completes.",
+      preview: packReady ? "Ready to export the package snapshot." : "Wait until the package step completes.",
       regenerate: "none"
     }
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="aurora-title-label text-[10px] tracking-[0.24em]">Package Vault</p>
+          <h2 className="aurora-title-primary mt-2 text-[clamp(1.5rem,2.6vw,2rem)] leading-[1.05]">
+            Collect the deliverables before export.
+          </h2>
+        </div>
+        <span className={packReady ? "aurora-chip" : "aurora-chip-soft"}>
+          {packReady ? "Ready to Export" : "Preparing Package"}
+        </span>
+      </div>
+
       {items.map((item) => (
-        <div key={item.key} className="aurora-panel rounded-xl p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="aurora-title-primary text-sm font-semibold">
-                {statusMark(item.status)} {item.label}
-              </p>
-              <p className="mt-1 text-xs text-slate-300">{item.preview}</p>
+        <div key={item.key} className="aurora-panel aurora-package-item">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <span className={`aurora-package-status is-${item.status}`}>
+                <span className="aurora-package-status-dot" />
+                {statusLabel(item.status)}
+              </span>
+              <p className="aurora-title-primary mt-3 text-lg">{item.label}</p>
+              <p className="mt-2 text-sm text-slate-300">{item.preview}</p>
             </div>
 
             {item.key === "export_zip" ? (
               <button
-                className="aurora-btn-primary rounded-md px-3 py-1 text-xs font-semibold"
+                className="aurora-btn-cta rounded-full px-5 py-2 text-xs font-semibold"
                 onClick={onExportZip}
                 disabled={!packReady || busy}
               >
-                Export zip
+                Export Zip
               </button>
             ) : (
               <button
-                className="aurora-btn-secondary rounded-md px-3 py-1 text-xs font-semibold"
+                className="aurora-btn-secondary rounded-full px-5 py-2 text-xs font-semibold"
                 onClick={item.regenerate === "top3" ? onRegenerateTop3 : onRegenerateOutputs}
                 disabled={busy}
               >
-                regenerate this only
+                Regenerate This
               </button>
             )}
           </div>

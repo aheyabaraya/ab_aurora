@@ -58,6 +58,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     handleRegenerateTop3,
     handleRegenerateOutputs,
     handleExportZip,
+    handleRunGuidedAction,
     handleForceQueued,
     handleDiscardQueued,
     handleRetryLastAction,
@@ -77,16 +78,30 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
       .filter((job) => job.status === "failed" && Boolean(job.error))
       .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
   }, [jobsPayload?.jobs]);
+  const sceneSummary: Record<typeof activeScene, string> = {
+    DEFINE: "Capture the brief, lock the direction, and prime the brand narrative.",
+    EXPLORE: "Review the strongest concept variants and compare their moodboard signals.",
+    DECIDE: "Commit to one direction and prepare the build approval handoff.",
+    PACKAGE: "Collect the output pack, export deliverables, and close the session."
+  };
+  const sessionMetrics = [
+    { label: "Session", value: sessionPayload?.session.id ?? sessionId ?? "Pending" },
+    { label: "Scene", value: activeScene },
+    { label: "Step", value: stage.replaceAll("_", " ") },
+    { label: "Top-3", value: String(latestTop3.length) },
+    { label: "Selected", value: sessionPayload?.selected_candidate_id ?? "None" },
+    { label: "Q0", value: sessionPayload?.session.intent_confidence?.toString() ?? "Unrated" }
+  ];
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
 
   const errorPanel = error ? (
-    <div className="mt-4 rounded-xl border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
+    <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
       <p>{error}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {canRetry ? (
           <button
-            className="aurora-btn-ghost rounded-md px-2 py-1 text-[11px]"
+            className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
             onClick={() => void handleRetryLastAction()}
           >
             Retry
@@ -94,7 +109,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
         ) : null}
         {errorStatus === 401 ? (
           <button
-            className="aurora-btn-primary rounded-md px-2 py-1 text-[11px]"
+            className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px]"
             onClick={() => setShowSignIn(true)}
           >
             Sign-in
@@ -105,19 +120,20 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   ) : null;
 
   const signInModal = showSignIn ? (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4">
-      <div className="aurora-panel w-full max-w-md rounded-2xl p-4">
-        <p className="aurora-title-primary text-sm font-semibold">Session Sign-in</p>
-        <p className="mt-1 text-xs text-slate-300">Re-bootstrap anonymous Supabase session for protected routes.</p>
-        <div className="mt-3 flex gap-2">
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/72 px-4">
+      <div className="aurora-panel w-full max-w-md rounded-[28px] p-5">
+        <p className="aurora-title-label text-[11px] tracking-[0.28em]">Session Sign-in</p>
+        <p className="aurora-title-primary mt-3 text-xl">Reconnect protected session routes.</p>
+        <p className="mt-2 text-sm text-slate-300">Re-bootstrap the anonymous Supabase session before retrying.</p>
+        <div className="mt-4 flex gap-2">
           <button
-            className="aurora-btn-primary rounded-lg px-3 py-2 text-xs font-semibold"
+            className="aurora-btn-primary rounded-full px-4 py-2 text-xs font-semibold"
             onClick={() => void handleSaveApiToken()}
           >
             Reconnect
           </button>
           <button
-            className="aurora-btn-ghost rounded-lg px-3 py-2 text-xs"
+            className="aurora-btn-ghost rounded-full px-4 py-2 text-xs"
             onClick={() => setShowSignIn(false)}
           >
             Close
@@ -129,242 +145,281 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
   return (
     <main className="aurora-page min-h-screen px-4 py-6 text-slate-100 md:px-6" style={pageStyle}>
-      <section className="mx-auto grid max-w-[92rem] gap-4 xl:grid-cols-[1.72fr_1fr]">
-        <div className="space-y-4">
-          {!sessionReady ? (
-            <article
-              className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-2xl p-5 ${
-                onboardingPhase === "flipping" ? "is-flipping" : ""
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <p className="aurora-title-label text-xs uppercase tracking-[0.3em]">SETUP</p>
-                <span className="rounded-full border border-indigo-200/35 bg-indigo-400/12 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-indigo-100">
-                  PRE-SESSION
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <label className="block text-sm">
-                  <span className="text-slate-200">Product</span>
-                  <input
-                    className="aurora-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm"
-                    value={product}
-                    onChange={(event) => setProduct(event.target.value)}
-                    placeholder="e.g. AI landing page builder for solo founders"
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                </label>
-
-                <label className="block text-sm">
-                  <span className="text-slate-200">Audience</span>
-                  <input
-                    className="aurora-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm"
-                    value={audience}
-                    onChange={(event) => setAudience(event.target.value)}
-                    placeholder="e.g. solo founders shipping in public"
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                </label>
-
-                <label className="block text-sm">
-                  <span className="text-slate-200">Style Keywords</span>
-                  <input
-                    className="aurora-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm"
-                    value={styleKeywords}
-                    onChange={(event) => setStyleKeywords(event.target.value)}
-                    placeholder="e.g. editorial, calm, ritual"
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                </label>
-
-                <label className="block text-sm">
-                  <span className="text-slate-200">Design Requirement *</span>
-                  <textarea
-                    className="aurora-input mt-1.5 min-h-[84px] w-full rounded-lg px-3 py-2.5 text-sm"
-                    value={designDirectionNote}
-                    onChange={(event) => setDesignDirectionNote(event.target.value)}
-                    placeholder="e.g. Keep serif headline hierarchy, avoid glossy gradients, preserve dense content blocks"
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                </label>
-
-                <div className="aurora-surface-soft rounded-xl px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-slate-100">Q0 Design Confidence (1-5)</p>
-                    <span className="aurora-inline-help group" tabIndex={0} role="button" aria-label="Design confidence definition">
-                      !
-                      <span className="aurora-help-tooltip">
-                        Design confidence는 본인이 원하는 디자인 무드/톤/스타일 방향을 얼마나 명확히 알고 있는지를 나타내는
-                        자기평가 점수(1~5)입니다. AB_Aurora에서는 이 Q0 값을 초기 판단 기준으로 써서 intent_confidence와
-                        변주 폭(wide/medium/narrow)을 정합니다.
-                      </span>
-                    </span>
+      <section className="mx-auto max-w-[96rem]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.72fr)_24rem]">
+          <div className="space-y-5">
+            {!sessionReady ? (
+              <article
+                className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-5 md:p-6 ${
+                  onboardingPhase === "flipping" ? "is-flipping" : ""
+                }`}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="aurora-title-label text-[11px] tracking-[0.34em]">Direction Intake</p>
+                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.85rem,3.3vw,2.65rem)] leading-[1.02]">
+                      Shape the session before the first command.
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-sm text-slate-300">
+                      Match the reference image&apos;s luminous cosmic tone while keeping the flow readable, controlled,
+                      and explicit from the first setup input.
+                    </p>
                   </div>
-                  <div className="mt-2">
-                    <select
-                      className="aurora-input w-full rounded-lg px-3 py-2 text-sm"
-                      value={q0IntentConfidence ?? ""}
-                      onChange={(event) => {
-                        const next = Number(event.target.value);
-                        setQ0IntentConfidence(Number.isInteger(next) ? next : null);
-                      }}
+                  <span className="aurora-status-chip self-start">Pre-session</span>
+                </div>
+
+                <div className="aurora-console-divider mt-5" />
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
+                    <span className="text-slate-200">Product</span>
+                    <input
+                      className="aurora-input w-full rounded-[18px] px-3 py-3 text-sm"
+                      value={product}
+                      onChange={(event) => setProduct(event.target.value)}
+                      placeholder="e.g. AI landing page builder for solo founders"
                       disabled={onboardingPhase === "flipping"}
-                    >
-                      <option value="">Select confidence score</option>
-                      <option value="1">1 - no idea</option>
-                      <option value="2">2 - vague hints</option>
-                      <option value="3">3 - some direction</option>
-                      <option value="4">4 - clear direction</option>
-                      <option value="5">5 - very clear/fixed</option>
-                    </select>
+                    />
+                  </label>
+
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
+                    <span className="text-slate-200">Audience</span>
+                    <input
+                      className="aurora-input w-full rounded-[18px] px-3 py-3 text-sm"
+                      value={audience}
+                      onChange={(event) => setAudience(event.target.value)}
+                      placeholder="e.g. solo founders shipping in public"
+                      disabled={onboardingPhase === "flipping"}
+                    />
+                  </label>
+
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
+                    <span className="text-slate-200">Style Keywords</span>
+                    <input
+                      className="aurora-input w-full rounded-[18px] px-3 py-3 text-sm"
+                      value={styleKeywords}
+                      onChange={(event) => setStyleKeywords(event.target.value)}
+                      placeholder="e.g. editorial, calm, ritual"
+                      disabled={onboardingPhase === "flipping"}
+                    />
+                  </label>
+
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm md:col-span-2">
+                    <span className="text-slate-200">Design Requirement *</span>
+                    <textarea
+                      className="aurora-input min-h-[110px] w-full rounded-[18px] px-3 py-3 text-sm"
+                      value={designDirectionNote}
+                      onChange={(event) => setDesignDirectionNote(event.target.value)}
+                      placeholder="e.g. Keep serif headline hierarchy, avoid glossy gradients, preserve dense content blocks"
+                      disabled={onboardingPhase === "flipping"}
+                    />
+                  </label>
+
+                  <div className="aurora-surface-soft aurora-field-shell md:col-span-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-slate-100">Q0 Design Confidence (1-5)</p>
+                      <span className="aurora-inline-help group" tabIndex={0} role="button" aria-label="Design confidence definition">
+                        !
+                        <span className="aurora-help-tooltip">
+                          Design confidence는 본인이 원하는 디자인 무드/톤/스타일 방향을 얼마나 명확히 알고 있는지를 나타내는
+                          자기평가 점수(1~5)입니다. AB_Aurora에서는 이 Q0 값을 초기 판단 기준으로 써서
+                          intent_confidence와 변주 폭(wide/medium/narrow)을 정합니다.
+                        </span>
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <select
+                        className="aurora-input w-full rounded-[18px] px-3 py-3 text-sm"
+                        value={q0IntentConfidence ?? ""}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          setQ0IntentConfidence(Number.isInteger(next) ? next : null);
+                        }}
+                        disabled={onboardingPhase === "flipping"}
+                      >
+                        <option value="">Select confidence score</option>
+                        <option value="1">1 - no idea</option>
+                        <option value="2">2 - vague hints</option>
+                        <option value="3">3 - some direction</option>
+                        <option value="4">4 - clear direction</option>
+                        <option value="5">5 - very clear/fixed</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
+
+                <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                  <div className="flex flex-wrap gap-3">
+                    <label className="aurora-surface-soft flex items-center gap-2 rounded-full px-4 py-2 text-sm text-slate-200">
+                      <input
+                        className="aurora-check"
+                        type="checkbox"
+                        checked={autoContinue}
+                        onChange={(event) => setAutoContinue(event.target.checked)}
+                        disabled={onboardingPhase === "flipping"}
+                      />
+                      Auto continue
+                    </label>
+                    <label className="aurora-surface-soft flex items-center gap-2 rounded-full px-4 py-2 text-sm text-slate-200">
+                      <input
+                        className="aurora-check"
+                        type="checkbox"
+                        checked={autoPickTop1}
+                        onChange={(event) => setAutoPickTop1(event.target.checked)}
+                        disabled={onboardingPhase === "flipping"}
+                      />
+                      Auto pick top 1
+                    </label>
+                  </div>
+                  <p className="aurora-tip-chip rounded-full px-4 py-2 text-xs">
+                    Queued commands apply at the next stage boundary.
+                  </p>
+                </div>
+
+                <button
+                  className="aurora-btn-primary aurora-btn-command mt-5 min-h-[3.2rem] w-full rounded-full px-5 text-base font-semibold"
+                  onClick={() => void handleStartSession()}
+                  disabled={busy || !canStartSession || onboardingPhase === "flipping"}
+                >
+                  {onboardingPhase === "flipping" ? "Entering Workspace..." : "Start Session"}
+                </button>
+
+                {errorPanel}
+              </article>
+            ) : (
+              <article className="aurora-panel aurora-card-shift rounded-[32px] p-5 md:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="aurora-title-label text-[11px] tracking-[0.32em]">Live Constellation</p>
+                    <h2 className="aurora-title-primary mt-3 text-[clamp(1.5rem,2.8vw,2.2rem)] leading-[1.05]">
+                      Session status at a glance.
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                      Keep runtime context visible while the scene canvas and command dock continue to update.
+                    </p>
+                  </div>
+                  <span className="aurora-chip">Session Live</span>
+                </div>
+
+                <div className="aurora-console-divider mt-5" />
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {sessionMetrics.map((metric) => (
+                    <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
+                      <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
+                      <span className="aurora-stat-value break-all">{metric.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {latestFailedJob ? (
+                  <details className="aurora-surface-soft mt-4 rounded-[22px] px-4 py-3 text-xs">
+                    <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
+                      {latestFailedJob.error}
+                    </pre>
+                  </details>
+                ) : null}
+
+                {errorPanel}
+              </article>
+            )}
+
+            <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-5 md:p-6">
+              <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="aurora-title-label text-[11px] tracking-[0.34em]">Constellation Flow</p>
+                  <h1 className="aurora-display-title mt-3">Aurora Guided Flow.</h1>
+                  <p className="mt-3 max-w-2xl text-sm text-slate-300">{sceneSummary[activeScene]}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="aurora-status-pill rounded-full px-4 py-2.5">
+                    <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Scene</p>
+                    <p className="aurora-title-primary mt-1 text-lg leading-none">{activeScene}</p>
+                  </div>
+                  <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
+                    {sessionReady ? stage.replaceAll("_", " ") : "Awaiting session"}
+                  </span>
+                </div>
+              </header>
+
+              <div className="mt-5">
+                <Progress4 scene={activeScene} />
               </div>
 
-              <div className="mt-4 space-y-2">
-                <label className="flex items-center gap-2 text-sm text-slate-200">
-                  <input
-                    className="aurora-check"
-                    type="checkbox"
-                    checked={autoContinue}
-                    onChange={(event) => setAutoContinue(event.target.checked)}
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                  Auto continue
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-200">
-                  <input
-                    className="aurora-check"
-                    type="checkbox"
-                    checked={autoPickTop1}
-                    onChange={(event) => setAutoPickTop1(event.target.checked)}
-                    disabled={onboardingPhase === "flipping"}
-                  />
-                  Auto pick top 1
-                </label>
+              <div className="aurora-console-divider mt-5" />
+
+              <div className="mt-5">
+                <SceneRouter scene={activeScene} stage={activeStage}>
+                  {activeScene === "DEFINE" ? (
+                    <DefineScene
+                      stage={activeStage}
+                      narrative={(narrativeArtifact?.content as Record<string, unknown> | undefined) ?? null}
+                    />
+                  ) : null}
+
+                  {sessionReady && currentScene === "EXPLORE" ? (
+                    <ExploreScene
+                      candidates={latestTop3}
+                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                      modelSource={top3ModelSource}
+                      busy={busy}
+                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                      onConfirmBuild={() => void handleConfirmBuild()}
+                    />
+                  ) : null}
+
+                  {sessionReady && currentScene === "DECIDE" ? (
+                    <DecideScene
+                      candidates={latestTop3}
+                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                      modelSource={top3ModelSource}
+                      busy={busy}
+                      buildRequired={buildConfirmRequired}
+                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                      onConfirmBuild={() => void handleConfirmBuild()}
+                    />
+                  ) : null}
+
+                  {sessionReady && currentScene === "PACKAGE" ? (
+                    <PackageScene
+                      artifacts={sessionPayload?.recent_artifacts ?? []}
+                      currentStep={stage}
+                      finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
+                      busy={busy}
+                      onRegenerateOutputs={() => void handleRegenerateOutputs()}
+                      onRegenerateTop3={() => void handleRegenerateTop3()}
+                      onExportZip={() => void handleExportZip()}
+                    />
+                  ) : null}
+                </SceneRouter>
               </div>
-
-              <p className="aurora-tip-chip mt-4 rounded-lg px-3 py-2 text-xs">
-                Tip: queued commands are applied safely at the next stage boundary.
-              </p>
-
-              <button
-                className="aurora-btn-primary aurora-btn-command mt-3 w-full rounded-lg px-3 py-2.5 text-base font-semibold"
-                onClick={() => void handleStartSession()}
-                disabled={busy || !canStartSession || onboardingPhase === "flipping"}
-              >
-                {onboardingPhase === "flipping" ? "Entering Workspace..." : "Start Session"}
-              </button>
-
-              {errorPanel}
             </article>
-          ) : (
-            <article className="aurora-panel aurora-card-shift rounded-2xl p-4">
-              <div className="flex items-center justify-between">
-                <p className="aurora-title-label text-xs uppercase tracking-[0.24em]">Session Status</p>
-              </div>
+          </div>
 
-              <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
-                <p>Session: {sessionPayload?.session.id ?? sessionId}</p>
-                <p>Scene: {currentScene}</p>
-                <p>Step: {stage}</p>
-                <p>Top-3: {latestTop3.length}</p>
-                <p>Selected: {sessionPayload?.selected_candidate_id ?? "none"}</p>
-                <p>Q0: {sessionPayload?.session.intent_confidence ?? "n/a"}</p>
-              </div>
-
-              {latestFailedJob ? (
-                <details className="aurora-surface-soft mt-3 rounded-lg px-3 py-2 text-xs">
-                  <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
-                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
-                    {latestFailedJob.error}
-                  </pre>
-                </details>
-              ) : null}
-
-              {errorPanel}
-            </article>
-          )}
-
-          <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-2xl p-5">
-            <header className="mb-4">
-              <div>
-                <p className="aurora-title-label text-xs uppercase tracking-[0.24em]">Scene Canvas</p>
-                <h1 className="aurora-title-primary text-2xl font-semibold">Aurora Guided Flow.</h1>
-              </div>
-            </header>
-
-            <Progress4 scene={activeScene} />
-
-            <div className="mt-5">
-              <SceneRouter scene={activeScene} stage={activeStage}>
-                {activeScene === "DEFINE" ? (
-                  <DefineScene
-                    stage={activeStage}
-                    narrative={(narrativeArtifact?.content as Record<string, unknown> | undefined) ?? null}
-                  />
-                ) : null}
-
-                {sessionReady && currentScene === "EXPLORE" ? (
-                  <ExploreScene
-                    candidates={latestTop3}
-                    selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                    modelSource={top3ModelSource}
-                    busy={busy}
-                    onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                    onConfirmBuild={() => void handleConfirmBuild()}
-                  />
-                ) : null}
-
-                {sessionReady && currentScene === "DECIDE" ? (
-                  <DecideScene
-                    candidates={latestTop3}
-                    selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                    modelSource={top3ModelSource}
-                    busy={busy}
-                    buildRequired={buildConfirmRequired}
-                    onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                    onConfirmBuild={() => void handleConfirmBuild()}
-                  />
-                ) : null}
-
-                {sessionReady && currentScene === "PACKAGE" ? (
-                  <PackageScene
-                    artifacts={sessionPayload?.recent_artifacts ?? []}
-                    currentStep={stage}
-                    finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
-                    busy={busy}
-                    onRegenerateOutputs={() => void handleRegenerateOutputs()}
-                    onRegenerateTop3={() => void handleRegenerateTop3()}
-                    onExportZip={() => void handleExportZip()}
-                  />
-                ) : null}
-              </SceneRouter>
-            </div>
-          </article>
+          <aside className="h-fit xl:sticky xl:top-6">
+            <ChatDock
+              entries={chatEntries}
+              artifacts={sessionPayload?.recent_artifacts ?? []}
+              jobs={jobsPayload?.jobs ?? []}
+              queuedCommands={queuedCommands}
+              shouldQueueIntervention={shouldQueueIntervention}
+              busy={busy}
+              sessionReady={sessionReady}
+              guided
+              defaultTab="chat"
+              showArtifactsTab={sessionReady && currentScene === "PACKAGE"}
+              status={sessionReady ? rightPanelViewModel.status : "idle"}
+              modelSource={rightPanelViewModel.modelSource}
+              actionHub={rightPanelViewModel}
+              onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
+              onExecuteSlash={(raw) => executeSlashCommand(raw)}
+              onForceQueued={(queueId) => void handleForceQueued(queueId)}
+              onDiscardQueued={handleDiscardQueued}
+            />
+          </aside>
         </div>
-
-        <aside className="h-fit xl:sticky xl:top-6">
-          <ChatDock
-            entries={chatEntries}
-            artifacts={sessionPayload?.recent_artifacts ?? []}
-            jobs={jobsPayload?.jobs ?? []}
-            queuedCommands={queuedCommands}
-            shouldQueueIntervention={shouldQueueIntervention}
-            busy={busy}
-            sessionReady={sessionReady}
-            guided
-            defaultTab="chat"
-            showArtifactsTab={sessionReady && currentScene === "PACKAGE"}
-            status={sessionReady ? rightPanelViewModel.status : "idle"}
-            modelSource={rightPanelViewModel.modelSource}
-            actionHub={rightPanelViewModel}
-            onExecuteSlash={(raw) => executeSlashCommand(raw)}
-            onForceQueued={(queueId) => void handleForceQueued(queueId)}
-            onDiscardQueued={handleDiscardQueued}
-          />
-        </aside>
       </section>
 
       {signInModal}

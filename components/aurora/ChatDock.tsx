@@ -1,11 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
+import { AURORA_ASSETS } from "./aurora-assets";
 import { filterSlashCommands } from "./slash-commands";
 import type {
   ArtifactRecord,
   ChatEntry,
   CommandExecutionResult,
+  GuidedActionId,
   JobsPayload,
   ModelSource,
   QueuedCommand,
@@ -31,6 +34,7 @@ type ChatDockProps = {
   actionHub?: RightPanelViewModel | null;
   onSendChat?: (message: string) => void;
   onQuickAction?: (actionId: QuickActionId) => void;
+  onRunGuidedAction?: (actionId: GuidedActionId) => Promise<void> | void;
   onExecuteSlash?: (raw: string) => Promise<CommandExecutionResult>;
   onForceQueued: (queueId: string) => void;
   onDiscardQueued: (queueId: string) => void;
@@ -89,12 +93,12 @@ function roleClass(type: ChatEntry["type"]): string {
 
 function modelClass(source: ModelSource): string {
   if (source === "OPENAI") {
-    return "border-indigo-200/60 bg-indigo-400/20 text-indigo-50";
+    return "border-indigo-200/50 bg-indigo-400/18 text-indigo-50";
   }
   if (source === "MOCK") {
-    return "border-slate-500 bg-slate-700/40 text-slate-200";
+    return "border-slate-400/40 bg-slate-700/30 text-slate-100";
   }
-  return "border-indigo-200/20 bg-slate-900/70 text-slate-400";
+  return "border-indigo-200/20 bg-slate-900/70 text-slate-300";
 }
 
 function formatTime(value: string): string {
@@ -106,6 +110,48 @@ function formatTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function formatStatusLabel(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function dockHeadline(sessionReady: boolean, status: string): string {
+  if (!sessionReady) {
+    return "Waiting for direction";
+  }
+  if (status === "running") {
+    return "Flow is in motion";
+  }
+  if (status === "wait_user") {
+    return "Direction lock pending";
+  }
+  if (status === "failed") {
+    return "Intervention required";
+  }
+  if (status === "completed") {
+    return "Package is ready";
+  }
+  return "Command channel is live";
+}
+
+function presenceLabel(sessionReady: boolean, status: string): string {
+  if (!sessionReady) {
+    return "Unformed";
+  }
+  if (status === "running") {
+    return "Attuned";
+  }
+  if (status === "wait_user") {
+    return "Awaiting Input";
+  }
+  if (status === "completed") {
+    return "Resolved";
+  }
+  if (status === "failed") {
+    return "Disrupted";
+  }
+  return "Guided";
 }
 
 export function ChatDock({
@@ -121,6 +167,7 @@ export function ChatDock({
   modelSource = "UNKNOWN",
   actionHub,
   onSendChat,
+  onRunGuidedAction,
   onExecuteSlash,
   onForceQueued,
   onDiscardQueued
@@ -132,12 +179,14 @@ export function ChatDock({
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
   const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
-
   const slashMatches = useMemo(() => {
     return filterSlashCommands(input).slice(0, 10);
   }, [input]);
   const showSlashPopover = currentTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
   const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
+  const primaryAction = actionHub?.primaryAction ?? null;
+  const secondaryAction = actionHub?.secondaryAction ?? null;
+  const statusLabel = formatStatusLabel(status);
 
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
@@ -179,21 +228,51 @@ export function ChatDock({
   };
 
   return (
-    <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2.2rem)] min-h-[38rem] flex-col rounded-2xl p-4">
-      <div className="aurora-status-pill flex items-center justify-between gap-2 rounded-xl px-3 py-2">
-        <span className="flex items-center gap-1.5 text-sm font-semibold tracking-[0.2em] text-indigo-50">
-          <span className="h-3 w-3 rounded-full border border-cyan-100/80 bg-cyan-200/20 shadow-[0_0_10px_rgba(125,224,255,0.6)]" />
-          {status.toUpperCase()}
-        </span>
-        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
-          {modelSource}
-        </span>
+    <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2rem)] min-h-[42rem] flex-col rounded-[32px] p-4 md:p-5">
+      <div className="aurora-status-pill rounded-[26px] px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="aurora-title-label text-[10px] tracking-[0.24em]">Companion Dock</p>
+            <h2 className="aurora-title-primary mt-2 text-[clamp(1.55rem,2.3vw,2.05rem)] leading-[1.04]">
+              {dockHeadline(sessionReady, status)}
+            </h2>
+          </div>
+          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
+            {modelSource}
+          </span>
+        </div>
+      </div>
+
+      <div className="aurora-oracle-card mt-3 rounded-[28px] px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="aurora-title-label text-[10px] tracking-[0.22em]">{statusLabel}</p>
+          <span className="aurora-presence-chip">{presenceLabel(sessionReady, status)}</span>
+        </div>
+
+        <div className="mt-4 flex flex-col items-center text-center">
+          <div className="aurora-avatar-shell">
+            <div className="aurora-avatar-image">
+              <Image
+                src={AURORA_ASSETS.heroSquare}
+                alt="Aurora companion visual"
+                fill
+                sizes="(min-width: 1280px) 19rem, (min-width: 768px) 28rem, 70vw"
+                className="object-cover"
+                priority
+              />
+            </div>
+          </div>
+          <h3 className="aurora-title-primary mt-5 text-[2.4rem] leading-none">Aurora</h3>
+          <p className="mt-2 text-sm text-slate-300">
+            {sessionReady ? "Queued notes and scene guidance stay synchronized with the active flow." : "Start a session to form the live command state."}
+          </p>
+        </div>
       </div>
 
       {showArtifactsTab ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
-            className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            className={`aurora-pill rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] ${
               currentTab === "chat" ? "aurora-pill-active" : ""
             }`}
             onClick={() => setActiveTab("chat")}
@@ -204,49 +283,88 @@ export function ChatDock({
             </span>
           </button>
           <button
-            className={`aurora-pill rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.15em] ${
+            className={`aurora-pill rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] ${
               currentTab === "artifacts" ? "aurora-pill-active" : ""
             }`}
             onClick={() => setActiveTab("artifacts")}
           >
             <span className="flex items-center gap-1.5">
               <IconPackage className="h-3 w-3" />
-              Package Outputs
+              Package
             </span>
           </button>
         </div>
       ) : null}
 
       {actionHub ? (
-        <div className="aurora-command-shell mt-2 rounded-xl px-2.5 py-2">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em]">
+        <div className="aurora-action-hub mt-3 rounded-[24px] px-4 py-4">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] tracking-[0.24em]">
             <IconCommand className="h-3 w-3" />
-            Next
+            Next Action
           </p>
-          <p className="aurora-command-chip mt-1 rounded-md px-2 py-1 text-sm font-semibold text-indigo-100">
-            {actionHub.suggestedCommand || "/help"}
-          </p>
+          <p className="mt-2 text-sm text-slate-200">{actionHub.hint}</p>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {primaryAction ? (
+              <button
+                className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                onClick={() => {
+                  if (!onRunGuidedAction) {
+                    return;
+                  }
+                  void onRunGuidedAction(primaryAction.id);
+                }}
+                disabled={busy || primaryAction.disabled || !onRunGuidedAction}
+                title={primaryAction.disabledReason}
+              >
+                {primaryAction.label}
+              </button>
+            ) : null}
+            {secondaryAction ? (
+              <button
+                className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                onClick={() => {
+                  if (!onRunGuidedAction) {
+                    return;
+                  }
+                  void onRunGuidedAction(secondaryAction.id);
+                }}
+                disabled={busy || secondaryAction.disabled || !onRunGuidedAction}
+                title={secondaryAction.disabledReason}
+              >
+                {secondaryAction.label}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="aurora-command-shell mt-3 rounded-[20px] px-3 py-3">
+            <p className="aurora-title-label text-[10px] tracking-[0.18em]">Queued Intention</p>
+            <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
+              {actionHub.suggestedCommand || "/help"}
+            </p>
+            <p className="mt-2 text-[11px] text-slate-300">{actionHub.suggestedReason}</p>
+          </div>
         </div>
       ) : null}
 
       {queuedCommands.length > 0 ? (
-        <div className="mt-3 space-y-2 rounded-xl border border-cyan-200/35 bg-cyan-400/10 p-2">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em]">
+        <div className="mt-3 space-y-2 rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] tracking-[0.22em]">
             <IconClock className="h-3 w-3" />
-            Queued
+            Queued Commands
           </p>
           {queuedCommands.map((queueItem) => (
-            <div key={queueItem.id} className="aurora-surface-soft rounded-md p-2">
-              <p className="text-xs text-cyan-50">{queueItem.label}</p>
-              <div className="mt-2 flex gap-2">
+            <div key={queueItem.id} className="aurora-surface-soft rounded-[18px] p-3">
+              <p className="text-sm text-cyan-50">{queueItem.label}</p>
+              <div className="mt-3 flex gap-2">
                 <button
-                  className="aurora-btn-primary rounded-md px-2 py-1 text-[11px] font-semibold"
+                  className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px] font-semibold"
                   onClick={() => onForceQueued(queueItem.id)}
                 >
                   Force Replan
                 </button>
                 <button
-                  className="aurora-btn-ghost rounded-md px-2 py-1 text-[11px]"
+                  className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
                   onClick={() => onDiscardQueued(queueItem.id)}
                 >
                   Dismiss
@@ -258,27 +376,27 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "chat" ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
-          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-xl p-2.5">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[24px] p-3">
             <div className="h-full space-y-2.5 overflow-auto pr-1">
               <div
-                className={`aurora-safety-banner rounded-lg border px-3 py-2 text-[11px] ${
+                className={`aurora-safety-banner rounded-[18px] border px-3 py-2 text-[11px] ${
                   shouldQueueIntervention
-                    ? "border-cyan-200/45 bg-cyan-500/10 text-cyan-50"
-                    : "border-indigo-200/40 bg-indigo-400/15 text-indigo-50"
+                    ? "border-cyan-200/34 bg-cyan-500/10 text-cyan-50"
+                    : "border-indigo-200/28 bg-indigo-400/10 text-indigo-50"
                 }`}
               >
-                {shouldQueueIntervention ? "Queued: 다음 stage 시작 시 적용됩니다." : "Safe: 현재 stage에 바로 반영됩니다."}
+                {shouldQueueIntervention ? "Queued: next stage boundary applies the note." : "Safe: current stage accepts the note immediately."}
               </div>
               {entries.map((entry) => (
                 <div
                   key={entry.id}
                   className={`flex ${entry.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[88%] p-2.5 text-xs ${roleClass(entry.type)}`}>
+                  <div className={`max-w-[88%] p-3 text-xs ${roleClass(entry.type)}`}>
                     <div className="mb-1 flex items-center justify-between gap-3">
                       <p className="aurora-copy-soft uppercase tracking-wide">
-                        {entry.type === "user" ? "You" : entry.type === "assistant" ? "Assistant" : entry.type}
+                        {entry.type === "user" ? "You" : entry.type === "assistant" ? "Aurora" : entry.type}
                       </p>
                       <p className="text-[10px] text-slate-400/90">{formatTime(entry.createdAt)}</p>
                     </div>
@@ -291,16 +409,17 @@ export function ChatDock({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="aurora-composer-shell space-y-3 rounded-[24px] p-3">
+            <p className="aurora-title-label text-[10px] tracking-[0.18em]">Command Composer</p>
             {commandNotice ? (
-              <div className="aurora-surface-soft rounded-xl px-3 py-2 text-[11px] text-slate-300">
+              <div className="aurora-surface-soft rounded-[18px] px-3 py-2 text-[11px] text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
               </div>
             ) : null}
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[82px] w-full rounded-2xl px-3 py-2.5 text-sm"
+                className="aurora-input min-h-[96px] w-full rounded-[22px] px-3 py-3 text-sm"
                 placeholder='Type "/?" for commands or send natural language.'
                 value={input}
                 onChange={(event) => {
@@ -344,13 +463,13 @@ export function ChatDock({
               />
 
               {showSlashPopover ? (
-                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-xl border border-indigo-200/35 bg-slate-950/95 p-1.5 shadow-xl">
+                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-[20px] border border-indigo-200/28 bg-slate-950/96 p-1.5 shadow-xl">
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}
-                      className={`w-full rounded-lg px-2.5 py-2 text-left text-xs ${
+                      className={`w-full rounded-[14px] px-2.5 py-2 text-left text-xs ${
                         index === highlightIndex
-                          ? "border border-indigo-200/45 bg-indigo-400/20 text-indigo-50"
+                          ? "border border-indigo-200/38 bg-indigo-400/18 text-indigo-50"
                           : "border border-transparent text-slate-200 hover:bg-slate-800/70"
                       }`}
                       onMouseEnter={() => setHighlightIndex(index)}
@@ -365,7 +484,7 @@ export function ChatDock({
             </div>
 
             <button
-              className="aurora-btn-primary aurora-btn-command w-full rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
+              className="aurora-btn-primary aurora-btn-command aurora-btn-cta w-full rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
               onClick={() => void execute(input)}
               disabled={busy || input.trim().length === 0}
             >
@@ -376,13 +495,13 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "artifacts" ? (
-        <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-xl p-2">
+        <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-[24px] p-3">
           <div className="space-y-2">
             {artifacts.map((artifact) => (
-              <div key={artifact.id} className="aurora-surface-soft rounded-md p-2 text-xs">
+              <div key={artifact.id} className="aurora-surface-soft rounded-[18px] p-3 text-xs">
                 <p className="font-semibold text-indigo-100">{artifact.title}</p>
-                <p className="text-slate-400">{artifact.kind}</p>
-                <p className="text-[11px] text-slate-400">{formatTime(artifact.created_at)}</p>
+                <p className="mt-1 text-slate-400">{artifact.kind}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{formatTime(artifact.created_at)}</p>
               </div>
             ))}
             {artifacts.length === 0 ? <p className="text-xs text-slate-400">Package outputs are not ready yet.</p> : null}

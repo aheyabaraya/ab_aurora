@@ -36,70 +36,94 @@ export function DefineScene({ stage, narrative = null }: DefineSceneProps) {
 
   return (
     <div className="space-y-4">
-      <div className="aurora-panel aurora-define-hero overflow-hidden rounded-2xl">
+      <div className="aurora-panel aurora-define-hero rounded-[28px]">
         <div
           className="aurora-define-hero-media"
           style={{
-            backgroundImage: `linear-gradient(180deg, rgba(4,8,28,0.14), rgba(4,8,28,0.72)), url(${AURORA_ASSETS.heroDesktop})`
+            backgroundImage: `linear-gradient(180deg, rgba(4,8,28,0.04), rgba(4,8,28,0.18)), url(${AURORA_ASSETS.heroDesktop})`
           }}
         />
         <div className="aurora-define-hero-footer">
-          <p className="aurora-title-label text-xs uppercase tracking-[0.3em]">
-            {stage === "brand_narrative" ? "BRAND NARRATIVE" : "DEFINE"}
-          </p>
-          <p className="mt-2 text-sm text-slate-100">{stageSummary(stage)}</p>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="aurora-title-label text-[10px] tracking-[0.28em]">
+                {stage === "brand_narrative" ? "Brand Narrative" : "Define"}
+              </p>
+              <h2 className="aurora-title-primary mt-3 text-[clamp(1.65rem,2.8vw,2.3rem)] leading-[1.04]">
+                Establish the atmosphere before branching.
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm text-slate-100">{stageSummary(stage)}</p>
+            </div>
+            <span className={stage === "brand_narrative" ? "aurora-chip" : "aurora-chip-soft"}>
+              {stage.replaceAll("_", " ")}
+            </span>
+          </div>
         </div>
       </div>
 
       {stage === "brand_narrative" || narrativeData ? (
-        <div className="aurora-panel rounded-2xl p-4 text-sm text-slate-200">
-          <p className="aurora-title-label text-xs uppercase tracking-[0.2em]">Brand Narrative</p>
-          <p className="mt-2">
-            {(narrativeData?.brand_promise as string | undefined) ??
-              "Generating brand promise and voice narrative..."}
-          </p>
-          <p className="mt-2 text-slate-300">
-            {(narrativeData?.audience_tension as string | undefined) ?? "Audience tension is being synthesized."}
-          </p>
-          {storyArc.length > 0 ? (
-            <div className="mt-3">
-              <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Story Arc</p>
-              <ul className="mt-1 space-y-1 text-slate-300">
-                {storyArc.map((beat) => (
-                  <li key={beat}>- {beat}</li>
-                ))}
-              </ul>
+        <div className="aurora-panel rounded-[28px] p-4 text-sm text-slate-200">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="aurora-title-label text-[10px] tracking-[0.24em]">Narrative Notes</p>
+              <h3 className="aurora-title-primary mt-2 text-[1.45rem]">Brand promise and voice direction.</h3>
             </div>
-          ) : null}
+            <span className="aurora-chip-soft">Define Stack</span>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="aurora-surface-soft rounded-[22px] p-4">
+              <p className="aurora-title-label text-[10px] tracking-[0.22em]">Promise</p>
+              <p className="mt-2 text-sm text-slate-100">
+                {(narrativeData?.brand_promise as string | undefined) ??
+                  "Generating brand promise and voice narrative..."}
+              </p>
+              <p className="mt-3 text-sm text-slate-300">
+                {(narrativeData?.audience_tension as string | undefined) ?? "Audience tension is being synthesized."}
+              </p>
+            </div>
+
+            <div className="aurora-surface-soft rounded-[22px] p-4">
+              <p className="aurora-title-label text-[10px] tracking-[0.22em]">Story Arc</p>
+              {storyArc.length > 0 ? (
+                <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                  {storyArc.map((beat) => (
+                    <li key={beat}>{beat}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-slate-400">Story beats are still being composed.</p>
+              )}
+            </div>
+          </div>
+
           {voiceDo.length > 0 || voiceDont.length > 0 ? (
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div>
-                <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Voice Do</p>
-                <ul className="mt-1 space-y-1 text-slate-300">
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="aurora-surface-soft rounded-[22px] p-4">
+                <p className="aurora-title-label text-[10px] tracking-[0.22em]">Voice Do</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-300">
                   {voiceDo.map((item) => (
-                    <li key={item}>- {item}</li>
+                    <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
-              <div>
-                <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Voice Don&apos;t</p>
-                <ul className="mt-1 space-y-1 text-slate-300">
+              <div className="aurora-surface-soft rounded-[22px] p-4">
+                <p className="aurora-title-label text-[10px] tracking-[0.22em]">Voice Don&apos;t</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-300">
                   {voiceDont.map((item) => (
-                    <li key={item}>- {item}</li>
+                    <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
             </div>
           ) : null}
+
           {taglines.length > 0 ? (
-            <div className="mt-3">
-              <p className="aurora-title-label text-[11px] uppercase tracking-[0.2em]">Tagline Candidates</p>
-              <div className="mt-1 flex flex-wrap gap-2">
+            <div className="mt-4">
+              <p className="aurora-title-label text-[10px] tracking-[0.22em]">Tagline Candidates</p>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {taglines.map((tagline) => (
-                  <span
-                    key={tagline}
-                    className="rounded-full border border-indigo-200/35 bg-indigo-400/10 px-2 py-1 text-[11px] text-indigo-100"
-                  >
+                  <span key={tagline} className="aurora-chip-soft">
                     {tagline}
                   </span>
                 ))}
