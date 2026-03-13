@@ -145,20 +145,20 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   return (
     <main className="aurora-page min-h-screen px-3 py-2.5 text-slate-100 md:px-4 md:py-3" style={pageStyle}>
       <section className="mx-auto max-w-[96rem]">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.82fr)_20.75rem]">
-          <div className="space-y-3">
+        <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1.56fr)_24rem]">
+          <div className="space-y-2.5">
             {!sessionReady ? (
               <article
-                className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-4 ${
+                className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-3.5 md:p-4 ${
                   onboardingPhase === "flipping" ? "is-flipping" : ""
                 }`}
               >
                 <div className="flex min-h-[4.75rem] flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                   <div className="max-w-3xl">
-                    <h2 className="aurora-title-primary text-[clamp(1.28rem,1.95vw,1.62rem)] leading-[1.08]">
+                    <h2 className="aurora-title-primary text-[clamp(1.2rem,1.82vw,1.5rem)] leading-[1.08]">
                       Tell Aurora what you&apos;re building.
                     </h2>
-                    <p className="mt-1.5 max-w-2xl text-[13px] text-slate-300">
+                    <p className="mt-1 max-w-2xl text-[12px] text-slate-300">
                       Share the basics so Aurora can suggest the right direction from the start.
                     </p>
                   </div>
@@ -167,12 +167,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                 <div className="aurora-console-divider mt-2.5" />
 
-                <div className="mt-3 grid gap-3 md:auto-rows-fr md:grid-cols-2">
-                  <label className="aurora-surface-soft aurora-field-shell block h-full text-sm">
+                <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
                     <span className="text-slate-200">Product</span>
                     <p className="text-xs text-slate-400">What are you making?</p>
                     <input
-                      className="aurora-input mt-2 w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      className="aurora-input mt-1.5 w-full rounded-[18px] px-3 py-2.5 text-sm"
                       value={product}
                       onChange={(event) => setProduct(event.target.value)}
                       placeholder="e.g. AI landing page builder for solo founders"
@@ -180,11 +180,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     />
                   </label>
 
-                  <label className="aurora-surface-soft aurora-field-shell block h-full text-sm">
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
                     <span className="text-slate-200">Audience</span>
                     <p className="text-xs text-slate-400">Who should this feel made for?</p>
                     <input
-                      className="aurora-input mt-2 w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      className="aurora-input mt-1.5 w-full rounded-[18px] px-3 py-2.5 text-sm"
                       value={audience}
                       onChange={(event) => setAudience(event.target.value)}
                       placeholder="e.g. solo founders shipping in public"
@@ -192,11 +192,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     />
                   </label>
 
-                  <label className="aurora-surface-soft aurora-field-shell block h-full text-sm">
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
                     <span className="text-slate-200">Style Keywords</span>
                     <p className="text-xs text-slate-400">A few words for the visual mood.</p>
                     <input
-                      className="aurora-input mt-2 w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      className="aurora-input mt-1.5 w-full rounded-[18px] px-3 py-2.5 text-sm"
                       value={styleKeywords}
                       onChange={(event) => setStyleKeywords(event.target.value)}
                       placeholder="e.g. editorial, calm, ritual"
@@ -204,7 +204,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     />
                   </label>
 
-                  <label className="aurora-surface-soft aurora-field-shell block h-full text-sm">
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-200">Design Confidence (1-5)</span>
                       <span className="aurora-inline-help group" tabIndex={0} role="button" aria-label="Design confidence definition">
@@ -218,7 +218,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     </div>
                     <p className="text-xs text-slate-400">How clear is the style direction right now?</p>
                     <select
-                      className="aurora-input mt-2 w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      className="aurora-input mt-1.5 w-full rounded-[18px] px-3 py-2.5 text-sm"
                       value={q0IntentConfidence ?? ""}
                       onChange={(event) => {
                         const next = Number(event.target.value);
@@ -239,7 +239,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     <span className="text-slate-200">Design Requirement *</span>
                     <p className="text-xs text-slate-400">What must stay true in the final design?</p>
                     <textarea
-                      className="aurora-input mt-2 min-h-[68px] w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      className="aurora-input mt-1.5 min-h-[60px] w-full rounded-[18px] px-3 py-2.5 text-sm"
                       value={designDirectionNote}
                       onChange={(event) => setDesignDirectionNote(event.target.value)}
                       placeholder="e.g. Keep serif headline hierarchy, avoid glossy gradients, preserve dense content blocks"
@@ -396,7 +396,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
             </article>
           </div>
 
-          <aside className="h-fit xl:sticky xl:top-4">
+          <aside className={sessionReady ? "h-fit xl:sticky xl:top-4" : "h-fit"}>
             <ChatDock
               entries={chatEntries}
               artifacts={sessionPayload?.recent_artifacts ?? []}
