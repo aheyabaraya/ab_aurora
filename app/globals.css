@@ -24,6 +24,7 @@
   --aurora-input-bg: rgba(15, 18, 54, 0.82);
   --aurora-bg-desktop: url("/aurora/bg_abstract_orbline_1920x1080.webp");
   --aurora-bg-mobile: url("/aurora/bg_abstract_orbline_1080x1920.webp");
+  --aurora-bg-cosmic: url("/aurora/cosmic_reference_bg.png");
   --aurora-sigil-tile: url("/aurora/sigil_tile_1024.png");
 }
 
@@ -84,9 +85,11 @@ body::after {
     radial-gradient(circle at 16% 8%, rgba(134, 144, 255, 0.26) 0%, transparent 26%),
     radial-gradient(circle at 82% 12%, rgba(118, 224, 255, 0.22) 0%, transparent 24%),
     radial-gradient(circle at 56% 64%, rgba(255, 215, 158, 0.12) 0%, transparent 20%),
-    linear-gradient(180deg, rgba(8, 10, 32, 0.86) 0%, rgba(7, 9, 32, 0.92) 46%, rgba(5, 6, 19, 0.98) 100%),
+    linear-gradient(180deg, rgba(7, 9, 30, 0.44) 0%, rgba(6, 8, 24, 0.64) 46%, rgba(5, 6, 19, 0.86) 100%),
+    var(--aurora-bg-cosmic),
+    linear-gradient(180deg, rgba(8, 10, 32, 0.76) 0%, rgba(7, 9, 32, 0.84) 46%, rgba(5, 6, 19, 0.94) 100%),
     var(--aurora-bg-desktop);
-  background-position: center, center, center, center, center;
+  background-position: center, center, center, center top, center, center;
   background-size: cover;
   background-repeat: no-repeat;
 }
@@ -212,9 +215,6 @@ body::after {
 .aurora-display-title {
   margin: 0;
   color: var(--aurora-luna);
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif KR", serif;
-  font-weight: 500;
-  letter-spacing: -0.03em;
   text-shadow:
     0 1px 1px rgba(0, 0, 0, 0.68),
     0 0 20px rgba(154, 190, 255, 0.18);
@@ -227,7 +227,6 @@ body::after {
 
 .aurora-title-label {
   color: rgba(221, 229, 255, 0.94);
-  font-family: "SFMono-Regular", "Menlo", "Monaco", "Liberation Mono", monospace;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   text-shadow:
@@ -949,7 +948,9 @@ body::after {
     background-image:
       radial-gradient(circle at 15% 12%, rgba(134, 144, 255, 0.24) 0%, transparent 34%),
       radial-gradient(circle at 84% 14%, rgba(118, 224, 255, 0.18) 0%, transparent 34%),
-      linear-gradient(180deg, rgba(8, 10, 32, 0.88) 0%, rgba(7, 9, 32, 0.94) 46%, rgba(5, 6, 19, 0.98) 100%),
+      linear-gradient(180deg, rgba(7, 9, 30, 0.48) 0%, rgba(6, 8, 24, 0.68) 46%, rgba(5, 6, 19, 0.88) 100%),
+      var(--aurora-bg-cosmic),
+      linear-gradient(180deg, rgba(8, 10, 32, 0.8) 0%, rgba(7, 9, 32, 0.9) 46%, rgba(5, 6, 19, 0.98) 100%),
       var(--aurora-bg-mobile);
   }
 
