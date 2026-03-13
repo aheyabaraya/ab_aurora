@@ -114,10 +114,10 @@ function formatTime(value: string): string {
 
 function dockHeadline(sessionReady: boolean, status: string): string {
   if (!sessionReady) {
-    return "Start a session and this panel will show guidance, notes, and queued commands.";
+    return "Start a session to open the live conversation, notes, and next actions.";
   }
   if (status === "running") {
-    return "Aurora is responding and the latest notes will appear here.";
+    return "Aurora is responding. New notes and prompts will appear here.";
   }
   if (status === "wait_user") {
     return "Aurora is waiting for your next instruction.";
@@ -128,14 +128,14 @@ function dockHeadline(sessionReady: boolean, status: string): string {
   if (status === "completed") {
     return "The package is ready and the final notes are shown here.";
   }
-  return "This panel shows the live back-and-forth with Aurora.";
+  return "This panel keeps the live back-and-forth with Aurora in view.";
 }
 
 function dockTitle(sessionReady: boolean): string {
   if (!sessionReady) {
-    return "Conversation appears here.";
+    return "Talk with Aurora";
   }
-  return "Aurora conversation";
+  return "Talk with Aurora";
 }
 
 function presenceLabel(sessionReady: boolean, status: string): string {
@@ -230,27 +230,29 @@ export function ChatDock({
   };
 
   return (
-    <article className="aurora-panel aurora-dock flex max-h-[calc(100vh-2rem)] min-h-[42rem] flex-col rounded-[32px] p-4 md:p-5">
-      <div className="aurora-status-pill min-h-[9.5rem] rounded-[26px] px-4 py-3">
-        <div className={`flex items-start justify-between gap-3 ${sessionReady ? "flex-row-reverse" : ""}`}>
+    <article className="aurora-panel aurora-dock flex min-h-[35rem] flex-col rounded-[32px] p-3.5 md:p-4 xl:h-[calc(100vh-2rem)] xl:max-h-[calc(100vh-2rem)] xl:min-h-0">
+      <div className="aurora-status-pill min-h-[7.25rem] rounded-[24px] px-3.5 py-3">
+        <div className="flex items-start justify-between gap-3">
           <div className={`flex-1 ${sessionReady ? "text-right" : ""}`}>
-            <h2 className="aurora-title-primary mt-2 text-[clamp(1.3rem,1.8vw,1.7rem)] leading-[1.06]">
+            <h2 className="aurora-title-primary mt-1 text-[clamp(1.48rem,2.15vw,1.92rem)] leading-[1.02]">
               {dockTitle(sessionReady)}
             </h2>
-            <p className="mt-1 text-xs text-slate-300">{dockHeadline(sessionReady, status)}</p>
+            <p className={`mt-1.5 text-[11px] leading-5 text-slate-300 ${sessionReady ? "ml-auto max-w-[15.75rem]" : "max-w-[15.75rem]"}`}>
+              {dockHeadline(sessionReady, status)}
+            </p>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelClass(modelSource)}`}>
+          <span className={`rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] ${modelClass(modelSource)}`}>
             {modelSource}
           </span>
         </div>
       </div>
 
-      <div className="aurora-oracle-card mt-3 rounded-[28px] px-4 py-4">
+      <div className="aurora-oracle-card mt-2.5 rounded-[24px] px-3.5 py-3.5">
         <div className="flex items-center justify-end gap-3">
-          <span className="aurora-presence-chip">{presenceLabel(sessionReady, status)}</span>
+          <span className="aurora-presence-chip px-3 text-[10px]">{presenceLabel(sessionReady, status)}</span>
         </div>
 
-        <div className="mt-4 flex flex-col items-center text-center">
+        <div className="mt-3 flex flex-col items-center text-center">
           <div className="aurora-avatar-shell">
             <div className="aurora-avatar-image">
               <Image
@@ -263,17 +265,17 @@ export function ChatDock({
               />
             </div>
           </div>
-          {!sessionReady ? <h3 className="aurora-title-primary mt-5 text-[1.8rem] leading-none">Aurora</h3> : null}
-          <p className={`text-sm text-slate-300 ${sessionReady ? "mt-4" : "mt-2"}`}>
+          {!sessionReady ? <h3 className="aurora-title-primary mt-3 text-[1.08rem] leading-none">Aurora</h3> : null}
+          <p className={`text-[12px] leading-5 text-slate-300 ${sessionReady ? "mt-3" : "mt-2"}`}>
             {sessionReady
-              ? "Queued notes and scene guidance stay synchronized with the active flow."
-              : "Start a session to form the live command state."}
+              ? "Live notes, prompts, and commands stay synchronized with the active flow."
+              : "Start a session and Aurora will reply here."}
           </p>
         </div>
       </div>
 
       {showArtifactsTab ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2.5 flex flex-wrap gap-2">
           <button
             className={`aurora-pill rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] ${
               currentTab === "chat" ? "aurora-pill-active" : ""
@@ -300,14 +302,14 @@ export function ChatDock({
       ) : null}
 
       {actionHub ? (
-        <div className="aurora-action-hub mt-3 rounded-[24px] px-4 py-4">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] tracking-[0.24em]">
+        <div className="aurora-action-hub mt-2.5 rounded-[22px] px-3.5 py-3">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
             <IconCommand className="h-3 w-3" />
-            Next Action
+            {sessionReady ? "Next Action" : "Start Here"}
           </p>
-          <p className="mt-2 text-sm text-slate-200">{actionHub.hint}</p>
+          <p className="mt-1.5 text-[13px] leading-5 text-slate-200">{actionHub.hint}</p>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
             {primaryAction ? (
               <button
                 className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
@@ -340,19 +342,21 @@ export function ChatDock({
             ) : null}
           </div>
 
-          <div className="aurora-command-shell mt-3 rounded-[20px] px-3 py-3">
-            <p className="aurora-title-label text-[10px] tracking-[0.18em]">Queued Intention</p>
+          <div className="aurora-command-shell mt-2.5 rounded-[20px] px-3 py-2.5">
+            <p className="aurora-title-label text-[9px] tracking-[0.18em]">
+              {sessionReady ? "Suggested Command" : "Try This First"}
+            </p>
             <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
               {actionHub.suggestedCommand || "/help"}
             </p>
-            <p className="mt-2 text-[11px] text-slate-300">{actionHub.suggestedReason}</p>
+            {sessionReady ? <p className="mt-2 text-[11px] leading-5 text-slate-300">{actionHub.suggestedReason}</p> : null}
           </div>
         </div>
       ) : null}
 
       {queuedCommands.length > 0 ? (
-        <div className="mt-3 space-y-2 rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[10px] tracking-[0.22em]">
+        <div className="mt-2.5 space-y-2 rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
+          <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.22em]">
             <IconClock className="h-3 w-3" />
             Queued Commands
           </p>
@@ -379,24 +383,26 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "chat" ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[24px] p-3">
+        <div className="mt-2.5 flex min-h-0 flex-1 flex-col gap-2.5">
+          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[22px] p-2.5">
             <div className="h-full space-y-2.5 overflow-auto pr-1">
-              <div
-                className={`aurora-safety-banner rounded-[18px] border px-3 py-2 text-[11px] ${
-                  shouldQueueIntervention
-                    ? "border-cyan-200/34 bg-cyan-500/10 text-cyan-50"
-                    : "border-indigo-200/28 bg-indigo-400/10 text-indigo-50"
-                }`}
-              >
-                {shouldQueueIntervention ? "Queued: next stage boundary applies the note." : "Safe: current stage accepts the note immediately."}
-              </div>
+              {sessionReady ? (
+                <div
+                  className={`aurora-safety-banner rounded-[18px] border px-3 py-2 text-[11px] ${
+                    shouldQueueIntervention
+                      ? "border-cyan-200/34 bg-cyan-500/10 text-cyan-50"
+                      : "border-indigo-200/28 bg-indigo-400/10 text-indigo-50"
+                  }`}
+                >
+                  {shouldQueueIntervention ? "Queued: the next stage boundary applies the note." : "Safe: this note can be applied immediately."}
+                </div>
+              ) : null}
               {entries.map((entry) => (
                 <div
                   key={entry.id}
                   className={`flex ${entry.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[88%] p-3 text-xs ${roleClass(entry.type)}`}>
+                  <div className={`max-w-[88%] p-2.5 text-xs ${roleClass(entry.type)}`}>
                     <div className="mb-1 flex items-center justify-between gap-3">
                       <p className="aurora-copy-soft uppercase tracking-wide">
                         {entry.type === "user" ? "You" : entry.type === "assistant" ? "Aurora" : entry.type}
@@ -408,12 +414,16 @@ export function ChatDock({
                   </div>
                 </div>
               ))}
-              {entries.length === 0 ? <p className="aurora-copy-soft text-sm">No chat history yet.</p> : null}
+              {entries.length === 0 ? (
+                <p className="aurora-copy-soft text-sm">
+                  {sessionReady ? "Aurora is ready for the next message." : "Start the session to begin the conversation."}
+                </p>
+              ) : null}
             </div>
           </div>
 
-          <div className="aurora-composer-shell space-y-3 rounded-[24px] p-3">
-            <p className="aurora-title-label text-[10px] tracking-[0.18em]">Command Composer</p>
+          <div className="aurora-composer-shell space-y-2.5 rounded-[22px] p-2.5">
+            <p className="aurora-title-label text-[9px] tracking-[0.18em]">Message Aurora</p>
             {commandNotice ? (
               <div className="aurora-surface-soft rounded-[18px] px-3 py-2 text-[11px] text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
@@ -422,8 +432,8 @@ export function ChatDock({
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[96px] w-full rounded-[22px] px-3 py-3 text-sm"
-                placeholder='Type "/?" for commands or send natural language.'
+                className="aurora-input min-h-[82px] w-full rounded-[22px] px-3 py-3 text-sm"
+                placeholder='Type a note or use "/?" for commands.'
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
@@ -491,7 +501,7 @@ export function ChatDock({
               onClick={() => void execute(input)}
               disabled={busy || input.trim().length === 0}
             >
-              Send Command {busy ? "(processing)" : ""}
+              Send to Aurora {busy ? "(processing)" : ""}
             </button>
           </div>
         </div>
