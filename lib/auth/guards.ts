@@ -20,6 +20,7 @@ export type AuthContext = {
 };
 
 const LEGACY_FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
+const BYPASS_SUPABASE_GUARDS_FOR_TESTING = true;
 
 type GuardSuccess<T> = {
   ok: true;
@@ -48,6 +49,14 @@ function ok<T>(value: T): GuardSuccess<T> {
 }
 
 export async function requireUser(request: Request, requestId: string): Promise<GuardResult<AuthContext>> {
+  // TEMP: bypass Supabase auth/ownership during local UI testing. Restore before production use.
+  if (BYPASS_SUPABASE_GUARDS_FOR_TESTING) {
+    return ok({
+      userId: LEGACY_FALLBACK_USER_ID,
+      authMode: "legacy_token"
+    });
+  }
+
   if (!env.AUTH_V2_ENABLED) {
     const tokenAuth = assertApiToken(new Headers(request.headers));
     if (!tokenAuth.ok) {

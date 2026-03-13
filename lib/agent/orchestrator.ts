@@ -3,6 +3,7 @@ import { env } from "../env";
 import type { StorageRepository } from "../storage/types";
 import { sha256 } from "../utils/hash";
 import {
+  generateConversationFollowupAsset,
   generateFollowupSocialAsset,
   generateCandidatesWithFallback,
   generateSocialAssetsWithFallback
@@ -219,33 +220,60 @@ async function applyAction(
 
   if (actionType === "generate_followup_asset") {
     const selectedCandidate = findCandidate(session, session.selected_candidate_id);
-    if (!selectedCandidate) {
-      return {
-        session,
-        consumed: true,
-        message: "No selected candidate yet. Select one before generating follow-up assets."
-      };
-    }
     const assetType =
       payload?.asset_type === "social_ig" || payload?.asset_type === "social_story"
         ? (payload.asset_type as "social_ig" | "social_story")
         : "social_x";
-    const followup = generateFollowupSocialAsset({
-      candidate: selectedCandidate,
-      assetType
-    });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      step: session.current_step,
-      kind: "followup_asset",
-      title: "Follow-up social asset",
-      content: {
-        action: actionType,
-        asset_type: assetType,
-        ...followup
-      }
-    });
-    return { session, consumed: true, message: "Follow-up asset generated." };
+    const promptFromChat = typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
+
+    try {
+      const generatedImage = await generateConversationFollowupAsset({
+        product: session.product,
+        audience: session.audience,
+        styleKeywords: session.style_keywords,
+        userMessage: promptFromChat || "Create a visual concept from the active conversation.",
+        selectedCandidate,
+        assetType
+      });
+      const followup =
+        selectedCandidate
+          ? generateFollowupSocialAsset({
+              candidate: selectedCandidate,
+              assetType
+            })
+          : {
+              title: "Conversation visual generated",
+              caption: promptFromChat || "Conversation-driven visual",
+              hashtags: ["#ab_aurora", "#conversation_visual", "#gpt_image"]
+            };
+
+      await recordArtifact(storage, artifacts, {
+        sessionId: session.id,
+        step: session.current_step,
+        kind: "followup_asset",
+        title: followup.title,
+        content: {
+          action: actionType,
+          asset_type: assetType,
+          candidate_id: selectedCandidate?.id ?? null,
+          image_url: generatedImage.image_url,
+          prompt: generatedImage.prompt,
+          source: generatedImage.source,
+          model: generatedImage.model,
+          size: generatedImage.size,
+          caption: followup.caption,
+          hashtags: followup.hashtags,
+          user_message: promptFromChat || null
+        }
+      });
+      return { session, consumed: true, message: "Conversation image generated." };
+    } catch (error) {
+      return {
+        session,
+        consumed: true,
+        message: error instanceof Error ? `Image generation failed: ${error.message}` : "Image generation failed."
+      };
+    }
   }
 
   if (actionType === "proceed") {

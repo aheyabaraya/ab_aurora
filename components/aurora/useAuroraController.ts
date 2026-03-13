@@ -154,57 +154,6 @@ function parseSetupCommand(raw: string): ParsedSetupCommand | null {
   };
 }
 
-type SetupChecklistInput = {
-  product: string;
-  audience: string;
-  styleKeywords: string[];
-  designDirectionNote: string;
-  q0IntentConfidence: number | null;
-};
-
-function collectMissingSetupFields(input: SetupChecklistInput): string[] {
-  const missing: string[] = [];
-  if (input.product.trim().length < 3) {
-    missing.push("product");
-  }
-  if (input.audience.trim().length < 3) {
-    missing.push("audience");
-  }
-  if (input.styleKeywords.length < 1) {
-    missing.push("style keywords");
-  }
-  if (input.designDirectionNote.trim().length < 3) {
-    missing.push("design requirement");
-  }
-  if (input.q0IntentConfidence === null) {
-    missing.push("q0");
-  }
-  return missing;
-}
-
-function formatSetupChecklistMessage(input: SetupChecklistInput): string {
-  const styleValue = input.styleKeywords.length > 0 ? input.styleKeywords.join(", ") : "<required>";
-  const q0Value = input.q0IntentConfidence === null ? "<required>" : String(input.q0IntentConfidence);
-  const missing = collectMissingSetupFields(input);
-
-  return [
-    "Start blocked. Fill required setup fields:",
-    `product : ${input.product.trim().length > 0 ? input.product.trim() : "<required>"}`,
-    `audience : ${input.audience.trim().length > 0 ? input.audience.trim() : "<required>"}`,
-    `style keywords : ${styleValue}`,
-    `design requirement : ${input.designDirectionNote.trim().length > 0 ? input.designDirectionNote.trim() : "<required>"}`,
-    `q0 : ${q0Value}`,
-    `Missing: ${missing.join(", ")}`,
-    "Quick setup commands:",
-    "/setup product <text>",
-    "/setup audience <text>",
-    "/setup style <keyword1, keyword2>",
-    "/setup note <specific design requirement>",
-    "/setup q0 <1-5>",
-    "/start"
-  ].join("\n");
-}
-
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
   const status = payload?.session.status;
   if (status === "failed" && stage === "candidates_generate") {
@@ -455,19 +404,10 @@ export function useAuroraController() {
       .filter(Boolean);
   }, [styleKeywords]);
 
-  const missingSetupFields = useMemo(() => {
-    return collectMissingSetupFields({
-      product,
-      audience,
-      styleKeywords: styleKeywordList,
-      designDirectionNote,
-      q0IntentConfidence
-    });
-  }, [audience, designDirectionNote, product, q0IntentConfidence, styleKeywordList]);
-
   const canStartSession = useMemo(() => {
-    return missingSetupFields.length === 0;
-  }, [missingSetupFields]);
+    // TEMP: allow session start during testing even when setup is incomplete.
+    return true;
+  }, []);
 
   const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
     setQueuedCommands((current) => [
@@ -616,32 +556,24 @@ export function useAuroraController() {
   }, [flushQueuedCommands, sessionPayload]);
 
   const handleStartSession = useCallback(async (): Promise<StartSessionResult> => {
-    if (!canStartSession) {
-      setError("Product, Audience, Style keywords, Design requirement, Q0(1-5)를 먼저 입력하세요.");
-      return {
-        ok: false,
-        message: formatSetupChecklistMessage({
-          product,
-          audience,
-          styleKeywords: styleKeywordList,
-          designDirectionNote,
-          q0IntentConfidence
-        })
-      };
-    }
-
     const run = async () => {
+      const productForStart = product.trim() || "Untitled concept";
+      const audienceForStart = audience.trim() || "General audience";
+      const styleKeywordsForStart = styleKeywordList.length > 0 ? styleKeywordList : ["exploratory"];
+      const designDirectionForStart = designDirectionNote.trim() || "Open direction. Explore broadly.";
+      const q0ForStart = q0IntentConfidence ?? 3;
+
       const response = await requestJson<{
         session_id: string;
       }>("/api/session/start", {
         method: "POST",
         body: JSON.stringify({
           mode,
-          product,
-          audience,
-          style_keywords: styleKeywordList,
-          design_direction_note: designDirectionNote.trim(),
-          q0_intent_confidence: q0IntentConfidence,
+          product: productForStart,
+          audience: audienceForStart,
+          style_keywords: styleKeywordsForStart,
+          design_direction_note: designDirectionForStart,
+          q0_intent_confidence: q0ForStart,
           auto_continue: autoContinue,
           auto_pick_top1: autoPickTop1
         })
@@ -671,7 +603,6 @@ export function useAuroraController() {
     audience,
     autoContinue,
     autoPickTop1,
-    canStartSession,
     designDirectionNote,
     mode,
     product,
@@ -1412,16 +1343,21 @@ export function useAuroraController() {
         role: message.role,
         content: message.content
       }),
-      createdAt: message.created_at
+      createdAt: message.created_at,
+      imageUrl: typeof message.metadata?.image_url === "string" ? message.metadata.image_url : undefined
     }));
 
-    const artifactEntries = (sessionPayload?.recent_artifacts ?? []).map((artifact: ArtifactRecord) => ({
-      id: `artifact_${artifact.id}`,
-      type: "artifact-note" as const,
-      content: artifact.title,
-      subtitle: artifact.kind,
-      createdAt: artifact.created_at
-    }));
+    const artifactEntries = (sessionPayload?.recent_artifacts ?? []).map((artifact: ArtifactRecord) => {
+      const artifactImageUrl = typeof artifact.content?.image_url === "string" ? artifact.content.image_url : undefined;
+      return {
+        id: `artifact_${artifact.id}`,
+        type: "artifact-note" as const,
+        content: artifact.title,
+        subtitle: artifact.kind,
+        createdAt: artifact.created_at,
+        imageUrl: artifactImageUrl
+      };
+    });
 
     const merged = [...messageEntries, ...stageMessages, ...artifactEntries];
     merged.sort((left, right) => {

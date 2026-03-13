@@ -1,6 +1,30 @@
 import type { ChatAction } from "./types";
 
 const NUMBER_PATTERN = /(?:^|\s)([123])(?:번|th|st|nd|rd)?(?:\s|$)/i;
+const IMAGE_REQUEST_KEYWORDS = [
+  "image",
+  "visual",
+  "moodboard",
+  "render",
+  "mockup",
+  "illustration",
+  "poster",
+  "thumbnail",
+  "cover",
+  "concept art",
+  "show me",
+  "이미지",
+  "비주얼",
+  "무드보드",
+  "렌더",
+  "목업",
+  "일러스트",
+  "포스터",
+  "썸네일",
+  "표지",
+  "시안",
+  "보여줘"
+];
 
 function extractCandidateId(message: string): string | null {
   const match = message.match(NUMBER_PATTERN);
@@ -8,6 +32,30 @@ function extractCandidateId(message: string): string | null {
     return null;
   }
   return `cand_${match[1]}`;
+}
+
+function inferFollowupAssetType(normalized: string): "social_x" | "social_ig" | "social_story" {
+  if (
+    normalized.includes("story") ||
+    normalized.includes("vertical") ||
+    normalized.includes("portrait") ||
+    normalized.includes("세로")
+  ) {
+    return "social_story";
+  }
+  if (
+    normalized.includes("instagram") ||
+    normalized.includes("insta") ||
+    normalized.includes("square") ||
+    normalized.includes("정사각")
+  ) {
+    return "social_ig";
+  }
+  return "social_x";
+}
+
+function looksLikeImageRequest(normalized: string): boolean {
+  return IMAGE_REQUEST_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
 export function parseChatAction(message: string): ChatAction {
@@ -26,6 +74,22 @@ export function parseChatAction(message: string): ChatAction {
   }
 
   if (
+    looksLikeImageRequest(normalized) ||
+    normalized.includes("followup") ||
+    normalized.includes("소셜") ||
+    normalized.includes("후속")
+  ) {
+    return {
+      type: "generate_followup_asset",
+      payload: {
+        asset_type: inferFollowupAssetType(normalized),
+        prompt: message
+      },
+      raw: message
+    };
+  }
+
+  if (
     normalized.includes("proceed") ||
     normalized.includes("다음") ||
     normalized.includes("진행") ||
@@ -38,14 +102,6 @@ export function parseChatAction(message: string): ChatAction {
 
   if (normalized.includes("rerun") || normalized.includes("다시") || normalized.includes("재생성")) {
     return { type: "rerun_candidates", raw: message };
-  }
-
-  if (normalized.includes("followup") || normalized.includes("소셜") || normalized.includes("후속")) {
-    return {
-      type: "generate_followup_asset",
-      payload: { asset_type: normalized.includes("story") ? "social_story" : "social_x" },
-      raw: message
-    };
   }
 
   if (

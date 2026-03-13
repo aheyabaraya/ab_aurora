@@ -141,6 +141,7 @@ export type ChatEntry = {
   content: string;
   createdAt: string;
   subtitle?: string;
+  imageUrl?: string;
 };
 
 export type QueuedCommand = {

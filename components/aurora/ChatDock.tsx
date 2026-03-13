@@ -452,6 +452,12 @@ export function ChatDock({
                       </p>
                       <p className="text-[10px] text-slate-400/90">{formatTime(entry.createdAt)}</p>
                     </div>
+                    {entry.imageUrl ? (
+                      <div className="mb-2 overflow-hidden rounded-[16px] border border-indigo-200/20 bg-slate-950/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={entry.imageUrl} alt={entry.content} className="block h-auto w-full object-cover" />
+                      </div>
+                    ) : null}
                     {entry.subtitle ? <p className="aurora-copy-soft mb-1 text-[10px]">{entry.subtitle}</p> : null}
                     <p className="aurora-copy whitespace-pre-wrap">{entry.content}</p>
                   </div>

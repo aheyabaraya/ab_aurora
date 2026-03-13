@@ -116,6 +116,7 @@ function toSocialAssetPrompt(input: {
 async function generateOpenAiImageUrl(input: {
   prompt: string;
   size: (typeof SOCIAL_IMAGE_SPECS)[number]["size"];
+  responseFormat?: "url" | "b64_json";
 }): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -127,7 +128,8 @@ async function generateOpenAiImageUrl(input: {
       model: env.OPENAI_MODEL_IMAGE,
       prompt: input.prompt,
       size: input.size,
-      n: 1
+      n: 1,
+      response_format: input.responseFormat ?? "url"
     }),
     cache: "no-store"
   });
@@ -313,7 +315,8 @@ export async function generateSocialAssetsWithFallback(input: {
             candidate: input.candidate,
             intent: spec.intent
           }),
-          size: spec.size
+          size: spec.size,
+          responseFormat: "url"
         });
         return [spec.key, url] as const;
       })
@@ -334,4 +337,72 @@ export async function generateSocialAssetsWithFallback(input: {
     }
     return mockAssets;
   }
+}
+
+function toConversationAssetPrompt(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  userMessage: string;
+  selectedCandidate?: Candidate | null;
+  assetType: "social_x" | "social_ig" | "social_story";
+}): string {
+  const assetIntent =
+    input.assetType === "social_story"
+      ? "vertical story concept"
+      : input.assetType === "social_ig"
+        ? "square social concept"
+        : "landscape social concept";
+
+  return [
+    "Create one polished brand visual based on the active user conversation.",
+    "Do not reuse any existing stored image.",
+    "No readable text, no watermark, no logos, no UI chrome.",
+    `Format intent: ${assetIntent}.`,
+    `Product: ${input.product}.`,
+    `Audience: ${input.audience}.`,
+    `Style keywords: ${input.styleKeywords.join(", ") || "exploratory"}.`,
+    input.selectedCandidate ? `Selected candidate name: ${input.selectedCandidate.naming.recommended}.` : null,
+    input.selectedCandidate ? `Candidate moodboard: ${input.selectedCandidate.moodboard.prompt}.` : null,
+    `User request: ${input.userMessage}.`,
+    "Translate the request into a single cohesive visual scene with premium lighting and clear subject focus."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function generateConversationFollowupAsset(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  userMessage: string;
+  selectedCandidate?: Candidate | null;
+  assetType: "social_x" | "social_ig" | "social_story";
+}): Promise<{
+  image_url: string;
+  prompt: string;
+  source: "openai";
+  model: string;
+  size: string;
+}> {
+  const spec =
+    input.assetType === "social_story"
+      ? SOCIAL_IMAGE_SPECS[2]
+      : input.assetType === "social_ig"
+        ? SOCIAL_IMAGE_SPECS[1]
+        : SOCIAL_IMAGE_SPECS[0];
+  const prompt = toConversationAssetPrompt(input);
+  const imageUrl = await generateOpenAiImageUrl({
+    prompt,
+    size: spec.size,
+    responseFormat: "b64_json"
+  });
+
+  return {
+    image_url: imageUrl,
+    prompt,
+    source: "openai",
+    model: env.OPENAI_MODEL_IMAGE,
+    size: spec.size
+  };
 }
