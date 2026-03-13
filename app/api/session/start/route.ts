@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       q0_intent_confidence: input.q0_intent_confidence,
       auto_continue: input.auto_continue ?? env.AUTO_CONTINUE,
       auto_pick_top1: input.auto_pick_top1 ?? env.AUTO_PICK_TOP1,
-      owner_user_id: auth.value.authMode === "supabase" ? auth.value.userId : null
+      owner_user_id: auth.value.userId
     });
     await storage.appendMessage({
       session_id: session.id,

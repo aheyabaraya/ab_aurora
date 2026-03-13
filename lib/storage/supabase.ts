@@ -349,6 +349,7 @@ export class SupabaseStorageRepository implements StorageRepository {
         : null;
     const sessionInsert: JsonMap = {
       mode: input.mode,
+      owner_user_id: input.owner_user_id ?? null,
       product: input.product,
       audience: input.audience,
       style_keywords: input.style_keywords,
@@ -362,10 +363,6 @@ export class SupabaseStorageRepository implements StorageRepository {
       paused: false,
       revision_count: 0
     };
-
-    if (typeof input.owner_user_id === "string" && input.owner_user_id.length > 0) {
-      sessionInsert.owner_user_id = input.owner_user_id;
-    }
 
     const rows = await requestRows<JsonMap>({
       method: "POST",
