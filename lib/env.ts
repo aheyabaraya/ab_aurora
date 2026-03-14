@@ -100,6 +100,10 @@ const envSchema = z
     OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_MODEL_TEXT: z.string().default("gpt-4o"),
     OPENAI_MODEL_IMAGE: z.string().default("gpt-image-1"),
+    OPENAI_STRICT_SESSION_GUARD: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     CHAT_OPENAI_LIMIT_PER_DAY: z.coerce.number().int().min(1).default(30),
     CHAT_OPENAI_MAX_TOKENS: z.coerce.number().int().min(64).max(1024).default(220),
     CHAT_OPENAI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.2),

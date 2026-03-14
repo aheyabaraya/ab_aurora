@@ -136,9 +136,14 @@ Required migrations:
 - `OPENAI_API_KEY` (optional when fallback mode is active)
 - `OPENAI_MODEL_TEXT` (default `gpt-4o`)
 - `OPENAI_MODEL_IMAGE` (default `gpt-image-1`, used for social asset image generation in `approve_build`)
+- `OPENAI_STRICT_SESSION_GUARD` (default `false`, reserved no-op flag for future strict session gating rollout)
 - `CHAT_OPENAI_LIMIT_PER_DAY` (default `30`, per-session rolling 24h on `/api/chat`)
 - `CHAT_OPENAI_MAX_TOKENS` (default `220`)
 - `CHAT_OPENAI_TEMPERATURE` (default `0.2`)
+
+Internal connectivity probe route:
+- `GET /api/internal/openai/health` (Bearer user auth + entitlement required)
+- Returns `200` when both text/image probes pass, otherwise `503` with probe-level failure reason.
 
 `/api/chat` runtime behavior:
 - `OPENAI_API_KEY` missing -> `503` with setup guidance
