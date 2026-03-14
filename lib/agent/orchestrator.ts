@@ -1,11 +1,16 @@
-import { brandSpecDraftSchema, brandSpecFinalSchema } from "../brand-spec.schema";
+import {
+  brandSpecDraftSchema,
+  brandSpecFinalSchema,
+  type BrandDirection
+} from "../brand-spec.schema";
 import { env } from "../env";
 import type { StorageRepository } from "../storage/types";
 import { sha256 } from "../utils/hash";
 import {
-  generateConversationFollowupAsset,
-  generateFollowupSocialAsset,
   generateCandidatesWithFallback,
+  generateConversationFollowupAsset,
+  generateDirectionWithFallback,
+  generateFollowupSocialAsset,
   generateSocialAssetsWithFallback
 } from "../ai/openai";
 import { toVariationWidth } from "./candidate";
@@ -53,43 +58,9 @@ function buildClarifyQuestions(session: SessionRecord): string[] {
   ];
 }
 
-function buildBrandNarrative(session: SessionRecord): {
-  brand_promise: string;
-  audience_tension: string;
-  story_arc: string[];
-  voice_do: string[];
-  voice_dont: string[];
-  tagline_candidates: string[];
-} {
-  const tone = session.style_keywords.slice(0, 3);
-  const [toneA, toneB, toneC] = tone.length > 0 ? tone : ["clear", "focused", "confident"];
-  const productHead = session.product.split(/\s+/).slice(0, 2).join(" ");
-  const audienceHead = session.audience.split(/\s+/).slice(0, 4).join(" ");
-
-  return {
-    brand_promise: `${session.product} helps ${session.audience} move from vague taste to a shippable brand direction without losing speed.`,
-    audience_tension: `${session.audience} need distinctive identity decisions quickly, but scattered references make consistent direction hard to lock.`,
-    story_arc: [
-      `${audienceHead} starts with pressure to ship but no coherent visual baseline.`,
-      `${productHead} narrows ambiguity into ranked options with clear rationale and constraints.`,
-      `${audienceHead} commits to one direction and moves into package-ready execution assets.`
-    ],
-    voice_do: [
-      `Use ${toneA} language with concrete implementation intent.`,
-      `Keep messaging ${toneB} and outcome-oriented for builders.`,
-      `Maintain ${toneC} confidence with concise, directive phrasing.`
-    ],
-    voice_dont: [
-      "Avoid abstract manifesto language without execution anchors.",
-      "Avoid trend-chasing adjectives that conflict with product fit.",
-      "Avoid verbose copy that hides the next decision."
-    ],
-    tagline_candidates: [
-      "Direction, then ship.",
-      `${productHead}: brand decisions made executable.`,
-      "From intent to interface."
-    ]
-  };
+function parsePayloadCandidateId(payload: Record<string, unknown> | undefined): string | null {
+  const candidateId = payload?.candidate_id;
+  return typeof candidateId === "string" ? candidateId : null;
 }
 
 function findCandidate(session: SessionRecord, candidateId: string | null): Candidate | null {
@@ -99,9 +70,65 @@ function findCandidate(session: SessionRecord, candidateId: string | null): Cand
   return session.latest_top3.find((candidate) => candidate.id === candidateId) ?? null;
 }
 
-function parsePayloadCandidateId(payload: Record<string, unknown> | undefined): string | null {
-  const candidateId = payload?.candidate_id;
-  return typeof candidateId === "string" ? candidateId : null;
+function getDirection(session: SessionRecord): BrandDirection | null {
+  return session.draft_spec?.direction ?? null;
+}
+
+function needsClarification(session: SessionRecord, score: number): boolean {
+  const hasFullBrief =
+    session.product.trim().length >= 3 &&
+    session.audience.trim().length >= 3 &&
+    session.style_keywords.length > 0 &&
+    Boolean(session.constraint?.trim());
+  if (hasFullBrief) {
+    return false;
+  }
+  return score < env.INTENT_CLARIFY_THRESHOLD;
+}
+
+function buildDraftSpec(session: SessionRecord, direction?: BrandDirection | null) {
+  return brandSpecDraftSchema.parse({
+    stage: "draft",
+    version: "0.5",
+    mode: session.mode,
+    intent: {
+      has_direction: Boolean(session.constraint),
+      intent_confidence: session.intent_confidence ?? deriveIntentConfidence(session),
+      variation_width: session.variation_width ?? toVariationWidth(session.intent_confidence ?? 3),
+      direction_source: session.constraint ? "user" : "agent"
+    },
+    input: {
+      product: session.product,
+      audience: session.audience,
+      style_keywords: session.style_keywords,
+      constraint: session.constraint
+    },
+    persona: {
+      summary: `${session.product} targets ${session.audience}`,
+      voice: "clear and directive"
+    },
+    naming: {
+      note: "Will be finalized after concept selection."
+    },
+    direction: direction ?? undefined,
+    scoring: {
+      candidate_count: env.TOP_K,
+      top_k: env.TOP_K,
+      rules: ["product-audience-fit", "clarity", "consistency", "brand distinctiveness"]
+    }
+  });
+}
+
+function applyDirectionToDraft(session: SessionRecord, direction: BrandDirection) {
+  const baseDraft = session.draft_spec ?? buildDraftSpec(session);
+  return brandSpecDraftSchema.parse({
+    ...baseDraft,
+    direction,
+    persona: {
+      ...(baseDraft.persona ?? {}),
+      narrative_summary: direction.narrative_summary
+    }
+  });
 }
 
 async function recordArtifact(
@@ -126,6 +153,98 @@ async function recordArtifact(
   });
   artifacts.push(artifact);
   return artifact;
+}
+
+async function recordDirectionSnapshot(
+  storage: StorageRepository,
+  artifacts: ArtifactRecord[],
+  input: {
+    session: SessionRecord;
+    direction: BrandDirection;
+    title: string;
+    source: "openai" | "mock";
+    revisionNote?: string | null;
+  }
+) {
+  await recordArtifact(storage, artifacts, {
+    sessionId: input.session.id,
+    step: "brand_narrative",
+    kind: "brand_narrative",
+    title: input.title,
+    content: {
+      source: input.source,
+      direction: input.direction,
+      revision_note: input.revisionNote ?? null,
+      selected_candidate_id: input.session.selected_candidate_id
+    }
+  });
+}
+
+async function updateDirectionSession(
+  storage: StorageRepository,
+  session: SessionRecord,
+  input: {
+    direction: BrandDirection;
+    constraint?: string | null;
+    currentStep?: AgentStep;
+    status?: SessionRecord["status"];
+  }
+) {
+  const nextDraft = applyDirectionToDraft(session, input.direction);
+  return storage.updateSession(session.id, {
+    draft_spec: nextDraft,
+    constraint: input.constraint ?? session.constraint,
+    current_step: input.currentStep ?? session.current_step,
+    status: input.status ?? session.status
+  });
+}
+
+async function createSelectedRevision(
+  storage: StorageRepository,
+  artifacts: ArtifactRecord[],
+  session: SessionRecord,
+  userMessage: string,
+  assetType: "social_x" | "social_ig" | "social_story"
+): Promise<string> {
+  const selectedCandidate = findCandidate(session, session.selected_candidate_id);
+  if (!selectedCandidate) {
+    return "Select a direction before requesting a revision render.";
+  }
+
+  const generatedImage = await generateConversationFollowupAsset({
+    product: session.product,
+    audience: session.audience,
+    styleKeywords: session.style_keywords,
+    userMessage,
+    selectedCandidate,
+    assetType
+  });
+  const followup = generateFollowupSocialAsset({
+    candidate: selectedCandidate,
+    assetType
+  });
+
+  await recordArtifact(storage, artifacts, {
+    sessionId: session.id,
+    step: "approve_build",
+    kind: "followup_asset",
+    title: followup.title,
+    content: {
+      action: "generate_followup_asset",
+      asset_type: assetType,
+      candidate_id: selectedCandidate.id,
+      revision_basis: userMessage,
+      image_url: generatedImage.image_url,
+      prompt: generatedImage.prompt,
+      source: generatedImage.source,
+      model: generatedImage.model,
+      size: generatedImage.size,
+      caption: followup.caption,
+      hashtags: followup.hashtags
+    }
+  });
+
+  return "Selected direction revision rendered.";
 }
 
 async function applyAction(
@@ -164,40 +283,104 @@ async function applyAction(
     return { session: next, consumed: false, message: "Pipeline resumed." };
   }
 
-  if (actionType === "revise_constraint") {
+  if (actionType === "refine_direction" || actionType === "revise_constraint") {
     const constraintFromPayload = payload?.constraint;
-    const constraint = typeof constraintFromPayload === "string" ? constraintFromPayload : null;
-    const next = await storage.updateSession(session.id, {
-      constraint: constraint ?? session.constraint,
+    const constraint = typeof constraintFromPayload === "string" ? constraintFromPayload.trim() : "";
+    if (constraint.length === 0) {
+      return { session, consumed: true, message: "Direction note is empty. No refinement applied." };
+    }
+
+    if (!session.draft_spec) {
+      const next = await storage.updateSession(session.id, {
+        constraint,
+        revision_count: session.revision_count + 1,
+        current_step: "spec_draft",
+        status: "running",
+        paused: false
+      });
+      return { session: next, consumed: false, message: "Direction note saved. Bootstrapping direction." };
+    }
+
+    const directionResult = await generateDirectionWithFallback({
+      product: session.product,
+      audience: session.audience,
+      styleKeywords: session.style_keywords,
+      constraint,
+      currentDirection: getDirection(session),
+      revisionNote: constraint
+    });
+
+    const regenerateCandidates = payload?.regenerate_candidates === true;
+    let nextStep: AgentStep = "brand_narrative";
+    let nextStatus: SessionRecord["status"] = "wait_user";
+    let consumed = true;
+    let message = "Direction updated.";
+
+    if (session.selected_candidate_id) {
+      nextStep = "approve_build";
+      nextStatus = "wait_user";
+      message = await createSelectedRevision(storage, artifacts, session, constraint, "social_x");
+    } else if (regenerateCandidates || session.current_step !== "brand_narrative") {
+      nextStep = "candidates_generate";
+      nextStatus = "running";
+      consumed = false;
+      message = "Direction updated. Regenerating 3 concepts.";
+    }
+
+    const nextSession = await updateDirectionSession(storage, session, {
+      direction: directionResult.direction,
+      constraint,
+      currentStep: nextStep,
+      status: nextStatus
+    });
+    await storage.updateSession(nextSession.id, {
       revision_count: session.revision_count + 1,
-      current_step: "candidates_generate",
-      status: "running",
-      paused: false
+      latest_top3: session.selected_candidate_id ? nextSession.latest_top3 : nextStep === "candidates_generate" ? null : nextSession.latest_top3,
+      selected_candidate_id: session.selected_candidate_id
     });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      step: "candidates_generate",
-      kind: "chat_action",
-      title: "Revision requested",
-      content: { action: actionType, constraint }
+
+    const refreshed = (await storage.getSession(session.id)) ?? nextSession;
+    await recordDirectionSnapshot(storage, artifacts, {
+      session: refreshed,
+      direction: directionResult.direction,
+      title: session.selected_candidate_id ? "Direction refined for selected revision" : "Direction refined",
+      source: directionResult.source,
+      revisionNote: constraint
     });
-    return { session: next, consumed: false, message: "Revision applied. Regenerating candidates." };
+    return {
+      session: refreshed,
+      consumed,
+      message
+    };
   }
 
   if (actionType === "rerun_candidates") {
+    if (!getDirection(session)) {
+      const next = await storage.updateSession(session.id, {
+        current_step: "brand_narrative",
+        status: "wait_user"
+      });
+      return {
+        session: next,
+        consumed: true,
+        message: "Direction is not ready yet. Refine the brief first."
+      };
+    }
+
     const next = await storage.updateSession(session.id, {
       current_step: "candidates_generate",
       status: "running",
-      paused: false
+      paused: false,
+      selected_candidate_id: null
     });
     await recordArtifact(storage, artifacts, {
       sessionId: session.id,
       step: "candidates_generate",
       kind: "chat_action",
-      title: "Candidate rerun requested",
+      title: "Concept regeneration requested",
       content: { action: actionType }
     });
-    return { session: next, consumed: false, message: "Rerunning candidates." };
+    return { session: next, consumed: false, message: "Regenerating 3 concepts." };
   }
 
   if (actionType === "select_candidate") {
@@ -212,71 +395,66 @@ async function applyAction(
       sessionId: session.id,
       step: "top3_select",
       kind: "chat_action",
-      title: "Candidate override requested",
+      title: "Candidate selection requested",
       content: { action: actionType, candidate_id: candidateId }
     });
-    return { session: next, consumed: false, message: "Selection updated." };
+    return { session: next, consumed: false, message: "Direction selection updated." };
   }
 
   if (actionType === "generate_followup_asset") {
-    const selectedCandidate = findCandidate(session, session.selected_candidate_id);
+    if (!session.selected_candidate_id) {
+      return {
+        session,
+        consumed: true,
+        message: "Select a direction before requesting revision renders."
+      };
+    }
+
+    const prompt = typeof payload?.prompt === "string" ? payload.prompt.trim() : "Refine the selected direction.";
     const assetType =
       payload?.asset_type === "social_ig" || payload?.asset_type === "social_story"
         ? (payload.asset_type as "social_ig" | "social_story")
         : "social_x";
-    const promptFromChat = typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
 
-    try {
-      const generatedImage = await generateConversationFollowupAsset({
+    const direction = getDirection(session);
+    if (direction) {
+      const refinedDirection = await generateDirectionWithFallback({
         product: session.product,
         audience: session.audience,
         styleKeywords: session.style_keywords,
-        userMessage: promptFromChat || "Create a visual concept from the active conversation.",
-        selectedCandidate,
-        assetType
+        constraint: prompt,
+        currentDirection: direction,
+        revisionNote: prompt
       });
-      const followup =
-        selectedCandidate
-          ? generateFollowupSocialAsset({
-              candidate: selectedCandidate,
-              assetType
-            })
-          : {
-              title: "Conversation visual generated",
-              caption: promptFromChat || "Conversation-driven visual",
-              hashtags: ["#ab_aurora", "#conversation_visual", "#gpt_image"]
-            };
-
-      await recordArtifact(storage, artifacts, {
-        sessionId: session.id,
-        step: session.current_step,
-        kind: "followup_asset",
-        title: followup.title,
-        content: {
-          action: actionType,
-          asset_type: assetType,
-          candidate_id: selectedCandidate?.id ?? null,
-          image_url: generatedImage.image_url,
-          prompt: generatedImage.prompt,
-          source: generatedImage.source,
-          model: generatedImage.model,
-          size: generatedImage.size,
-          caption: followup.caption,
-          hashtags: followup.hashtags,
-          user_message: promptFromChat || null
-        }
+      const nextSession = await updateDirectionSession(storage, session, {
+        direction: refinedDirection.direction,
+        constraint: prompt,
+        currentStep: "approve_build",
+        status: "wait_user"
       });
-      return { session, consumed: true, message: "Conversation image generated." };
-    } catch (error) {
-      return {
-        session,
-        consumed: true,
-        message: error instanceof Error ? `Image generation failed: ${error.message}` : "Image generation failed."
-      };
+      await recordDirectionSnapshot(storage, artifacts, {
+        session: nextSession,
+        direction: refinedDirection.direction,
+        title: "Direction refined for revision render",
+        source: refinedDirection.source,
+        revisionNote: prompt
+      });
+      session = nextSession;
     }
+
+    const message = await createSelectedRevision(storage, artifacts, session, prompt, assetType);
+    return { session, consumed: true, message };
   }
 
   if (actionType === "proceed") {
+    if (session.current_step === "brand_narrative" && getDirection(session)) {
+      const next = await storage.updateSession(session.id, {
+        current_step: "candidates_generate",
+        status: "running",
+        paused: false
+      });
+      return { session: next, consumed: false, message: "Generating concepts from the current direction." };
+    }
     return { session, consumed: false, message: "Continuing pipeline." };
   }
 
@@ -320,12 +498,12 @@ async function executeStep(
       sessionId: session.id,
       step,
       kind: "interview",
-      title: "Interview normalized",
+      title: "Brief normalized",
       content: {
         product: session.product,
         audience: session.audience,
         style_keywords: session.style_keywords,
-        has_direction: Boolean(session.constraint),
+        design_requirement: session.constraint,
         intent_confidence: intentConfidence,
         variation_width: variationWidth
       }
@@ -335,7 +513,7 @@ async function executeStep(
       result: {
         nextStep: "intent_gate",
         waitUser: false,
-        message: "Interview captured and intent score computed.",
+        message: "Brief captured and normalized.",
         jobId: null
       }
     };
@@ -343,7 +521,7 @@ async function executeStep(
 
   if (step === "intent_gate") {
     const score = session.intent_confidence ?? deriveIntentConfidence(session);
-    if (score < env.INTENT_CLARIFY_THRESHOLD) {
+    if (needsClarification(session, score)) {
       const nextSession = await storage.updateSession(session.id, {
         intent_confidence: score,
         variation_width: toVariationWidth(score),
@@ -354,7 +532,7 @@ async function executeStep(
         sessionId: session.id,
         step,
         kind: "clarify_questions",
-        title: "Need more clarity before locking design",
+        title: "Need more clarity before direction synthesis",
         content: {
           intent_confidence: score,
           threshold: env.INTENT_CLARIFY_THRESHOLD,
@@ -388,35 +566,7 @@ async function executeStep(
   }
 
   if (step === "spec_draft") {
-    const draft = brandSpecDraftSchema.parse({
-      stage: "draft",
-      version: "0.4",
-      mode: session.mode,
-      intent: {
-        has_direction: Boolean(session.constraint),
-        intent_confidence: session.intent_confidence ?? deriveIntentConfidence(session),
-        variation_width: session.variation_width ?? toVariationWidth(session.intent_confidence ?? 3),
-        direction_source: session.constraint ? "user" : "agent"
-      },
-      input: {
-        product: session.product,
-        audience: session.audience,
-        style_keywords: session.style_keywords,
-        constraint: session.constraint
-      },
-      persona: {
-        summary: `${session.product} targets ${session.audience}`,
-        voice: "clear and directive"
-      },
-      naming: {
-        note: "Will be finalized from Top-3 candidates."
-      },
-      scoring: {
-        candidate_count: env.CANDIDATE_COUNT,
-        top_k: env.TOP_K,
-        rules: ["product-audience-fit", "clarity", "consistency"]
-      }
-    });
+    const draft = buildDraftSpec(session, getDirection(session));
     const nextSession = await storage.updateSession(session.id, {
       draft_spec: draft,
       current_step: "brand_narrative",
@@ -426,7 +576,7 @@ async function executeStep(
       sessionId: session.id,
       step,
       kind: "brand_spec_draft",
-      title: "Brand spec draft generated",
+      title: "Draft spec generated",
       content: draft
     });
     return {
@@ -451,48 +601,85 @@ async function executeStep(
         result: {
           nextStep: "spec_draft",
           waitUser: true,
-          message: "Draft spec is missing. Generate draft spec before narrative.",
+          message: "Draft spec is missing. Generate draft spec before direction synthesis.",
           jobId: null
         }
       };
     }
 
-    const narrative = buildBrandNarrative(session);
-    const personaRecord =
-      session.draft_spec.persona && typeof session.draft_spec.persona === "object"
-        ? session.draft_spec.persona
-        : {};
-    const draftWithNarrative = brandSpecDraftSchema.parse({
-      ...session.draft_spec,
-      persona: {
-        ...personaRecord,
-        narrative
-      }
+    const existingDirection = getDirection(session);
+    if (existingDirection) {
+      const readySession = await storage.updateSession(session.id, {
+        current_step: "brand_narrative",
+        status: "wait_user"
+      });
+      return {
+        session: readySession,
+        result: {
+          nextStep: "candidates_generate",
+          waitUser: true,
+          message: "Direction ready. Generate concepts when you are ready.",
+          jobId: null
+        }
+      };
+    }
+
+    const synthesized = await generateDirectionWithFallback({
+      product: session.product,
+      audience: session.audience,
+      styleKeywords: session.style_keywords,
+      constraint: session.constraint
     });
+    const nextDraft = applyDirectionToDraft(session, synthesized.direction);
     const nextSession = await storage.updateSession(session.id, {
-      draft_spec: draftWithNarrative,
-      current_step: "candidates_generate",
-      status: "running"
+      draft_spec: nextDraft,
+      current_step: "brand_narrative",
+      status: "wait_user"
     });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      step,
-      kind: "brand_narrative",
-      title: "Brand narrative generated",
-      content: narrative
+    await recordDirectionSnapshot(storage, artifacts, {
+      session: nextSession,
+      direction: synthesized.direction,
+      title: "Direction synthesized",
+      source: synthesized.source
+    });
+    await storage.appendMessage({
+      session_id: session.id,
+      role: "assistant",
+      content: `${synthesized.direction.brief_summary}\n\n${synthesized.direction.next_question}`,
+      metadata: {
+        provider: "agent_bootstrap",
+        message_type: "direction_update"
+      }
     });
     return {
       session: nextSession,
       result: {
         nextStep: "candidates_generate",
-        waitUser: false,
-        message: "Brand narrative is ready.",
+        waitUser: true,
+        message: "Direction synthesized. Refine it in chat or generate concepts.",
         jobId: null
       }
     };
   }
 
   if (step === "candidates_generate") {
+    const direction = getDirection(session);
+    if (!direction) {
+      const waitingSession = await storage.updateSession(session.id, {
+        status: "wait_user",
+        current_step: "brand_narrative"
+      });
+      return {
+        session: waitingSession,
+        result: {
+          nextStep: "brand_narrative",
+          waitUser: true,
+          message: "Direction is missing. Refine direction before generating concepts.",
+          jobId: null
+        }
+      };
+    }
+
     const activeJobs = await storage.countActiveJobsBySession(session.id);
     if (activeJobs >= env.CONCURRENT_JOB_LIMIT) {
       const waitingSession = await storage.updateSession(session.id, { status: "wait_user" });
@@ -510,7 +697,10 @@ async function executeStep(
     const job = await storage.createJob({
       session_id: session.id,
       step: "candidates_generate",
-      payload: { reason: request.action ?? "step_run" }
+      payload: {
+        reason: request.action ?? "step_run",
+        direction_summary: direction.brief_summary
+      }
     });
 
     try {
@@ -520,46 +710,46 @@ async function executeStep(
         audience: session.audience,
         styleKeywords: session.style_keywords,
         intentConfidence: session.intent_confidence ?? 3,
-        candidateCount: env.CANDIDATE_COUNT,
+        direction,
+        candidateCount: env.TOP_K,
         topK: env.TOP_K
       });
-      if (generated.candidates.length < env.TOP_K) {
-        throw new Error("Top-3 candidates were not generated.");
+      if (generated.candidates.length !== env.TOP_K) {
+        throw new Error(`Expected ${env.TOP_K} concepts but received ${generated.candidates.length}.`);
       }
       await storage.updateJob(job.id, {
         status: "completed",
         logs: [`source:${generated.source}`, `top:${generated.candidates.length}`]
       });
-      const selectedCandidateId = session.auto_pick_top1 ? generated.candidates[0].id : session.selected_candidate_id;
       const nextSession = await storage.updateSession(session.id, {
         latest_top3: generated.candidates,
-        selected_candidate_id: selectedCandidateId,
+        selected_candidate_id: null,
         current_step: "top3_select",
-        status: "running"
+        status: "wait_user"
       });
       await recordArtifact(storage, artifacts, {
         sessionId: session.id,
         jobId: job.id,
         step,
         kind: "candidates_top3",
-        title: "Top-3 candidates",
+        title: "3 concepts generated",
         content: {
           source: generated.source,
-          candidates: generated.candidates,
-          auto_selected: selectedCandidateId
+          direction,
+          candidates: generated.candidates
         }
       });
       return {
         session: nextSession,
         result: {
           nextStep: "top3_select",
-          waitUser: false,
-          message: "Top-3 generated successfully.",
+          waitUser: true,
+          message: "Three concepts are ready. Choose one to continue.",
           jobId: job.id
         }
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Candidate generation failed.";
+      const message = error instanceof Error ? error.message : "Concept generation failed.";
       await storage.updateJob(job.id, { status: "failed", error: message });
       const failedSession = await storage.updateSession(session.id, {
         status: "failed",
@@ -588,19 +778,15 @@ async function executeStep(
         result: {
           nextStep: "candidates_generate",
           waitUser: true,
-          message: "No Top-3 candidates available. Generate candidates first.",
+          message: "No concepts available. Generate concepts first.",
           jobId: null
         }
       };
     }
 
     const payloadCandidateId = parsePayloadCandidateId(request.payload);
-    let selectedCandidateId = payloadCandidateId ?? session.selected_candidate_id;
-    if (!selectedCandidateId && session.auto_pick_top1) {
-      selectedCandidateId = session.latest_top3[0].id;
-    }
+    const selectedCandidateId = payloadCandidateId ?? session.selected_candidate_id;
     const selectedCandidate = findCandidate(session, selectedCandidateId);
-
     if (!selectedCandidate || !selectedCandidateId) {
       const waitingSession = await storage.updateSession(session.id, {
         status: "wait_user",
@@ -611,7 +797,7 @@ async function executeStep(
         result: {
           nextStep: "top3_select",
           waitUser: true,
-          message: "Top-3 is ready. Select one candidate to continue.",
+          message: "Concepts are ready. Choose one direction to continue.",
           jobId: null
         }
       };
@@ -620,15 +806,16 @@ async function executeStep(
     const nextSession = await storage.updateSession(session.id, {
       selected_candidate_id: selectedCandidateId,
       current_step: "approve_build",
-      status: "running"
+      status: "wait_user"
     });
     await recordArtifact(storage, artifacts, {
       sessionId: session.id,
       step,
       kind: "selection",
-      title: "Candidate selected",
+      title: "Direction selected",
       content: {
         selected_candidate_id: selectedCandidateId,
+        selection_rationale: selectedCandidate.rationale,
         selected_candidate: selectedCandidate
       }
     });
@@ -636,8 +823,8 @@ async function executeStep(
       session: nextSession,
       result: {
         nextStep: "approve_build",
-        waitUser: false,
-        message: `Candidate ${selectedCandidateId} selected.`,
+        waitUser: true,
+        message: `${selectedCandidate.naming.recommended} selected. Build when ready.`,
         jobId: null
       }
     };
@@ -645,7 +832,8 @@ async function executeStep(
 
   if (step === "approve_build") {
     const selectedCandidate = findCandidate(session, session.selected_candidate_id);
-    if (!selectedCandidate || !session.draft_spec) {
+    const direction = getDirection(session);
+    if (!selectedCandidate || !session.draft_spec || !direction) {
       const waitingSession = await storage.updateSession(session.id, {
         status: "wait_user",
         current_step: "top3_select"
@@ -655,14 +843,13 @@ async function executeStep(
         result: {
           nextStep: "top3_select",
           waitUser: true,
-          message: "Cannot build outputs without selected candidate.",
+          message: "Cannot build outputs without a selected direction and synthesized brief.",
           jobId: null
         }
       };
     }
 
-    const requiresBuildConfirm = !session.auto_pick_top1 && request.action !== "proceed";
-    if (requiresBuildConfirm) {
+    if (request.action !== "proceed") {
       const waitingSession = await storage.updateSession(session.id, {
         status: "wait_user",
         current_step: "approve_build"
@@ -672,7 +859,7 @@ async function executeStep(
         result: {
           nextStep: "approve_build",
           waitUser: true,
-          message: "Build confirmation required. Send proceed/build to continue.",
+          message: "Build approval required. Send proceed/build to continue.",
           jobId: null
         }
       };
@@ -704,11 +891,11 @@ async function executeStep(
         accent: selectedCandidate.moodboard.colors[2]
       },
       typography: {
-        headline: "system-ui",
+        headline: "sora",
         body: "system-ui"
       },
       spacing: { base: 8, scale: [8, 12, 16, 24, 32] },
-      radius: { card: 16, button: 10 }
+      radius: { card: 16, button: 999 }
     };
     const socialAssets = await generateSocialAssetsWithFallback({
       sessionId: session.id,
@@ -716,8 +903,9 @@ async function executeStep(
     });
     const codePlan = {
       stack: "nextjs-tailwind",
-      components: ["HeroSection", "ProofStrip", "FeatureGrid", "FinalCTA"],
-      route: "/"
+      components: ["DirectionHero", "ConceptGallery", "SelectionPanel", "ExportDock"],
+      route: "/",
+      narrative_focus: direction.narrative_summary
     };
     const validation = {
       eslint: "pass",
@@ -728,6 +916,7 @@ async function executeStep(
     const finalSpec = brandSpecFinalSchema.parse({
       ...session.draft_spec,
       stage: "final",
+      direction,
       moodboard: selectedCandidate.moodboard,
       ui_plan: selectedCandidate.ui_plan,
       naming: selectedCandidate.naming,
@@ -786,7 +975,7 @@ async function executeStep(
       result: {
         nextStep: "package",
         waitUser: false,
-        message: "Approval build completed.",
+        message: "Build outputs completed.",
         jobId: job.id
       }
     };
@@ -803,7 +992,7 @@ async function executeStep(
         result: {
           nextStep: "approve_build",
           waitUser: true,
-          message: "Final spec is missing. Run approve build first.",
+          message: "Final spec is missing. Run build approval first.",
           jobId: null
         }
       };
@@ -821,14 +1010,16 @@ async function executeStep(
       selected_candidate_id: session.selected_candidate_id,
       created_at: new Date().toISOString(),
       output_sequence: [
-        "persona",
-        "naming",
-        "moodboard",
-        "ui_plan",
-        "tokens",
-        "social_assets",
-        "code_plan",
-        "validation"
+        "brief.json",
+        "direction.json",
+        "brand_narrative.json",
+        "candidates_top3.json",
+        "selection.json",
+        "final_spec.json",
+        "tokens.json",
+        "social_assets.json",
+        "code_plan.json",
+        "pack_meta.json"
       ]
     };
     const pack = await storage.createPack({
@@ -858,7 +1049,7 @@ async function executeStep(
       result: {
         nextStep: "done",
         waitUser: false,
-        message: "Brand pack is ready.",
+        message: "Strategy pack is ready.",
         jobId: job.id
       }
     };
@@ -877,6 +1068,7 @@ async function executeStep(
 
 export async function runAgentPipeline(context: OrchestratorContext): Promise<RunStepResponse> {
   const { storage, request } = context;
+  const bootstrapUntilDirection = request.payload?.bootstrap_until_direction === true;
   const session = await storage.getSession(request.session_id);
   if (!session) {
     throw new Error(`Session not found: ${request.session_id}`);
@@ -916,11 +1108,12 @@ export async function runAgentPipeline(context: OrchestratorContext): Promise<Ru
     jobId = result.jobId ?? jobId;
     status = currentSession.status;
 
-    if (waitUser || !currentSession.auto_continue || nextStep === null || currentSession.current_step === "done") {
+    if (waitUser || (!currentSession.auto_continue && !bootstrapUntilDirection) || nextStep === null || currentSession.current_step === "done") {
       break;
     }
 
     request.step = nextStep;
+    request.action = undefined;
   }
 
   return {

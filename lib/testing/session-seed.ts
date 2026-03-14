@@ -16,11 +16,11 @@ const PRESET_EXPECTATION: Record<SeedSessionPreset, { current_step: AgentStep; s
   },
   top3_ready: {
     current_step: "top3_select",
-    status: "running"
+    status: "wait_user"
   },
   selected_ready: {
     current_step: "approve_build",
-    status: "running"
+    status: "wait_user"
   },
   build_confirm_required: {
     current_step: "approve_build",
@@ -68,17 +68,28 @@ async function runSingleStep(input: {
   });
 }
 
-async function runFixedSteps(storage: StorageRepository, sessionId: string, steps: number): Promise<void> {
-  for (let index = 0; index < steps; index += 1) {
-    await runSingleStep({
-      storage,
-      session_id: sessionId
-    });
-  }
+async function progressToDirection(storage: StorageRepository, sessionId: string): Promise<void> {
+  await runSingleStep({
+    storage,
+    session_id: sessionId,
+    step: "interview_collect",
+    payload: {
+      bootstrap_until_direction: true
+    }
+  });
+}
+
+async function progressToTop3(storage: StorageRepository, sessionId: string): Promise<void> {
+  await progressToDirection(storage, sessionId);
+  await runSingleStep({
+    storage,
+    session_id: sessionId,
+    action: "proceed"
+  });
 }
 
 async function progressToApproveBuild(storage: StorageRepository, sessionId: string): Promise<void> {
-  await runFixedSteps(storage, sessionId, 5);
+  await progressToTop3(storage, sessionId);
   const afterTop3 = await storage.getSession(sessionId);
   if (!afterTop3) {
     throw new Error(`Session not found: ${sessionId}`);
@@ -89,10 +100,6 @@ async function progressToApproveBuild(storage: StorageRepository, sessionId: str
   }
 
   if (afterTop3.selected_candidate_id) {
-    await runSingleStep({
-      storage,
-      session_id: sessionId
-    });
     return;
   }
 
@@ -118,7 +125,7 @@ async function runApproveBuild(storage: StorageRepository, sessionId: string): P
   await runSingleStep({
     storage,
     session_id: sessionId,
-    action: session.auto_pick_top1 ? undefined : "proceed"
+    action: "proceed"
   });
 }
 
@@ -193,7 +200,7 @@ export async function buildSessionSeed(input: BuildSessionSeedInput): Promise<Bu
   });
 
   if (input.preset === "top3_ready") {
-    await runFixedSteps(input.storage, session.id, 5);
+    await progressToTop3(input.storage, session.id);
   } else if (input.preset === "selected_ready") {
     await progressToApproveBuild(input.storage, session.id);
   } else if (input.preset === "build_confirm_required") {

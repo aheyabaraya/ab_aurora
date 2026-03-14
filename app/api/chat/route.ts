@@ -32,34 +32,42 @@ function buildOptionHints(session: SessionRecord): ChatOptionHint[] {
   const hints: ChatOptionHint[] = [];
   const top3 = (session.latest_top3 ?? []).slice(0, 3);
 
+  if (session.current_step === "brand_narrative") {
+    hints.push({
+      command: "/run",
+      title: "Generate Concepts",
+      description: "현재 direction을 기준으로 3개 후보를 생성합니다."
+    });
+  }
+
   if (session.current_step === "top3_select" || session.current_step === "approve_build") {
     top3.forEach((candidate: Candidate, index: number) => {
       hints.push({
         command: `/pick ${index + 1}`,
         title: candidate.naming.recommended,
-        description: candidate.rationale.slice(0, 96)
+        description: candidate.narrative_summary.slice(0, 96)
       });
     });
     hints.push({
       command: "/regen top3",
-      title: "Top-3 regenerate",
-      description: "새로운 3개 후보를 다시 생성합니다."
+      title: "Regenerate 3 concepts",
+      description: "현재 direction 기준으로 3개 후보를 다시 생성합니다."
     });
   }
 
-  if (session.current_step === "approve_build" && session.auto_pick_top1 === false) {
+  if (session.current_step === "approve_build") {
     hints.push({
       command: "/build",
-      title: "Build confirm",
-      description: "선택한 후보를 확정하고 package 단계로 진행합니다."
+      title: "Build selected direction",
+      description: "선택한 후보를 확정하고 export 준비를 진행합니다."
     });
   }
 
   if (session.current_step === "package" || session.current_step === "done") {
     hints.push({
       command: "/export",
-      title: "Export zip",
-      description: "현재 패키지를 zip으로 내보냅니다."
+      title: "Export pack",
+      description: "전략과 산출물을 zip으로 내보냅니다."
     });
     hints.push({
       command: "/regen outputs",
@@ -70,8 +78,11 @@ function buildOptionHints(session: SessionRecord): ChatOptionHint[] {
 
   hints.push({
     command: "/run",
-    title: "Continue",
-    description: "현재 stage의 다음 실행을 진행합니다."
+    title: session.current_step === "brand_narrative" ? "Generate Concepts" : "Continue",
+    description:
+      session.current_step === "brand_narrative"
+        ? "현재 direction으로 3개 후보를 생성합니다."
+        : "현재 stage의 다음 실행을 진행합니다."
   });
 
   const unique = new Map<string, ChatOptionHint>();
@@ -144,7 +155,10 @@ export async function POST(request: Request) {
       content: input.message
     });
 
-    const action = parseChatAction(input.message);
+    const action = parseChatAction(input.message, {
+      currentStep: session.current_step,
+      selectedCandidateId: session.selected_candidate_id
+    });
     let applied = false;
     let status = session.status;
     let currentStep = session.current_step;

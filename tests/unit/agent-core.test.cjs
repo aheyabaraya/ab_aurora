@@ -41,7 +41,7 @@ test("chat parser maps selection and revise actions", () => {
   assert.deepEqual(selectAction.payload, { candidate_id: "cand_2" });
 
   const reviseAction = parseChatAction("톤을 더 미니멀하게 수정해줘");
-  assert.equal(reviseAction.type, "revise_constraint");
+  assert.equal(reviseAction.type, "refine_direction");
 
   const pauseAction = parseChatAction("pause for now");
   assert.equal(pauseAction.type, "pause");
@@ -99,7 +99,7 @@ test("interview_collect keeps pre-seeded q0 intent confidence", async () => {
   assert.equal(refreshed.variation_width, "wide");
 });
 
-test("spec_draft transitions to brand_narrative and persists narrative artifact", async () => {
+test("spec_draft transitions to brand_narrative and persists direction artifact", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -141,7 +141,8 @@ test("spec_draft transitions to brand_narrative and persists narrative artifact"
       idempotency_key: "idem_narrative_004"
     }
   });
-  assert.equal(narrativeRun.current_step, "candidates_generate");
+  assert.equal(narrativeRun.current_step, "brand_narrative");
+  assert.equal(narrativeRun.wait_user, true);
   assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
 });
 
@@ -163,8 +164,19 @@ test("approve_build requires explicit proceed when auto_pick_top1 is disabled", 
       idempotency_key: "idem_build_gate_001"
     }
   });
-  assert.equal(firstRun.current_step, "top3_select");
+  assert.equal(firstRun.current_step, "brand_narrative");
   assert.equal(firstRun.wait_user, true);
+
+  const top3Run = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_build_gate_001b"
+    }
+  });
+  assert.equal(top3Run.current_step, "top3_select");
+  assert.equal(top3Run.wait_user, true);
 
   const selectRun = await runAgentPipeline({
     storage,
@@ -180,7 +192,7 @@ test("approve_build requires explicit proceed when auto_pick_top1 is disabled", 
 
   assert.equal(selectRun.current_step, "approve_build");
   assert.equal(selectRun.wait_user, true);
-  assert.match(selectRun.message, /Build confirmation required/i);
+  assert.match(selectRun.message, /Build when ready/i);
 });
 
 test("proceed action passes approve_build gate and finishes pipeline", async () => {
@@ -199,6 +211,15 @@ test("proceed action passes approve_build gate and finishes pipeline", async () 
     request: {
       session_id: session.id,
       idempotency_key: "idem_build_gate_003"
+    }
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_build_gate_003b"
     }
   });
 

@@ -24,9 +24,44 @@ test("pipeline supports revise then rerun and keeps artifacts", async () => {
       idempotency_key: "idem_integration_001"
     }
   });
-  assert.equal(firstRun.current_step, "done");
-  assert.equal(firstRun.status, "completed");
-  assert.ok(firstRun.selected_candidate_id);
+  assert.equal(firstRun.current_step, "brand_narrative");
+  assert.equal(firstRun.status, "wait_user");
+
+  const conceptsRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_integration_001b"
+    }
+  });
+  assert.equal(conceptsRun.current_step, "top3_select");
+  assert.equal(conceptsRun.wait_user, true);
+
+  const selectionRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "select_candidate",
+      payload: {
+        candidate_id: "cand_1"
+      },
+      idempotency_key: "idem_integration_001c"
+    }
+  });
+  assert.equal(selectionRun.current_step, "approve_build");
+
+  const buildRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_integration_001d"
+    }
+  });
+  assert.equal(buildRun.current_step, "done");
+  assert.equal(buildRun.status, "completed");
+  assert.ok(buildRun.selected_candidate_id);
 
   const reviseRun = await runAgentPipeline({
     storage,
@@ -40,10 +75,10 @@ test("pipeline supports revise then rerun and keeps artifacts", async () => {
     }
   });
 
-  assert.equal(reviseRun.current_step, "done");
+  assert.equal(reviseRun.current_step, "approve_build");
   const refreshedSession = await storage.getSession(session.id);
   assert.ok(refreshedSession);
-  assert.equal(refreshedSession.current_step, "done");
+  assert.equal(refreshedSession.current_step, "approve_build");
   assert.ok(refreshedSession.revision_count >= 1);
 
   const followup = await runAgentPipeline({
@@ -57,7 +92,7 @@ test("pipeline supports revise then rerun and keeps artifacts", async () => {
       idempotency_key: "idem_integration_003"
     }
   });
-  assert.equal(followup.status, "completed");
+  assert.equal(followup.status, "wait_user");
   const artifacts = await storage.listArtifactsBySession(session.id);
   assert.ok(artifacts.some((artifact) => artifact.kind === "followup_asset"));
 });

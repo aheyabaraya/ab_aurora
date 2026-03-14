@@ -33,7 +33,7 @@ export function DecideScene({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="aurora-title-primary text-[1.28rem]">Lock one concept and approve the build path.</h2>
+          <h2 className="aurora-title-primary text-[1.28rem]">Choose one direction and approve the build path.</h2>
         </div>
         <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
           {modelSource}

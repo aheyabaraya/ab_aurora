@@ -58,8 +58,14 @@ function looksLikeImageRequest(normalized: string): boolean {
   return IMAGE_REQUEST_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
-export function parseChatAction(message: string): ChatAction {
+type ParseChatActionContext = {
+  currentStep?: string | null;
+  selectedCandidateId?: string | null;
+};
+
+export function parseChatAction(message: string, context: ParseChatActionContext = {}): ChatAction {
   const normalized = message.trim().toLowerCase();
+  const hasSelection = typeof context.selectedCandidateId === "string" && context.selectedCandidateId.length > 0;
 
   if (normalized.length === 0) {
     return { type: "unknown", raw: message };
@@ -79,6 +85,16 @@ export function parseChatAction(message: string): ChatAction {
     normalized.includes("소셜") ||
     normalized.includes("후속")
   ) {
+    if (!hasSelection) {
+      return {
+        type: "refine_direction",
+        payload: {
+          constraint: message,
+          regenerate_candidates: true
+        },
+        raw: message
+      };
+    }
     return {
       type: "generate_followup_asset",
       payload: {
@@ -108,11 +124,16 @@ export function parseChatAction(message: string): ChatAction {
     normalized.includes("revise") ||
     normalized.includes("수정") ||
     normalized.includes("tone") ||
-    normalized.includes("톤")
+    normalized.includes("톤") ||
+    normalized.includes("more") ||
+    normalized.includes("less")
   ) {
     return {
-      type: "revise_constraint",
-      payload: { constraint: message },
+      type: "refine_direction",
+      payload: {
+        constraint: message,
+        regenerate_candidates: !hasSelection
+      },
       raw: message
     };
   }
@@ -129,6 +150,17 @@ export function parseChatAction(message: string): ChatAction {
     return {
       type: "select_candidate",
       payload: { candidate_id: candidateId },
+      raw: message
+    };
+  }
+
+  if (!normalized.startsWith("/")) {
+    return {
+      type: "refine_direction",
+      payload: {
+        constraint: message,
+        regenerate_candidates: !hasSelection
+      },
       raw: message
     };
   }

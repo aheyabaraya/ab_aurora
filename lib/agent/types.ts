@@ -1,4 +1,4 @@
-import type { BrandSpecDraft, BrandSpecFinal } from "../brand-spec.schema";
+import type { BrandDirection, BrandSpecDraft, BrandSpecFinal } from "../brand-spec.schema";
 
 export const AGENT_STEPS = [
   "interview_collect",
@@ -56,7 +56,13 @@ export interface Candidate {
     cta: string;
   };
   rationale: string;
+  narrative_summary: string;
+  image_prompt: string;
+  image_url: string;
+  revision_basis?: string | null;
 }
+
+export type { BrandDirection };
 
 export interface SessionRecord {
   id: string;
@@ -126,6 +132,7 @@ export interface PackRecord {
 }
 
 export type ChatActionType =
+  | "refine_direction"
   | "revise_constraint"
   | "rerun_candidates"
   | "select_candidate"

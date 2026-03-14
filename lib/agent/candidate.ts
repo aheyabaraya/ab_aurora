@@ -63,6 +63,43 @@ function deriveVariationBoost(variationWidth: VariationWidth): number {
   return 0.04;
 }
 
+function toMockCandidateImageUrl(input: {
+  candidateName: string;
+  headline: string;
+  narrative: string;
+  colors: string[];
+}): string {
+  const [base = "#0B1020", glow = "#6B7CFF", accent = "#F6D365"] = input.colors;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1365" viewBox="0 0 1024 1365">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${base}" />
+          <stop offset="55%" stop-color="${glow}" stop-opacity="0.72" />
+          <stop offset="100%" stop-color="#070A16" />
+        </linearGradient>
+        <radialGradient id="orb" cx="50%" cy="34%" r="44%">
+          <stop offset="0%" stop-color="${accent}" stop-opacity="0.95" />
+          <stop offset="45%" stop-color="${glow}" stop-opacity="0.42" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="1024" height="1365" fill="url(#bg)" />
+      <rect x="46" y="46" width="932" height="1273" rx="38" fill="none" stroke="rgba(255,255,255,0.18)" />
+      <circle cx="512" cy="468" r="278" fill="url(#orb)" />
+      <circle cx="512" cy="468" r="196" fill="none" stroke="rgba(255,255,255,0.34)" />
+      <text x="92" y="132" fill="rgba(255,255,255,0.92)" font-family="Georgia, serif" font-size="56">${input.candidateName}</text>
+      <text x="92" y="1018" fill="rgba(255,255,255,0.82)" font-family="Arial, sans-serif" font-size="34">${input.headline}</text>
+      <foreignObject x="92" y="1060" width="840" height="180">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="color: rgba(235,240,255,0.8); font-family: Arial, sans-serif; font-size: 26px; line-height: 1.5;">
+          ${input.narrative}
+        </div>
+      </foreignObject>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 function makeNamingSeed(product: string, index: number): string[] {
   const base = product.trim().split(/\s+/).slice(0, 2).join("");
   const left = `${base}Nova${index + 1}`;
@@ -124,6 +161,15 @@ export function generateDeterministicCandidates(input: {
     const suffix = pick(rng, RATIONALE_SUFFIX);
     const keywordHint = input.styleKeywords[index % input.styleKeywords.length];
     const headline = `${input.product} for ${input.audience}`;
+    const narrativeSummary = `${input.product} frames ${input.audience} through a ${keywordHint} direction that feels decisive and ready to ship.`;
+    const imagePrompt = [
+      "Create a premium brand concept hero image.",
+      `Product: ${input.product}.`,
+      `Audience: ${input.audience}.`,
+      `Direction: ${keywordHint}.`,
+      `Moodboard: ${input.product} brand mood, ${keywordHint}, tailored for ${input.audience}.`,
+      `Palette: ${colors.join(", ")}.`
+    ].join("\n");
     const candidate: Candidate = {
       id: `cand_${index + 1}`,
       rank: index + 1,
@@ -142,7 +188,16 @@ export function generateDeterministicCandidates(input: {
         layout,
         cta
       },
-      rationale: `${input.product} for ${input.audience} ${suffix}`
+      rationale: `${input.product} for ${input.audience} ${suffix}`,
+      narrative_summary: narrativeSummary,
+      image_prompt: imagePrompt,
+      image_url: toMockCandidateImageUrl({
+        candidateName: namingCandidates[0],
+        headline,
+        narrative: narrativeSummary,
+        colors
+      }),
+      revision_basis: null
     };
     candidate.score = scoreCandidate({
       candidate,

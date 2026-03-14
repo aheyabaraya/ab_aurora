@@ -44,15 +44,24 @@ export function Top3Cards({
                   style={{ backgroundImage: `url(${asset.blur})` }}
                   aria-hidden
                 />
-                <Image
-                  src={asset.image}
-                  alt={`${asset.name} concept card`}
-                  width={768}
-                  height={1024}
-                  className="relative h-full w-full object-cover"
-                  sizes="(min-width: 1024px) 23vw, (min-width: 768px) 32vw, 100vw"
-                  priority={candidate.rank === 1}
-                />
+                {candidate.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={candidate.image_url}
+                    alt={`${candidate.naming.recommended} concept render`}
+                    className="relative h-full w-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={asset.image}
+                    alt={`${asset.name} concept card`}
+                    width={768}
+                    height={1024}
+                    className="relative h-full w-full object-cover"
+                    sizes="(min-width: 1024px) 23vw, (min-width: 768px) 32vw, 100vw"
+                    priority={candidate.rank === 1}
+                  />
+                )}
 
                 <div className="absolute inset-x-4 top-4 z-10 flex items-start justify-between gap-2">
                   <span className="aurora-chip">#{candidate.rank}</span>
@@ -65,6 +74,11 @@ export function Top3Cards({
                   <p className="aurora-title-label text-[10px] tracking-[0.22em]">Concept</p>
                   <h3 className="aurora-title-primary mt-2 text-xl leading-tight">{candidate.naming.recommended}</h3>
                   <p className="mt-2 text-sm text-slate-300">{candidate.moodboard.title}</p>
+                </div>
+
+                <div className="aurora-surface-soft rounded-[20px] p-3">
+                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Narrative</p>
+                  <p className="mt-2 text-sm text-slate-200">{candidate.narrative_summary}</p>
                 </div>
 
                 <div className="aurora-surface-soft rounded-[20px] p-3">
@@ -85,6 +99,7 @@ export function Top3Cards({
 
                 <div className="space-y-2">
                   <p className="line-clamp-3 text-sm text-slate-300">{candidate.rationale}</p>
+                  <p className="line-clamp-2 text-[11px] text-slate-400">{candidate.image_prompt}</p>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">CTA {candidate.ui_plan.cta}</p>
                     <button

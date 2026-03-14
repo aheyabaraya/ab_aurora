@@ -65,11 +65,33 @@ export function PackageChecklist({
   const finalSpecObject = asObject(finalSpec);
   const uiPlan = asObject(finalSpecObject.ui_plan);
   const socialAssets = asObject(byKind.get("social_assets")?.content);
+  const directionDoc = asObject(byKind.get("brand_narrative")?.content);
+  const top3Doc = asObject(byKind.get("candidates_top3")?.content);
   const heroHeadline = typeof uiPlan.headline === "string" ? uiPlan.headline : "";
   const layout = asStringArray(uiPlan.layout);
   const packReady = Boolean(byKind.get("pack_meta")) || currentStep === "done";
 
   const items: ChecklistItem[] = [
+    {
+      key: "direction_doc",
+      label: "Direction document",
+      status: byKind.get("brand_narrative") ? "complete" : "pending",
+      preview:
+        typeof directionDoc.direction === "object"
+          ? "Direction summary, principles, and image intent are included."
+          : "Direction snapshot will appear after DEFINE synthesis.",
+      regenerate: "top3"
+    },
+    {
+      key: "concept_set",
+      label: "3 concept candidates",
+      status: byKind.get("candidates_top3") ? "complete" : "pending",
+      preview:
+        Array.isArray(top3Doc.candidates) && top3Doc.candidates.length > 0
+          ? "Narrative, prompt, and hero render are attached to each concept."
+          : "Concept candidates are still pending.",
+      regenerate: "top3"
+    },
     {
       key: "tokens",
       label: "Brand tokens",
@@ -150,11 +172,11 @@ export function PackageChecklist({
 
             {item.key === "export_zip" ? (
               <button
-                className="aurora-btn-cta rounded-full px-5 py-2 text-xs font-semibold"
+        className="aurora-btn-cta rounded-full px-5 py-2 text-xs font-semibold"
                 onClick={onExportZip}
                 disabled={!packReady || busy}
               >
-                Export Zip
+                Export Pack
               </button>
             ) : (
               <button

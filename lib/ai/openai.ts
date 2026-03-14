@@ -6,6 +6,20 @@ import {
   toVariationWidth
 } from "../agent/candidate";
 import type { Candidate, VariationWidth } from "../agent/types";
+import type { BrandDirection } from "../brand-spec.schema";
+
+const directionResponseSchema = z.object({
+  brief_summary: z.string(),
+  brand_promise: z.string(),
+  audience_tension: z.string(),
+  narrative_summary: z.string(),
+  voice_principles: z.array(z.string()).min(2),
+  anti_goals: z.array(z.string()).min(2),
+  visual_principles: z.array(z.string()).min(3),
+  image_intent: z.string(),
+  prompt_seed: z.string(),
+  next_question: z.string()
+});
 
 const candidateResponseSchema = z.object({
   candidates: z
@@ -25,53 +39,13 @@ const candidateResponseSchema = z.object({
           layout: z.array(z.string()).min(2),
           cta: z.string()
         }),
-        rationale: z.string()
+        rationale: z.string(),
+        narrative_summary: z.string(),
+        image_prompt: z.string()
       })
     )
     .min(3)
 });
-
-function toCandidate(id: number, item: z.infer<typeof candidateResponseSchema>["candidates"][number]): Candidate {
-  return {
-    id: `cand_${id + 1}`,
-    rank: id + 1,
-    score: 0.5,
-    naming: {
-      recommended: item.naming.recommended,
-      candidates: item.naming.candidates
-    },
-    moodboard: {
-      title: item.moodboard.title,
-      prompt: item.moodboard.prompt,
-      colors: item.moodboard.colors
-    },
-    ui_plan: {
-      headline: item.ui_plan.headline,
-      layout: item.ui_plan.layout,
-      cta: item.ui_plan.cta
-    },
-    rationale: item.rationale
-  };
-}
-
-function promptForCandidates(input: {
-  product: string;
-  audience: string;
-  styleKeywords: string[];
-  variationWidth: VariationWidth;
-  candidateCount: number;
-}): string {
-  return [
-    "You generate brand direction candidates.",
-    `Return JSON only with field "candidates" length ${input.candidateCount}.`,
-    "Each candidate must contain naming, moodboard, ui_plan, rationale.",
-    `Product: ${input.product}`,
-    `Audience: ${input.audience}`,
-    `Style keywords: ${input.styleKeywords.join(", ")}`,
-    `Variation width: ${input.variationWidth}`,
-    "Ensure clear differences across candidates while preserving product-audience fit."
-  ].join("\n");
-}
 
 const SOCIAL_IMAGE_SPECS = [
   {
@@ -93,8 +67,138 @@ const SOCIAL_IMAGE_SPECS = [
 
 type SocialImageKey = (typeof SOCIAL_IMAGE_SPECS)[number]["key"];
 
+function normalizeLines(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function clampScore(score: number): number {
+  return Number(Math.max(0.45, Math.min(0.98, score)).toFixed(3));
+}
+
+function toFallbackDirection(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+}): BrandDirection {
+  const keywords = input.styleKeywords.length > 0 ? input.styleKeywords : ["clear", "cinematic", "premium"];
+  const [toneA = "clear", toneB = "cinematic", toneC = "premium"] = keywords;
+  const constraint = input.constraint?.trim() || "Keep the direction decisive, premium, and build-ready.";
+
+  return {
+    brief_summary: `${input.product} is being shaped for ${input.audience} with ${keywords.join(", ")} cues.`,
+    brand_promise: `${input.product} turns an early product idea into a confident visual system for ${input.audience}.`,
+    audience_tension: `${input.audience} want a premium point of view quickly, but scattered references make direction hard to trust.`,
+    narrative_summary: `${input.product} should feel like a creative director that translates rough intent into a focused, shippable brand world.`,
+    voice_principles: [
+      `Keep the language ${toneA} and concrete.`,
+      `Make the experience feel ${toneB} without becoming vague.`,
+      `Hold a ${toneC} tone that still feels practical.`
+    ],
+    anti_goals: [
+      "Avoid generic SaaS copy that sounds interchangeable.",
+      "Avoid glossy trend-chasing visuals without product fit.",
+      "Avoid sprawling direction that weakens the decision."
+    ],
+    visual_principles: [
+      `Use ${toneA} hierarchy with obvious next steps.`,
+      `Push a ${toneB} atmosphere through contrast, glow, and framing.`,
+      `Keep the system ${toneC} with restrained accents and intentional typography.`,
+      `Honor this non-negotiable note: ${constraint}`
+    ],
+    image_intent: `Show ${input.product} as a premium, image-led brand direction for ${input.audience}, with one clear hero scene and a sense of momentum.`,
+    prompt_seed: [
+      `${input.product} brand concept`,
+      `for ${input.audience}`,
+      `mood: ${keywords.join(", ")}`,
+      `constraint: ${constraint}`
+    ].join(", "),
+    next_question: "What image should Aurora explore first?"
+  };
+}
+
+function buildDirectionPrompt(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+  currentDirection?: BrandDirection | null;
+  revisionNote?: string | null;
+}): string {
+  const mode = input.currentDirection ? "refine" : "synthesize";
+  return [
+    "You create concise brand direction documents for AB Aurora.",
+    `Mode: ${mode}.`,
+    "Return JSON only.",
+    "Fields required: brief_summary, brand_promise, audience_tension, narrative_summary, voice_principles, anti_goals, visual_principles, image_intent, prompt_seed, next_question.",
+    "Write like a creative strategist with execution discipline.",
+    `Product: ${input.product}`,
+    `Audience: ${input.audience}`,
+    `Style keywords: ${input.styleKeywords.join(", ") || "exploratory"}`,
+    `Constraint: ${input.constraint?.trim() || "None provided"}`,
+    input.currentDirection ? `Current direction: ${JSON.stringify(input.currentDirection)}` : null,
+    input.revisionNote ? `Refinement request: ${input.revisionNote}` : null,
+    "Keep the direction decisive and ready to generate images from."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function toMockSocialAssetUrl(input: { sessionId: string; key: SocialImageKey }): string {
   return `generated://${input.sessionId}/social/${input.key}.png`;
+}
+
+function toCandidatePrompt(input: {
+  direction: BrandDirection;
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  variationWidth: VariationWidth;
+  candidateCount: number;
+}): string {
+  return [
+    "You generate brand direction candidates.",
+    "Return JSON only with field \"candidates\".",
+    `Return exactly ${input.candidateCount} candidates.`,
+    "Each candidate must contain naming, moodboard, ui_plan, rationale, narrative_summary, image_prompt.",
+    "Make each candidate materially distinct while staying inside the shared direction.",
+    `Product: ${input.product}`,
+    `Audience: ${input.audience}`,
+    `Style keywords: ${input.styleKeywords.join(", ")}`,
+    `Variation width: ${input.variationWidth}`,
+    `Direction: ${JSON.stringify(input.direction)}`
+  ].join("\n");
+}
+
+function toCandidate(
+  index: number,
+  item: z.infer<typeof candidateResponseSchema>["candidates"][number],
+  imageUrl: string
+): Candidate {
+  return {
+    id: `cand_${index + 1}`,
+    rank: index + 1,
+    score: clampScore(0.96 - index * 0.05),
+    naming: {
+      recommended: item.naming.recommended,
+      candidates: item.naming.candidates
+    },
+    moodboard: {
+      title: item.moodboard.title,
+      prompt: item.moodboard.prompt,
+      colors: item.moodboard.colors
+    },
+    ui_plan: {
+      headline: item.ui_plan.headline,
+      layout: item.ui_plan.layout,
+      cta: item.ui_plan.cta
+    },
+    rationale: item.rationale,
+    narrative_summary: item.narrative_summary,
+    image_prompt: item.image_prompt,
+    image_url: imageUrl,
+    revision_basis: null
+  };
 }
 
 function toSocialAssetPrompt(input: {
@@ -111,6 +215,78 @@ function toSocialAssetPrompt(input: {
     `Moodboard prompt: ${input.candidate.moodboard.prompt}.`,
     `Palette hint: ${input.candidate.moodboard.colors.join(", ")}.`
   ].join("\n");
+}
+
+function toMockRevisionImageUrl(input: {
+  title: string;
+  prompt: string;
+  colors?: string[];
+}): string {
+  const [base = "#091020", glow = "#365BFF", accent = "#F4B860"] = input.colors ?? [];
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${base}" />
+          <stop offset="55%" stop-color="${glow}" stop-opacity="0.72" />
+          <stop offset="100%" stop-color="#070A16" />
+        </linearGradient>
+      </defs>
+      <rect width="1536" height="1024" fill="url(#bg)" />
+      <circle cx="768" cy="410" r="230" fill="${accent}" fill-opacity="0.2" />
+      <circle cx="768" cy="410" r="178" fill="none" stroke="rgba(255,255,255,0.28)" />
+      <text x="96" y="116" fill="rgba(255,255,255,0.92)" font-family="Georgia, serif" font-size="58">${input.title}</text>
+      <foreignObject x="96" y="760" width="1240" height="180">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="color: rgba(235,240,255,0.82); font-family: Arial, sans-serif; font-size: 30px; line-height: 1.5;">
+          ${input.prompt}
+        </div>
+      </foreignObject>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+async function fetchJsonChatCompletion<T>(input: {
+  system: string;
+  user: string;
+  temperature?: number;
+  schema: z.ZodType<T>;
+}): Promise<T> {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL_TEXT,
+      temperature: input.temperature ?? 0.7,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: input.system },
+        { role: "user", content: input.user }
+      ]
+    }),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`OpenAI call failed (${response.status}): ${errorBody}`);
+  }
+
+  const completion = (await response.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  };
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Empty OpenAI response");
+  }
+  return input.schema.parse(JSON.parse(content));
 }
 
 async function generateOpenAiImageUrl(input: {
@@ -155,21 +331,50 @@ async function generateOpenAiImageUrl(input: {
   throw new Error("OpenAI image call returned empty image payload.");
 }
 
+export async function generateDirectionWithFallback(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+  currentDirection?: BrandDirection | null;
+  revisionNote?: string | null;
+}): Promise<{ direction: BrandDirection; source: "openai" | "mock" }> {
+  const fallbackDirection = toFallbackDirection(input);
+  if (!env.OPENAI_API_KEY) {
+    return { direction: fallbackDirection, source: "mock" };
+  }
+
+  try {
+    const direction = await fetchJsonChatCompletion({
+      system: "You are a senior brand strategist who writes structured creative direction as JSON.",
+      user: buildDirectionPrompt(input),
+      temperature: input.currentDirection ? 0.45 : 0.65,
+      schema: directionResponseSchema
+    });
+    return { direction, source: "openai" };
+  } catch (error) {
+    if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
+      throw error;
+    }
+    return { direction: fallbackDirection, source: "mock" };
+  }
+}
+
 export async function generateCandidatesWithFallback(input: {
   sessionId: string;
   product: string;
   audience: string;
   styleKeywords: string[];
   intentConfidence: number;
+  direction: BrandDirection;
   candidateCount?: number;
   topK?: number;
 }): Promise<{ candidates: Candidate[]; source: "openai" | "mock" }> {
-  const candidateCount = input.candidateCount ?? env.CANDIDATE_COUNT;
+  const candidateCount = input.candidateCount ?? env.TOP_K;
   const topK = input.topK ?? env.TOP_K;
   const variationWidth = toVariationWidth(input.intentConfidence);
-  const hasOpenAiKey = Boolean(env.OPENAI_API_KEY);
 
-  if (!hasOpenAiKey) {
+  if (!env.OPENAI_API_KEY) {
     const fallback = generateDeterministicCandidates({
       sessionId: input.sessionId,
       product: input.product,
@@ -182,52 +387,35 @@ export async function generateCandidatesWithFallback(input: {
   }
 
   try {
-    const completionResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: env.OPENAI_MODEL_TEXT,
-        temperature: 0.8,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: "You are a brand direction candidate generator." },
-          {
-            role: "user",
-            content: promptForCandidates({
-              product: input.product,
-              audience: input.audience,
-              styleKeywords: input.styleKeywords,
-              variationWidth,
-              candidateCount
-            })
-          }
-        ]
+    const parsed = await fetchJsonChatCompletion({
+      system: "You are a brand direction candidate generator.",
+      user: toCandidatePrompt({
+        direction: input.direction,
+        product: input.product,
+        audience: input.audience,
+        styleKeywords: input.styleKeywords,
+        variationWidth,
+        candidateCount
       }),
-      cache: "no-store"
+      temperature: 0.82,
+      schema: candidateResponseSchema
     });
 
-    if (!completionResponse.ok) {
-      const errorBody = await completionResponse.text();
-      throw new Error(`OpenAI call failed (${completionResponse.status}): ${errorBody}`);
-    }
-    const completion = (await completionResponse.json()) as {
-      choices?: Array<{
-        message?: {
-          content?: string;
-        };
-      }>;
+    const trimmed = parsed.candidates.slice(0, topK);
+    const images = await Promise.all(
+      trimmed.map((candidate) =>
+        generateOpenAiImageUrl({
+          prompt: candidate.image_prompt,
+          size: "1024x1536",
+          responseFormat: "b64_json"
+        })
+      )
+    );
+
+    return {
+      candidates: trimmed.map((candidate, index) => toCandidate(index, candidate, images[index])),
+      source: "openai"
     };
-    const content = completion.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty OpenAI response");
-    }
-    const parsed = candidateResponseSchema.parse(JSON.parse(content));
-    const normalized = parsed.candidates.map((item, index) => toCandidate(index, item));
-    const topCandidates = selectTopCandidates(normalized, topK);
-    return { candidates: topCandidates, source: "openai" };
   } catch (error) {
     if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
       throw error;
@@ -254,7 +442,7 @@ export function generateFollowupSocialAsset(input: {
       : input.assetType === "social_ig"
         ? "Instagram post concept"
         : "X post concept";
-  const caption = `${input.candidate.naming.recommended}: ${input.candidate.rationale}`;
+  const caption = `${input.candidate.naming.recommended}: ${input.candidate.narrative_summary}`;
   const hashtags = [
     "#branddirection",
     "#uiidentity",
@@ -363,7 +551,8 @@ function toConversationAssetPrompt(input: {
     `Audience: ${input.audience}.`,
     `Style keywords: ${input.styleKeywords.join(", ") || "exploratory"}.`,
     input.selectedCandidate ? `Selected candidate name: ${input.selectedCandidate.naming.recommended}.` : null,
-    input.selectedCandidate ? `Candidate moodboard: ${input.selectedCandidate.moodboard.prompt}.` : null,
+    input.selectedCandidate ? `Candidate narrative: ${normalizeLines(input.selectedCandidate.narrative_summary)}.` : null,
+    input.selectedCandidate ? `Candidate image prompt seed: ${normalizeLines(input.selectedCandidate.image_prompt)}.` : null,
     `User request: ${input.userMessage}.`,
     "Translate the request into a single cohesive visual scene with premium lighting and clear subject focus."
   ]
@@ -381,7 +570,7 @@ export async function generateConversationFollowupAsset(input: {
 }): Promise<{
   image_url: string;
   prompt: string;
-  source: "openai";
+  source: "openai" | "mock";
   model: string;
   size: string;
 }> {
@@ -392,17 +581,48 @@ export async function generateConversationFollowupAsset(input: {
         ? SOCIAL_IMAGE_SPECS[1]
         : SOCIAL_IMAGE_SPECS[0];
   const prompt = toConversationAssetPrompt(input);
-  const imageUrl = await generateOpenAiImageUrl({
-    prompt,
-    size: spec.size,
-    responseFormat: "b64_json"
-  });
+  if (!env.OPENAI_API_KEY) {
+    return {
+      image_url: toMockRevisionImageUrl({
+        title: input.selectedCandidate?.naming.recommended ?? "Aurora revision",
+        prompt,
+        colors: input.selectedCandidate?.moodboard.colors
+      }),
+      prompt,
+      source: "mock",
+      model: env.OPENAI_MODEL_IMAGE,
+      size: spec.size
+    };
+  }
 
-  return {
-    image_url: imageUrl,
-    prompt,
-    source: "openai",
-    model: env.OPENAI_MODEL_IMAGE,
-    size: spec.size
-  };
+  try {
+    const imageUrl = await generateOpenAiImageUrl({
+      prompt,
+      size: spec.size,
+      responseFormat: "b64_json"
+    });
+
+    return {
+      image_url: imageUrl,
+      prompt,
+      source: "openai",
+      model: env.OPENAI_MODEL_IMAGE,
+      size: spec.size
+    };
+  } catch (error) {
+    if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
+      throw error;
+    }
+    return {
+      image_url: toMockRevisionImageUrl({
+        title: input.selectedCandidate?.naming.recommended ?? "Aurora revision",
+        prompt,
+        colors: input.selectedCandidate?.moodboard.colors
+      }),
+      prompt,
+      source: "mock",
+      model: env.OPENAI_MODEL_IMAGE,
+      size: spec.size
+    };
+  }
 }

@@ -17,7 +17,6 @@ import {
   type SessionPayload,
   resolveSceneFromStep
 } from "./types";
-import { ASSET_BASE } from "./aurora-assets";
 import { resolveGuidedActionViewModel } from "./guided-actions";
 import {
   buildSlashHelpText,
@@ -80,6 +79,41 @@ function summarizeMessageForTimeline(input: { role: "user" | "assistant" | "syst
     return `${raw.slice(0, 640)}...`;
   }
   return raw;
+}
+
+function summarizeArtifactForTimeline(artifact: ArtifactRecord): { content: string; subtitle: string } {
+  if (artifact.kind === "brand_narrative") {
+    const direction = artifact.content?.direction;
+    const directionRecord =
+      direction && typeof direction === "object" ? (direction as { brief_summary?: string }) : null;
+    const summary =
+      typeof directionRecord?.brief_summary === "string"
+        ? directionRecord.brief_summary
+        : artifact.title;
+    return {
+      content: summary,
+      subtitle: "direction update"
+    };
+  }
+
+  if (artifact.kind === "candidates_top3") {
+    return {
+      content: "Three concepts are ready for comparison.",
+      subtitle: "concept render"
+    };
+  }
+
+  if (artifact.kind === "followup_asset") {
+    return {
+      content: artifact.title,
+      subtitle: "selected revision"
+    };
+  }
+
+  return {
+    content: artifact.title,
+    subtitle: artifact.kind
+  };
 }
 
 export type ChatApiResponse = {
@@ -160,20 +194,21 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
     return "EXPLORE 후보 생성이 실패했습니다. /run 으로 재시도하고, 상세 오류는 좌측 Latest failure details에서 확인하세요.";
   }
 
+  if (stage === "brand_narrative") {
+    return "DEFINE 단계입니다. 좌측 direction을 정리하고, 준비되면 /run 으로 3개 concept를 생성합니다.";
+  }
+
   if (stage === "top3_select") {
     const candidates = (payload?.latest_top3 ?? []).slice(0, 3);
     const optionLines = candidates.map((candidate, index) => {
-      return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.rationale.slice(0, 52)})`;
+      return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.narrative_summary.slice(0, 52)})`;
     });
     optionLines.push("- /regen top3: 후보 3개를 다시 생성");
     return `DECIDE 선택 단계입니다.\n${optionLines.join("\n")}`;
   }
 
   if (stage === "approve_build") {
-    if (payload?.session.auto_pick_top1 === false) {
-      return "Build 확인 단계입니다. /build 로 확정하거나 /regen top3 로 후보를 다시 생성할 수 있습니다.";
-    }
-    return "Build 승인 처리 단계입니다. 필요 시 /run 으로 다음 진행을 트리거하세요.";
+    return "Build 승인 단계입니다. /build 로 확정하거나 채팅에서 선택안을 더 정제할 수 있습니다.";
   }
 
   if (stage === "package" || stage === "done") {
@@ -181,14 +216,35 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   }
 
   if (stage === "candidates_generate") {
-    return "EXPLORE 단계입니다. Top-3 생성 대기 중이며 /run 으로 다음 실행을 진행할 수 있습니다.";
-  }
-
-  if (stage === "brand_narrative") {
-    return "DEFINE 단계입니다. 브랜드 내러티브를 구성한 뒤 후보 생성 단계로 진행합니다.";
+    return "EXPLORE 단계입니다. Direction을 기준으로 3개 concept를 생성하고 있습니다.";
   }
 
   return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
+}
+
+function resolveRunStepBody(payload: SessionPayload | null): {
+  step?: string;
+  action?: string;
+  payload?: Record<string, unknown>;
+} {
+  const currentStep = payload?.session.current_step;
+  if (!currentStep) {
+    return {};
+  }
+
+  if (currentStep === "brand_narrative") {
+    return {
+      step: "candidates_generate"
+    };
+  }
+
+  if (currentStep === "package" || currentStep === "done") {
+    return {
+      step: "package"
+    };
+  }
+
+  return {};
 }
 
 type ActionFn = () => Promise<void>;
@@ -590,10 +646,29 @@ export function useAuroraController() {
       setQueuedCommands([]);
       setStageMessages([]);
       stageRef.current = null;
+      setSessionId(response.session_id);
+      const bootstrap = await requestJson<{
+        runtime_meta?: {
+          goal_id?: string;
+        };
+      }>("/api/agent/run-step", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: response.session_id,
+          step: "interview_collect",
+          payload: {
+            bootstrap_until_direction: true
+          },
+          idempotency_key: crypto.randomUUID()
+        })
+      });
+      if (bootstrap.runtime_meta?.goal_id) {
+        setRuntimeGoalId(bootstrap.runtime_meta.goal_id);
+        await refreshRuntimeGoal(bootstrap.runtime_meta.goal_id);
+      }
       await refreshSession(response.session_id);
       setOnboardingPhase("flipping");
       await new Promise((resolve) => setTimeout(resolve, 380));
-      setSessionId(response.session_id);
       setOnboardingPhase("workspace");
     };
 
@@ -613,6 +688,7 @@ export function useAuroraController() {
     mode,
     product,
     q0IntentConfidence,
+    refreshRuntimeGoal,
     refreshSession,
     requestJson,
     runWithRecovery,
@@ -625,6 +701,7 @@ export function useAuroraController() {
     }
 
     const run = async () => {
+      const nextStepRequest = resolveRunStepBody(sessionPayload);
       const response = await requestJson<{
         runtime_meta?: {
           goal_id?: string;
@@ -633,6 +710,7 @@ export function useAuroraController() {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
+          ...nextStepRequest,
           idempotency_key: crypto.randomUUID()
         })
       });
@@ -644,7 +722,7 @@ export function useAuroraController() {
     };
 
     await runWithRecovery(run, run);
-  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
+  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId, sessionPayload]);
 
   const handleSelectCandidate = useCallback(
     async (candidateId: string) => {
@@ -911,20 +989,79 @@ export function useAuroraController() {
 
     const run = async () => {
       const zip = new JSZip();
-      zip.file("meta/session.json", JSON.stringify(sessionPayload.session, null, 2));
-      zip.file("meta/runtime_goal.json", JSON.stringify(runtimeSnapshot?.goal ?? null, null, 2));
-      zip.file("artifacts/recent_artifacts.json", JSON.stringify(sessionPayload.recent_artifacts, null, 2));
-      zip.file("chat/recent_messages.json", JSON.stringify(sessionPayload.recent_messages, null, 2));
+      const artifactByKind = new Map<string, ArtifactRecord>();
+      for (const artifact of sessionPayload.recent_artifacts) {
+        if (!artifactByKind.has(artifact.kind)) {
+          artifactByKind.set(artifact.kind, artifact);
+        }
+      }
+
+      const direction = sessionPayload.session.draft_spec?.direction ?? null;
+      const brandNarrativeArtifact = artifactByKind.get("brand_narrative") ?? null;
+      const candidatesArtifact = artifactByKind.get("candidates_top3") ?? null;
+      const selectionArtifact = artifactByKind.get("selection") ?? null;
+      const tokensArtifact = artifactByKind.get("tokens") ?? null;
+      const socialAssetsArtifact = artifactByKind.get("social_assets") ?? null;
+      const codePlanArtifact = artifactByKind.get("code_plan") ?? null;
+      const packMetaArtifact = artifactByKind.get("pack_meta") ?? null;
+      const selectedCandidate =
+        (sessionPayload.latest_top3 ?? []).find((candidate) => candidate.id === sessionPayload.selected_candidate_id) ?? null;
+      const followupManifest = sessionPayload.recent_artifacts
+        .filter((artifact) => artifact.kind === "followup_asset")
+        .map((artifact) => ({
+          title: artifact.title,
+          prompt: artifact.content?.prompt ?? null,
+          image_url: artifact.content?.image_url ?? null,
+          candidate_id: artifact.content?.candidate_id ?? null,
+          revision_basis: artifact.content?.revision_basis ?? null,
+          created_at: artifact.created_at
+        }));
+
       zip.file(
-        "assets/reference_urls.json",
+        "brief.json",
         JSON.stringify(
           {
-            card_1: `${ASSET_BASE}/top3_01_hyunmu_card_768x1024.webp`,
-            card_2: `${ASSET_BASE}/top3_02_samjoko_card_768x1024.webp`,
-            card_3: `${ASSET_BASE}/top3_03_haetae_card_768x1024.webp`,
-            background_desktop: `${ASSET_BASE}/bg_abstract_orbline_1920x1080.webp`,
-            background_mobile: `${ASSET_BASE}/bg_abstract_orbline_1080x1920.webp`,
-            sigil_overlay: `${ASSET_BASE}/sigil_tile_1024.png`
+            product: sessionPayload.session.product,
+            audience: sessionPayload.session.audience,
+            style_keywords: sessionPayload.session.style_keywords,
+            design_requirement: sessionPayload.session.constraint ?? null,
+            q0_intent_confidence: sessionPayload.session.intent_confidence,
+            variation_width: sessionPayload.session.variation_width
+          },
+          null,
+          2
+        )
+      );
+      zip.file("direction.json", JSON.stringify(direction, null, 2));
+      zip.file("brand_narrative.json", JSON.stringify(brandNarrativeArtifact?.content ?? null, null, 2));
+      zip.file("candidates_top3.json", JSON.stringify(candidatesArtifact?.content ?? { candidates: sessionPayload.latest_top3 }, null, 2));
+      zip.file(
+        "selection.json",
+        JSON.stringify(
+          selectionArtifact?.content ?? {
+            selected_candidate_id: sessionPayload.selected_candidate_id,
+            selected_candidate: selectedCandidate
+          },
+          null,
+          2
+        )
+      );
+      zip.file("selected_candidate_summary.json", JSON.stringify(selectedCandidate, null, 2));
+      zip.file("selected_prompt_manifest.json", JSON.stringify(followupManifest, null, 2));
+      zip.file("final_spec.json", JSON.stringify(sessionPayload.session.final_spec ?? null, null, 2));
+      zip.file("tokens.json", JSON.stringify(tokensArtifact?.content ?? null, null, 2));
+      zip.file("social_assets.json", JSON.stringify(socialAssetsArtifact?.content ?? null, null, 2));
+      zip.file("code_plan.json", JSON.stringify(codePlanArtifact?.content ?? null, null, 2));
+      zip.file("pack_meta.json", JSON.stringify(packMetaArtifact?.content ?? null, null, 2));
+      zip.file("meta/runtime_goal.json", JSON.stringify(runtimeSnapshot?.goal ?? null, null, 2));
+      zip.file(
+        "meta/session.json",
+        JSON.stringify(
+          {
+            id: sessionPayload.session.id,
+            current_step: sessionPayload.session.current_step,
+            status: sessionPayload.session.status,
+            selected_candidate_id: sessionPayload.selected_candidate_id
           },
           null,
           2
@@ -1355,11 +1492,12 @@ export function useAuroraController() {
 
     const artifactEntries = (sessionPayload?.recent_artifacts ?? []).map((artifact: ArtifactRecord) => {
       const artifactImageUrl = typeof artifact.content?.image_url === "string" ? artifact.content.image_url : undefined;
+      const timelineSummary = summarizeArtifactForTimeline(artifact);
       return {
         id: `artifact_${artifact.id}`,
         type: "artifact-note" as const,
-        content: artifact.title,
-        subtitle: artifact.kind,
+        content: timelineSummary.content,
+        subtitle: timelineSummary.subtitle,
         createdAt: artifact.created_at,
         imageUrl: artifactImageUrl
       };
@@ -1373,7 +1511,7 @@ export function useAuroraController() {
   }, [sessionPayload?.recent_artifacts, sessionPayload?.recent_messages, stageMessages]);
 
   const buildConfirmRequired =
-    sessionPayload?.session.current_step === "approve_build" && sessionPayload.session.auto_pick_top1 === false;
+    sessionPayload?.session.current_step === "approve_build";
 
   const top3ModelSource = useMemo<ModelSource>(() => {
     const top3Artifact = (sessionPayload?.recent_artifacts ?? [])

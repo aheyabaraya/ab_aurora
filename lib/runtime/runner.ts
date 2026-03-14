@@ -44,6 +44,19 @@ function toLegacyStepSpec(input: {
   if (!input.step) {
     return null;
   }
+  if (
+    input.step === "interview_collect" ||
+    input.step === "intent_gate" ||
+    input.step === "spec_draft" ||
+    input.step === "brand_narrative"
+  ) {
+    return {
+      action_type: "ensure_direction",
+      tool_name: "tool.brand.ensure_direction",
+      input: { session_id: input.sessionId },
+      reason: "Legacy step mapped to ensure_direction"
+    };
+  }
   if (input.step === "brand_narrative" || input.step === "candidates_generate") {
     return {
       action_type: "ensure_top3",

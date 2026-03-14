@@ -13,6 +13,7 @@ const stepSchema = z.enum([
 ]);
 
 const actionSchema = z.enum([
+  "refine_direction",
   "revise_constraint",
   "rerun_candidates",
   "select_candidate",

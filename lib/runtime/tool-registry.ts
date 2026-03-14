@@ -106,6 +106,47 @@ export async function executeRuntimeTool(input: {
     };
   }
 
+  if (input.action.tool_name === "tool.brand.ensure_direction") {
+    const directionReady =
+      session.current_step === "brand_narrative" &&
+      session.status === "wait_user" &&
+      Boolean(session.draft_spec?.direction);
+    if (directionReady) {
+      return {
+        ok: true,
+        message: "Direction already synthesized.",
+        run_response: null,
+        output: {
+          current_step: session.current_step,
+          direction_ready: true
+        }
+      };
+    }
+
+    const response = await runAgentPipeline({
+      storage: input.storage,
+      request: {
+        session_id: session.id,
+        step: "interview_collect",
+        payload: {
+          bootstrap_until_direction: true
+        },
+        idempotency_key: randomUUID()
+      }
+    });
+    const refreshed = await input.storage.getSession(session.id);
+    return {
+      ok: response.status !== "failed",
+      message: "Direction bootstrap executed.",
+      run_response: response,
+      output: {
+        current_step: refreshed?.current_step ?? response.current_step,
+        wait_user: response.wait_user,
+        direction_ready: Boolean(refreshed?.draft_spec?.direction)
+      }
+    };
+  }
+
   if (input.action.tool_name === "tool.brand.ensure_top3") {
     if ((session.latest_top3?.length ?? 0) >= 3) {
       return {
@@ -119,14 +160,45 @@ export async function executeRuntimeTool(input: {
       };
     }
 
-    let step = session.current_step;
+    let workingSession = session;
+    if (!workingSession.draft_spec?.direction || workingSession.current_step === "interview_collect" || workingSession.current_step === "intent_gate" || workingSession.current_step === "spec_draft") {
+      await runAgentPipeline({
+        storage: input.storage,
+        request: {
+          session_id: session.id,
+          step: "interview_collect",
+          payload: {
+            bootstrap_until_direction: true
+          },
+          idempotency_key: randomUUID()
+        }
+      });
+      workingSession = (await input.storage.getSession(session.id)) ?? session;
+    }
+
+    if ((workingSession.latest_top3?.length ?? 0) >= 3) {
+      return {
+        ok: true,
+        message: "Top-3 already available.",
+        run_response: null,
+        output: {
+          top3_count: workingSession.latest_top3?.length ?? 0,
+          current_step: workingSession.current_step
+        }
+      };
+    }
+
+    let step = workingSession.current_step;
+    if (step === "brand_narrative") {
+      step = "candidates_generate";
+    }
     if (step === "top3_select" || step === "approve_build" || step === "package" || step === "done") {
       step = "candidates_generate";
     }
 
     const response = await runSinglePipelineStep({
       storage: input.storage,
-      session,
+      session: workingSession,
       step
     });
     const refreshed = await input.storage.getSession(session.id);

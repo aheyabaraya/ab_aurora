@@ -59,6 +59,23 @@ export type Candidate = {
     cta: string;
   };
   rationale: string;
+  narrative_summary: string;
+  image_prompt: string;
+  image_url: string;
+  revision_basis?: string | null;
+};
+
+export type DirectionRecord = {
+  brief_summary: string;
+  brand_promise: string;
+  audience_tension: string;
+  narrative_summary: string;
+  voice_principles: string[];
+  anti_goals: string[];
+  visual_principles: string[];
+  image_intent: string;
+  prompt_seed: string;
+  next_question: string;
 };
 
 export type SessionMessage = {
@@ -85,6 +102,7 @@ export type SessionPayload = {
     product: string;
     audience: string;
     style_keywords: string[];
+    constraint?: string | null;
     current_step: string;
     status: AgentStatus;
     auto_continue: boolean;
@@ -92,6 +110,9 @@ export type SessionPayload = {
     selected_candidate_id: string | null;
     intent_confidence: number | null;
     variation_width: "wide" | "medium" | "narrow" | null;
+    draft_spec?: {
+      direction?: DirectionRecord | null;
+    } | null;
     final_spec?: Record<string, unknown> | null;
   };
   latest_top3: Candidate[] | null;

@@ -40,6 +40,10 @@ test("File storage seed contract persists seeded sessions across repository inst
       storage,
       request: {
         session_id: seeded.session_id,
+        action: "select_candidate",
+        payload: {
+          candidate_id: "cand_1"
+        },
         idempotency_key: "idem_file_seed_contract_001"
       }
     });

@@ -25,7 +25,24 @@ const candidateSchema = z.object({
     layout: z.array(z.string()).min(2),
     cta: z.string()
   }),
-  rationale: z.string()
+  rationale: z.string(),
+  narrative_summary: z.string(),
+  image_prompt: z.string(),
+  image_url: z.string(),
+  revision_basis: z.string().nullable().optional()
+});
+
+export const brandDirectionSchema = z.object({
+  brief_summary: z.string(),
+  brand_promise: z.string(),
+  audience_tension: z.string(),
+  narrative_summary: z.string(),
+  voice_principles: z.array(z.string()).min(2),
+  anti_goals: z.array(z.string()).min(2),
+  visual_principles: z.array(z.string()).min(3),
+  image_intent: z.string(),
+  prompt_seed: z.string(),
+  next_question: z.string()
 });
 
 const baseBrandSpecSchema = z.object({
@@ -37,6 +54,7 @@ const baseBrandSpecSchema = z.object({
   naming: z.record(z.unknown()).optional(),
   moodboard: z.record(z.unknown()).optional(),
   ui_plan: z.record(z.unknown()).optional(),
+  direction: brandDirectionSchema.optional(),
   tokens: z.record(z.unknown()).optional(),
   social_assets: z.record(z.unknown()).optional(),
   code_plan: z.record(z.unknown()).optional(),
@@ -57,6 +75,7 @@ export const brandSpecFinalSchema = baseBrandSpecSchema.extend({
   stage: z.literal("final"),
   moodboard: z.record(z.unknown()),
   ui_plan: z.record(z.unknown()),
+  direction: brandDirectionSchema,
   tokens: z.record(z.unknown()),
   social_assets: z.record(z.unknown()),
   code_plan: z.record(z.unknown()),
@@ -68,3 +87,4 @@ export const brandSpecSchema = z.union([brandSpecDraftSchema, brandSpecFinalSche
 export type BrandSpecDraft = z.infer<typeof brandSpecDraftSchema>;
 export type BrandSpecFinal = z.infer<typeof brandSpecFinalSchema>;
 export type BrandSpec = z.infer<typeof brandSpecSchema>;
+export type BrandDirection = z.infer<typeof brandDirectionSchema>;

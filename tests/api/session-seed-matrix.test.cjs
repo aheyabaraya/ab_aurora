@@ -50,7 +50,9 @@ function createCandidatePayload() {
           layout: ["hero", "proof", "cta"],
           cta: "Start now"
         },
-        rationale: "Balanced premium tone for focused builders."
+        rationale: "Balanced premium tone for focused builders.",
+        narrative_summary: "A calm orbital direction for builders who want premium clarity.",
+        image_prompt: "Create a calm orbital hero visual with deep navy, cyan accents, and premium focus."
       },
       {
         naming: {
@@ -67,7 +69,9 @@ function createCandidatePayload() {
           layout: ["hero", "gallery", "faq"],
           cta: "Generate pack"
         },
-        rationale: "Quiet ritual framing with restrained luxury."
+        rationale: "Quiet ritual framing with restrained luxury.",
+        narrative_summary: "A nocturne ritual direction that feels quiet, premium, and ceremonial.",
+        image_prompt: "Create a ritual nocturne hero visual with low-contrast gradients and restrained luxury."
       },
       {
         naming: {
@@ -84,7 +88,9 @@ function createCandidatePayload() {
           layout: ["hero", "features", "social"],
           cta: "Open builder"
         },
-        rationale: "Clear hierarchy for conversion-focused storytelling."
+        rationale: "Clear hierarchy for conversion-focused storytelling.",
+        narrative_summary: "An editorial direction with strong hierarchy and conversion-focused structure.",
+        image_prompt: "Create an editorial concept image with clean geometry, refined typography cues, and cool blues."
       }
     ]
   };
@@ -175,12 +181,12 @@ test("POST /api/dev/seed/session creates deterministic presets", async () => {
     },
     top3_ready: {
       current_step: "top3_select",
-      status: "running",
+      status: "wait_user",
       required_artifacts: ["interview", "brand_spec_draft", "brand_narrative", "candidates_top3"]
     },
     selected_ready: {
       current_step: "approve_build",
-      status: "running",
+      status: "wait_user",
       required_artifacts: ["selection"]
     },
     build_confirm_required: {

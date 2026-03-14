@@ -10,6 +10,7 @@ import { DefineScene } from "./scenes/DefineScene";
 import { ExploreScene } from "./scenes/ExploreScene";
 import { PackageScene } from "./scenes/PackageScene";
 import type { useAuroraController } from "./useAuroraController";
+import type { DirectionRecord } from "./types";
 
 type AuroraController = ReturnType<typeof useAuroraController>;
 
@@ -79,16 +80,23 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const narrativeArtifact = useMemo(() => {
     return (sessionPayload?.recent_artifacts ?? []).find((artifact) => artifact.kind === "brand_narrative") ?? null;
   }, [sessionPayload?.recent_artifacts]);
+  const directionSnapshot = useMemo(() => {
+    const artifactContent = narrativeArtifact?.content;
+    if (artifactContent && typeof artifactContent.direction === "object" && artifactContent.direction) {
+      return artifactContent.direction as Record<string, unknown>;
+    }
+    return (sessionPayload?.session.draft_spec?.direction as Record<string, unknown> | undefined) ?? null;
+  }, [narrativeArtifact?.content, sessionPayload?.session.draft_spec?.direction]);
   const latestFailedJob = useMemo(() => {
     return [...(jobsPayload?.jobs ?? [])]
       .filter((job) => job.status === "failed" && Boolean(job.error))
       .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
   }, [jobsPayload?.jobs]);
   const sceneSummary: Record<typeof activeScene, string> = {
-    DEFINE: "Capture the brief, lock the direction, and prime the brand narrative.",
-    EXPLORE: "Review the strongest concept variants and compare their moodboard signals.",
-    DECIDE: "Commit to one direction and prepare the build approval handoff.",
-    PACKAGE: "Collect the output pack, export deliverables, and close the session."
+    DEFINE: "Review the synthesized direction, refine it in chat, and decide what Aurora should visualize next.",
+    EXPLORE: "Compare the three generated concepts and see how the direction branches visually.",
+    DECIDE: "Lock one direction, refine the chosen route if needed, and approve the build outputs.",
+    PACKAGE: "Collect the strategy pack, assets, and build-ready outputs in one export."
   };
   const sessionMetrics = [
     { label: "Session", value: sessionPayload?.session.id ?? sessionId ?? "Pending" },
@@ -101,7 +109,14 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
-  const [dockWidth, setDockWidth] = useState(396);
+  const [dockWidth, setDockWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 396;
+    }
+    const storedWidth = window.localStorage.getItem("aurora:dock-width");
+    const parsed = Number(storedWidth);
+    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : 396;
+  });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const overviewPills = sessionMetrics.filter((metric) => metric.label !== "Session").slice(0, 4);
@@ -119,6 +134,13 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     window.addEventListener("resize", syncWidth);
     return () => window.removeEventListener("resize", syncWidth);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("aurora:dock-width", String(dockWidth));
+  }, [dockWidth]);
 
   useEffect(() => {
     if (!isResizingDock || typeof window === "undefined") {
@@ -456,7 +478,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                   {activeScene === "DEFINE" ? (
                     <DefineScene
                       stage={activeStage}
-                      narrative={(narrativeArtifact?.content as Record<string, unknown> | undefined) ?? null}
+                      direction={directionSnapshot as DirectionRecord | null}
                     />
                   ) : null}
 
