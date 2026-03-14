@@ -80,7 +80,8 @@ body::after {
 .aurora-page {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   background-image:
     radial-gradient(circle at 16% 8%, rgba(134, 144, 255, 0.26) 0%, transparent 26%),
     radial-gradient(circle at 82% 12%, rgba(118, 224, 255, 0.22) 0%, transparent 24%),
@@ -441,6 +442,9 @@ body::after {
 }
 
 .aurora-chat-track {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border: 1px solid rgba(173, 179, 230, 0.24);
   background:
     linear-gradient(170deg, rgba(66, 87, 194, 0.16) 0%, rgba(13, 17, 51, 0.9) 42%, rgba(7, 8, 25, 0.96) 100%);
@@ -483,7 +487,66 @@ body::after {
 .aurora-setup-panel,
 .aurora-canvas-panel,
 .aurora-dock {
+  min-width: 0;
   border-radius: 32px;
+}
+
+.aurora-workspace-shell {
+  display: grid;
+  gap: 0.625rem;
+  align-items: start;
+}
+
+.aurora-dock-aside {
+  min-width: 0;
+}
+
+.aurora-dock-resizer {
+  display: none;
+}
+
+.aurora-session-overview {
+  border-color: rgba(189, 196, 240, 0.28);
+}
+
+.aurora-session-summary-toggle {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aurora-session-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.aurora-session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 188, 235, 0.28);
+  background:
+    linear-gradient(100deg, rgba(69, 91, 194, 0.16) 0%, rgba(13, 17, 46, 0.72) 68%, rgba(8, 10, 27, 0.82) 100%);
+  padding: 0 0.82rem;
+  color: #dce7ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.aurora-session-pill strong {
+  font-size: 0.77rem;
+  font-weight: 600;
+  color: #f4f7ff;
 }
 
 .aurora-tip-chip {
@@ -784,6 +847,10 @@ body::after {
     inset 0 0 32px rgba(130, 150, 245, 0.07);
 }
 
+.aurora-oracle-card.is-compact {
+  padding-block: 0.8rem;
+}
+
 .aurora-avatar-shell {
   position: relative;
   width: min(10.75rem, 54vw);
@@ -795,6 +862,11 @@ body::after {
   box-shadow:
     0 0 34px -12px rgba(133, 216, 255, 0.72),
     0 0 44px -18px rgba(255, 205, 137, 0.62);
+}
+
+.aurora-avatar-shell.is-compact {
+  width: min(6.4rem, 24vw);
+  padding: 0.4rem;
 }
 
 .aurora-avatar-shell::before {
@@ -965,6 +1037,10 @@ body::after {
     opacity: 0.12;
   }
 
+  .aurora-session-summary-toggle {
+    flex-direction: column;
+  }
+
   .aurora-progress4-rail {
     grid-template-columns: 1fr;
   }
@@ -980,6 +1056,61 @@ body::after {
 
   .aurora-define-hero-media {
     height: clamp(260px, 56vw, 420px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .aurora-workspace-shell.is-setup {
+    grid-template-columns: minmax(0, 1.56fr) minmax(22rem, 24rem);
+  }
+
+  .aurora-workspace-shell.is-session {
+    grid-template-columns: minmax(0, 1fr) 0.9rem minmax(21rem, var(--aurora-dock-width, 24rem));
+  }
+
+  .aurora-dock-resizer {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    width: 0.9rem;
+    min-height: calc(100dvh - 1.5rem);
+    margin-block: 0.125rem;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .aurora-dock-resizer::before {
+    content: "";
+    position: absolute;
+    inset: 0.25rem 0.05rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(113, 228, 244, 0.06), rgba(113, 228, 244, 0.02));
+    opacity: 0.38;
+  }
+
+  .aurora-dock-resizer span {
+    position: relative;
+    display: block;
+    width: 4px;
+    height: clamp(6rem, 22vh, 10rem);
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, rgba(255, 223, 160, 0.88) 0%, rgba(173, 140, 255, 0.92) 56%, rgba(129, 220, 255, 0.84) 100%);
+    box-shadow:
+      0 0 18px -6px rgba(136, 213, 255, 0.78),
+      0 0 20px -8px rgba(255, 209, 136, 0.52);
+  }
+
+  .aurora-dock-resizer.is-active span,
+  .aurora-dock-resizer:hover span {
+    width: 5px;
+    box-shadow:
+      0 0 22px -4px rgba(136, 213, 255, 0.9),
+      0 0 24px -8px rgba(255, 209, 136, 0.68);
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createAuroraPageStyle } from "./aurora-assets";
 import { ChatDock } from "./ChatDock";
 import { Progress4 } from "./Progress4";
@@ -16,6 +16,12 @@ type AuroraController = ReturnType<typeof useAuroraController>;
 type GuidedConsoleProps = {
   controller: AuroraController;
 };
+
+function clampDockWidth(width: number, viewportWidth: number): number {
+  const minimum = 340;
+  const maximum = Math.max(minimum, Math.min(560, viewportWidth - 420));
+  return Math.min(Math.max(width, minimum), maximum);
+}
 
 export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const {
@@ -94,6 +100,83 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   ];
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
+  const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
+  const [dockWidth, setDockWidth] = useState(396);
+  const [isResizingDock, setIsResizingDock] = useState(false);
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const overviewPills = sessionMetrics.filter((metric) => metric.label !== "Session").slice(0, 4);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncWidth = () => {
+      setDockWidth((current) => clampDockWidth(current, window.innerWidth));
+    };
+
+    syncWidth();
+    window.addEventListener("resize", syncWidth);
+    return () => window.removeEventListener("resize", syncWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingDock || typeof window === "undefined") {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!resizeStateRef.current) {
+        return;
+      }
+      const delta = resizeStateRef.current.startX - event.clientX;
+      setDockWidth(clampDockWidth(resizeStateRef.current.startWidth + delta, window.innerWidth));
+    };
+
+    const handlePointerUp = () => {
+      resizeStateRef.current = null;
+      setIsResizingDock(false);
+    };
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [isResizingDock]);
+
+  const handleDockResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (typeof window === "undefined" || window.innerWidth < 1280) {
+        return;
+      }
+      event.preventDefault();
+      resizeStateRef.current = {
+        startX: event.clientX,
+        startWidth: dockWidth
+      };
+      setIsResizingDock(true);
+    },
+    [dockWidth]
+  );
+
+  const workspaceStyle = useMemo(() => {
+    if (!sessionReady) {
+      return undefined;
+    }
+    return {
+      "--aurora-dock-width": `${dockWidth}px`
+    } as CSSProperties;
+  }, [dockWidth, sessionReady]);
 
   const errorPanel = error ? (
     <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
@@ -145,8 +228,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   return (
     <main className="aurora-page min-h-screen px-3 py-2.5 text-slate-100 md:px-4 md:py-3" style={pageStyle}>
       <section className="mx-auto max-w-[96rem]">
-        <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1.56fr)_24rem]">
-          <div className="space-y-2.5">
+        <div className={`aurora-workspace-shell ${sessionReady ? "is-session" : "is-setup"}`} style={workspaceStyle}>
+          <div className="min-w-0 space-y-2.5">
             {!sessionReady ? (
               <article
                 className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-3.5 md:p-4 ${
@@ -287,42 +370,62 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 {errorPanel}
               </article>
             ) : (
-              <article className="aurora-panel aurora-card-shift rounded-[32px] p-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <h2 className="aurora-title-primary text-[clamp(1.16rem,1.7vw,1.45rem)] leading-[1.1]">
+              <article className="aurora-panel aurora-card-shift aurora-session-overview rounded-[28px] px-3.5 py-3">
+                <button
+                  className="aurora-session-summary-toggle"
+                  onClick={() => setSessionOverviewOpen((current) => !current)}
+                  type="button"
+                  aria-expanded={sessionOverviewOpen}
+                >
+                  <div className="min-w-0">
+                    <p className="aurora-title-primary text-[clamp(1.02rem,1.45vw,1.22rem)] leading-[1.08]">
                       Your session at a glance.
-                    </h2>
-                    <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                      Keep runtime context visible while the scene canvas and command dock continue to update.
+                    </p>
+                    <p className="mt-1 text-[12px] text-slate-300">
+                      Keep runtime context nearby without pushing the scene canvas out of view.
                     </p>
                   </div>
-                  <span className="aurora-chip">Session Live</span>
-                </div>
+                  <span className="aurora-chip-soft shrink-0 px-3 text-[10px]">
+                    {sessionOverviewOpen ? "Hide summary" : "Show summary"}
+                  </span>
+                </button>
 
-                <div className="aurora-console-divider mt-5" />
+                {sessionOverviewOpen ? (
+                  <>
+                    <div className="aurora-console-divider mt-3" />
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {sessionMetrics.map((metric) => (
-                    <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
-                      <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
-                      <span className="aurora-stat-value break-all">{metric.value}</span>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {sessionMetrics.map((metric) => (
+                        <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
+                          <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
+                          <span className="aurora-stat-value break-all">{metric.value}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                {latestFailedJob ? (
-                  <details className="aurora-surface-soft mt-4 rounded-[22px] px-4 py-3 text-xs">
-                    <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
-                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
-                      {latestFailedJob.error}
-                    </pre>
-                  </details>
-                ) : null}
-
-                {errorPanel}
+                    {latestFailedJob ? (
+                      <details className="aurora-surface-soft mt-4 rounded-[22px] px-4 py-3 text-xs">
+                        <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
+                          {latestFailedJob.error}
+                        </pre>
+                      </details>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="aurora-session-pill-row mt-3">
+                    {overviewPills.map((metric) => (
+                      <span key={metric.label} className="aurora-session-pill">
+                        <span className="aurora-title-label text-[9px] tracking-[0.2em]">{metric.label}</span>
+                        <strong>{metric.value}</strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </article>
             )}
+
+            {sessionReady ? errorPanel : null}
 
             <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-4">
               <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -396,7 +499,18 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
             </article>
           </div>
 
-          <aside className={sessionReady ? "h-fit xl:sticky xl:top-4" : "h-fit"}>
+          {sessionReady ? (
+            <button
+              type="button"
+              className={`aurora-dock-resizer ${isResizingDock ? "is-active" : ""}`}
+              aria-label="Resize chat panel"
+              onPointerDown={handleDockResizeStart}
+            >
+              <span />
+            </button>
+          ) : null}
+
+          <aside className={sessionReady ? "aurora-dock-aside h-fit xl:sticky xl:top-3" : "aurora-dock-aside h-fit"}>
             <ChatDock
               entries={chatEntries}
               artifacts={sessionPayload?.recent_artifacts ?? []}
