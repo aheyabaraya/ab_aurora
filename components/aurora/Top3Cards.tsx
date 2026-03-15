@@ -25,11 +25,11 @@ export function Top3Cards({
 }: Top3CardsProps) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-3">
         {candidates.slice(0, 3).map((candidate) => {
           const selected = candidate.id === selectedCandidateId;
           const asset = getTop3CardAsset(candidate.rank);
-          const colors = candidate.moodboard.colors.slice(0, 4);
+          const colors = candidate.moodboard.colors.slice(0, 3);
 
           return (
             <article
@@ -38,7 +38,7 @@ export function Top3Cards({
                 selected ? "is-selected" : ""
               }`}
             >
-              <div className="aurora-candidate-media relative aspect-[3/4] w-full">
+              <div className="aurora-candidate-media relative aspect-[4/3] w-full">
                 <div
                   className="absolute inset-0 bg-cover bg-center blur-[1px]"
                   style={{ backgroundImage: `url(${asset.blur})` }}
@@ -69,53 +69,60 @@ export function Top3Cards({
                 </div>
               </div>
 
-              <div className="space-y-4 p-4">
-                <div>
-                  <p className="aurora-title-label text-[10px] tracking-[0.22em]">Concept</p>
-                  <h3 className="aurora-title-primary mt-2 text-xl leading-tight">{candidate.naming.recommended}</h3>
-                  <p className="mt-2 text-sm text-slate-300">{candidate.moodboard.title}</p>
+              <div className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="aurora-title-label text-[10px] tracking-[0.22em]">Concept</p>
+                    <h3 className="aurora-title-primary mt-2 text-[1.14rem] leading-tight">{candidate.naming.recommended}</h3>
+                    <p className="mt-1.5 text-sm text-slate-300">{candidate.moodboard.title}</p>
+                  </div>
+                  <span className={selected ? "aurora-chip" : "aurora-chip-soft"}>{selected ? "Selected" : "Open"}</span>
                 </div>
 
-                <div className="aurora-surface-soft rounded-[20px] p-3">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Narrative</p>
-                  <p className="mt-2 text-sm text-slate-200">{candidate.narrative_summary}</p>
-                </div>
+                <p className="line-clamp-3 text-sm text-slate-200">{candidate.narrative_summary}</p>
 
-                <div className="aurora-surface-soft rounded-[20px] p-3">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Moodboard Palette</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {colors.length > 0 ? (
-                      colors.map((color) => (
-                        <span key={color} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-200">
-                          <span className="aurora-color-dot" style={{ backgroundColor: color, color }} />
-                          {color}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400">Palette is still being refined.</span>
-                    )}
+                <div className="grid gap-3 md:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+                  <div className="aurora-surface-soft rounded-[18px] p-3">
+                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">Palette</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {colors.length > 0 ? (
+                        colors.map((color) => (
+                          <span
+                            key={color}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-200"
+                          >
+                            <span className="aurora-color-dot" style={{ backgroundColor: color, color }} />
+                            {color}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400">Palette is still being refined.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="aurora-surface-soft rounded-[18px] p-3">
+                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">UI Plan</p>
+                    <p className="mt-2 line-clamp-2 text-sm text-slate-200">{candidate.ui_plan.headline}</p>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      CTA {candidate.ui_plan.cta}
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="line-clamp-3 text-sm text-slate-300">{candidate.rationale}</p>
-                  <p className="line-clamp-2 text-[11px] text-slate-400">{candidate.image_prompt}</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">CTA {candidate.ui_plan.cta}</p>
-                    <button
-                      className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                        selected ? "aurora-btn-command text-amber-50" : "aurora-btn-secondary"
-                      }`}
-                      onClick={() => onSelect(candidate.id)}
-                      disabled={busy}
-                    >
-                      {selected
-                        ? "Selected Direction"
-                        : preferChatCommands
-                          ? `Use /pick ${candidate.rank}`
-                          : "Select Direction"}
-                    </button>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="line-clamp-2 text-[11px] text-slate-400">
+                    {preferChatCommands ? `You can also use /pick ${candidate.rank}.` : candidate.rationale}
+                  </p>
+                  <button
+                    className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                      selected ? "aurora-btn-command text-amber-50" : "aurora-btn-secondary"
+                    }`}
+                    onClick={() => onSelect(candidate.id)}
+                    disabled={busy}
+                  >
+                    {selected ? "Selected Direction" : "Select Direction"}
+                  </button>
                 </div>
               </div>
             </article>

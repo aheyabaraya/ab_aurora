@@ -255,7 +255,7 @@ export function ChatDock({
     <article
       className={`aurora-panel aurora-dock flex min-h-[30rem] min-w-0 flex-col rounded-[32px] p-3.5 md:p-4 ${
         sessionReady
-          ? "aurora-dock-live xl:h-[calc(100dvh-1rem)] xl:max-h-[calc(100dvh-1rem)] xl:min-h-0"
+          ? "aurora-dock-live xl:h-[calc(100dvh-8rem)] xl:max-h-[calc(100dvh-8rem)] xl:min-h-0"
           : "xl:max-h-[calc(100dvh-1rem)]"
       }`}
     >
@@ -335,6 +335,23 @@ export function ChatDock({
               </p>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {sessionReady ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="aurora-chip-soft px-3 text-[10px]">
+            {tokenTotal.toLocaleString()} tokens
+          </span>
+          <span className="aurora-chip-soft px-3 text-[10px]">
+            {textRequests.toLocaleString()} text calls
+          </span>
+          <span className="aurora-chip-soft px-3 text-[10px]">
+            {imageGenerations.toLocaleString()} images
+          </span>
+          {queuedCommands.length > 0 ? (
+            <span className="aurora-chip px-3 text-[10px]">{queuedCommands.length} queued</span>
+          ) : null}
         </div>
       ) : null}
 
@@ -460,31 +477,40 @@ export function ChatDock({
       ) : null}
 
       {queuedCommands.length > 0 ? (
-        <div className="mt-2 max-h-40 shrink-0 space-y-2 overflow-auto rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.22em]">
-            <IconClock className="h-3 w-3" />
-            Queued Commands
-          </p>
-          {queuedCommands.map((queueItem) => (
-            <div key={queueItem.id} className="aurora-surface-soft rounded-[18px] p-3">
-              <p className="text-sm text-cyan-50">{queueItem.label}</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px] font-semibold"
-                  onClick={() => onForceQueued(queueItem.id)}
-                >
-                  Force Replan
-                </button>
-                <button
-                  className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
-                  onClick={() => onDiscardQueued(queueItem.id)}
-                >
-                  Dismiss
-                </button>
+        <details
+          className="mt-2 shrink-0 rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3"
+          open={shouldQueueIntervention}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.22em]">
+              <IconClock className="h-3 w-3" />
+              Queued Commands
+            </span>
+            <span className="aurora-chip-soft px-3 text-[10px]">{queuedCommands.length}</span>
+          </summary>
+
+          <div className="mt-3 max-h-40 space-y-2 overflow-auto">
+            {queuedCommands.map((queueItem) => (
+              <div key={queueItem.id} className="aurora-surface-soft rounded-[18px] p-3">
+                <p className="text-sm text-cyan-50">{queueItem.label}</p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px] font-semibold"
+                    onClick={() => onForceQueued(queueItem.id)}
+                  >
+                    Force Replan
+                  </button>
+                  <button
+                    className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
+                    onClick={() => onDiscardQueued(queueItem.id)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </details>
       ) : null}
 
       {currentTab === "chat" && !sessionReady ? (

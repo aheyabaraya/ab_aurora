@@ -182,13 +182,157 @@ function toCandidatePrompt(input: {
     "Return JSON only with field \"candidates\".",
     `Return exactly ${input.candidateCount} candidates.`,
     "Each candidate must contain naming, moodboard, ui_plan, rationale, narrative_summary, image_prompt.",
+    "naming must be an object: { recommended: string, candidates: string[] }.",
+    "moodboard must be an object: { title: string, prompt: string, colors: string[] }.",
+    "ui_plan must be an object: { headline: string, layout: string[], cta: string }.",
+    "Do not return strings or arrays in place of those objects.",
+    "Use hex colors in moodboard.colors when possible.",
     "Make each candidate materially distinct while staying inside the shared direction.",
     `Product: ${input.product}`,
     `Audience: ${input.audience}`,
     `Style keywords: ${input.styleKeywords.join(", ")}`,
     `Variation width: ${input.variationWidth}`,
-    `Direction: ${JSON.stringify(input.direction)}`
+    `Direction: ${JSON.stringify(input.direction)}`,
+    'Example candidate shape: {"naming":{"recommended":"Aurora Arc","candidates":["Aurora Arc","Aurora Line"]},"moodboard":{"title":"Quiet cosmic ritual","prompt":"deep navy aura with restrained cyan glow","colors":["#0B1020","#365BFF","#F4B860"]},"ui_plan":{"headline":"Shape the brand with calm confidence","layout":["hero","proof-strip","feature-grid","cta-footer"],"cta":"Generate Concepts"},"rationale":"...","narrative_summary":"...","image_prompt":"..."}'
   ].join("\n");
+}
+
+function toScalarString(value: unknown, fallback = ""): string {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : fallback;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return fallback;
+}
+
+function toStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => toScalarString(entry))
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  const scalar = toScalarString(value);
+  if (!scalar) {
+    return [];
+  }
+
+  return scalar
+    .split(/[,|\n]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function isColorToken(value: string): boolean {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+}
+
+function normalizeCandidateResponsePayload(input: {
+  raw: unknown;
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+}): z.infer<typeof candidateResponseSchema> {
+  const fallbackColors = ["#0B1020", "#365BFF", "#F4B860"];
+  const fallbackLayout = ["hero", "proof-strip", "feature-grid", "cta-footer"];
+  const fallbackKeyword = input.styleKeywords[0] ?? "focused";
+  const rawCandidates =
+    Array.isArray(input.raw)
+      ? input.raw
+      : input.raw && typeof input.raw === "object" && Array.isArray((input.raw as { candidates?: unknown }).candidates)
+        ? ((input.raw as { candidates: unknown[] }).candidates ?? [])
+        : [];
+
+  return {
+    candidates: rawCandidates.map((rawCandidate, index) => {
+      const fallbackName = `${input.product} Concept ${index + 1}`;
+      const fallbackHeadline = `${input.product} for ${input.audience}`;
+      const fallbackNarrative = `${input.product} frames ${input.audience} through a ${fallbackKeyword} direction with clear momentum.`;
+      const fallbackPrompt = `${input.product} brand concept for ${input.audience}, ${input.styleKeywords.join(", ") || "focused"}, premium hero image.`;
+      const candidateRecord =
+        rawCandidate && typeof rawCandidate === "object" ? (rawCandidate as Record<string, unknown>) : {};
+
+      const namingValue = candidateRecord.naming;
+      const namingRecord =
+        namingValue && typeof namingValue === "object" && !Array.isArray(namingValue)
+          ? (namingValue as Record<string, unknown>)
+          : null;
+      const namingCandidates = uniqueStrings([
+        ...toStringList(namingRecord?.candidates),
+        ...toStringList(namingValue)
+      ]);
+      const recommendedName =
+        toScalarString(namingRecord?.recommended, namingCandidates[0] ?? fallbackName) || fallbackName;
+
+      const moodboardValue = candidateRecord.moodboard;
+      const moodboardRecord =
+        moodboardValue && typeof moodboardValue === "object" && !Array.isArray(moodboardValue)
+          ? (moodboardValue as Record<string, unknown>)
+          : null;
+      const moodboardStrings = [
+        ...toStringList(moodboardValue),
+        ...toStringList(moodboardRecord?.title),
+        ...toStringList(moodboardRecord?.prompt)
+      ];
+      const moodboardColors = uniqueStrings([
+        ...toStringList(moodboardRecord?.colors).filter(isColorToken),
+        ...moodboardStrings.filter(isColorToken)
+      ]);
+      const moodboardTitle =
+        toScalarString(moodboardRecord?.title, moodboardStrings.find((value) => !isColorToken(value)) ?? `${fallbackKeyword} direction`);
+      const moodboardPrompt =
+        toScalarString(
+          moodboardRecord?.prompt,
+          moodboardStrings.filter((value) => !isColorToken(value)).slice(1).join(", ") || fallbackPrompt
+        ) || fallbackPrompt;
+
+      const uiPlanValue = candidateRecord.ui_plan;
+      const uiPlanRecord =
+        uiPlanValue && typeof uiPlanValue === "object" && !Array.isArray(uiPlanValue)
+          ? (uiPlanValue as Record<string, unknown>)
+          : null;
+      const uiPlanStrings = [...toStringList(uiPlanValue), ...toStringList(uiPlanRecord?.headline)];
+      const uiPlanLayout = uniqueStrings([
+        ...toStringList(uiPlanRecord?.layout),
+        ...uiPlanStrings.filter((value) => value.includes("-") || value.includes("hero") || value.includes("cta"))
+      ]);
+      const uiPlanHeadline =
+        toScalarString(uiPlanRecord?.headline, uiPlanStrings[0] ?? fallbackHeadline) || fallbackHeadline;
+      const uiPlanCta =
+        toScalarString(uiPlanRecord?.cta, toStringList(uiPlanValue).at(-1) ?? "Explore this direction") || "Explore this direction";
+
+      return {
+        naming: {
+          recommended: recommendedName,
+          candidates: namingCandidates.length > 0 ? namingCandidates : [recommendedName]
+        },
+        moodboard: {
+          title: moodboardTitle,
+          prompt: moodboardPrompt,
+          colors: moodboardColors.length >= 3 ? moodboardColors.slice(0, 5) : fallbackColors
+        },
+        ui_plan: {
+          headline: uiPlanHeadline,
+          layout: uiPlanLayout.length >= 2 ? uiPlanLayout.slice(0, 6) : fallbackLayout,
+          cta: uiPlanCta
+        },
+        rationale:
+          toScalarString(candidateRecord.rationale, `${recommendedName} creates a clearer route for ${input.audience}.`) ||
+          `${recommendedName} creates a clearer route for ${input.audience}.`,
+        narrative_summary:
+          toScalarString(candidateRecord.narrative_summary, fallbackNarrative) || fallbackNarrative,
+        image_prompt: toScalarString(candidateRecord.image_prompt, fallbackPrompt) || fallbackPrompt
+      };
+    })
+  };
 }
 
 function toCandidate(
@@ -272,6 +416,7 @@ async function fetchJsonChatCompletion<T>(input: {
   user: string;
   temperature?: number;
   schema: z.ZodType<T>;
+  coerce?: (value: unknown) => unknown;
 }): Promise<{ data: T; usage: OpenAiTextUsage | null }> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -325,7 +470,7 @@ async function fetchJsonChatCompletion<T>(input: {
       : null;
 
   return {
-    data: input.schema.parse(JSON.parse(content)),
+    data: input.schema.parse(input.coerce ? input.coerce(JSON.parse(content)) : JSON.parse(content)),
     usage
   };
 }
@@ -468,7 +613,33 @@ export async function generateCandidatesWithFallback(input: {
         candidateCount
       }),
       temperature: 0.82,
-      schema: candidateResponseSchema
+      schema: candidateResponseSchema,
+      coerce: (rawValue) => {
+        const directParse = candidateResponseSchema.safeParse(rawValue);
+        if (directParse.success) {
+          return directParse.data;
+        }
+
+        const repaired = normalizeCandidateResponsePayload({
+          raw: rawValue,
+          product: input.product,
+          audience: input.audience,
+          styleKeywords: input.styleKeywords
+        });
+        const repairedParse = candidateResponseSchema.safeParse(repaired);
+        if (repairedParse.success) {
+          logOpenAiFailure("[openai.candidates.schema_repaired]", {
+            session_id: input.sessionId,
+            issues: directParse.error.issues.slice(0, 6).map((issue) => ({
+              path: issue.path.join("."),
+              message: issue.message
+            }))
+          });
+          return repairedParse.data;
+        }
+
+        throw directParse.error;
+      }
     });
 
     const trimmed = parsed.data.candidates.slice(0, topK);

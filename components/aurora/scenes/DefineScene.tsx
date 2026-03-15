@@ -6,6 +6,24 @@ import type { DirectionRecord } from "../types";
 type DefineSceneProps = {
   stage: string;
   direction?: DirectionRecord | null;
+  brief?: {
+    product: string;
+    audience: string;
+    styleKeywords: string[];
+    constraint?: string | null;
+  } | null;
+  autoAdvance?: {
+    enabled: boolean;
+    waiting: boolean;
+    secondsRemaining: number | null;
+    onGenerate?: () => void;
+    onWait?: () => void;
+  } | null;
+};
+
+type BriefCard = {
+  label: string;
+  value: string;
 };
 
 function stageSummary(stage: string): string {
@@ -33,29 +51,123 @@ function renderList(items: string[]) {
   );
 }
 
-export function DefineScene({ stage, direction = null }: DefineSceneProps) {
+export function DefineScene({ stage, direction = null, brief = null, autoAdvance = null }: DefineSceneProps) {
   const ready = Boolean(direction);
+  const briefCards: BriefCard[] = [];
+  const formatCountdown = (secondsRemaining: number | null): string => {
+    if (secondsRemaining === null) {
+      return "Manual control";
+    }
+    const clamped = Math.max(0, secondsRemaining);
+    const minutes = Math.floor(clamped / 60)
+      .toString()
+      .padStart(2, "0");
+    const seconds = (clamped % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  };
+
+  if (brief?.product) {
+    briefCards.push({
+      label: "Product",
+      value: brief.product
+    });
+  }
+  if (brief?.audience) {
+    briefCards.push({
+      label: "Audience",
+      value: brief.audience
+    });
+  }
+  if (brief?.styleKeywords?.length) {
+    briefCards.push({
+      label: "Style Keywords",
+      value: brief.styleKeywords.join(", ")
+    });
+  }
+  if (brief?.constraint) {
+    briefCards.push({
+      label: "Design Requirement",
+      value: brief.constraint
+    });
+  }
 
   return (
     <div className="space-y-4">
       <div className="aurora-panel aurora-define-hero rounded-[28px]">
         <div
           className="aurora-define-hero-media"
-          style={{
-            backgroundImage: `linear-gradient(180deg, rgba(4,8,28,0.04), rgba(4,8,28,0.18)), url(${AURORA_ASSETS.heroDesktop})`
-          }}
-        />
-        <div className="aurora-define-hero-footer">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="aurora-title-primary mt-3 text-[clamp(1.32rem,2.1vw,1.72rem)] leading-[1.08]">
-                Align the direction before Aurora explores concepts.
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(4,8,28,0.04), rgba(4,8,28,0.18)), url(${AURORA_ASSETS.heroDesktop})`
+      }}
+        >
+          <div className="aurora-define-hero-overlay">
+            <div className="max-w-3xl">
+              <p className="aurora-title-label text-[10px] tracking-[0.22em]">Define Inputs</p>
+              <h2 className="aurora-title-primary mt-3 text-[clamp(1.48rem,2.4vw,1.96rem)] leading-[1.04]">
+                Aurora is shaping the first direction from your brief.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-100">{stageSummary(stage)}</p>
             </div>
-            <span className={ready ? "aurora-chip" : "aurora-chip-soft"}>
-              {ready ? "Direction Ready" : stage.replaceAll("_", " ")}
-            </span>
+
+            {briefCards.length > 0 ? (
+              <div className="aurora-define-brief-grid">
+                {briefCards.map((card) => (
+                  <div key={card.label} className="aurora-define-brief-card">
+                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">{card.label}</p>
+                    <p className="mt-2 line-clamp-3 text-sm text-slate-100">{card.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div className="aurora-define-hero-footer">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="aurora-title-primary mt-3 text-[clamp(1.32rem,2.1vw,1.72rem)] leading-[1.08]">
+                  Align the direction before Aurora explores concepts.
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm text-slate-100">
+                  Review the direction snapshot below, refine it in chat, then decide when Aurora should generate the
+                  first three concepts.
+                </p>
+              </div>
+              <span className={ready ? "aurora-chip" : "aurora-chip-soft"}>
+                {ready ? "Direction Ready" : stage.replaceAll("_", " ")}
+              </span>
+            </div>
+
+            {ready && autoAdvance ? (
+              <div className="flex flex-col gap-3 rounded-[22px] border border-indigo-200/18 bg-slate-950/28 px-3.5 py-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Define Hold</p>
+                  <p className="mt-2 text-sm text-slate-100">
+                    {autoAdvance.waiting
+                      ? "DEFINE stays open until you decide to continue."
+                      : autoAdvance.enabled
+                        ? `Auto advance to concept generation in ${formatCountdown(autoAdvance.secondsRemaining)}.`
+                        : "Auto advance is off. Continue manually when you are ready."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
+                    onClick={() => autoAdvance.onGenerate?.()}
+                    type="button"
+                  >
+                    Generate Concepts
+                  </button>
+                  <button
+                    className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
+                    onClick={() => autoAdvance.onWait?.()}
+                    type="button"
+                  >
+                    Wait
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

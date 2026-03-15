@@ -497,8 +497,13 @@ body::after {
   align-items: start;
 }
 
+.aurora-workspace-shell.is-session {
+  align-items: stretch;
+}
+
 .aurora-dock-aside {
   min-width: 0;
+  min-height: 0;
 }
 
 .aurora-dock-resizer {
@@ -815,7 +820,7 @@ body::after {
 
 .aurora-define-hero-media {
   position: relative;
-  height: clamp(320px, 46vw, 480px);
+  height: clamp(280px, 40vw, 420px);
   background-size: cover;
   background-position: center;
 }
@@ -828,6 +833,34 @@ body::after {
     linear-gradient(180deg, rgba(8, 10, 28, 0.08) 0%, rgba(8, 10, 28, 0.56) 58%, rgba(8, 10, 28, 0.88) 100%),
     radial-gradient(circle at 50% 48%, rgba(255, 218, 149, 0.18) 0%, transparent 16%),
     radial-gradient(circle at 22% 22%, rgba(163, 142, 255, 0.18) 0%, transparent 26%);
+}
+
+.aurora-define-hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.aurora-define-brief-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: auto;
+}
+
+.aurora-define-brief-card {
+  border: 1px solid rgba(211, 219, 255, 0.22);
+  border-radius: 22px;
+  background:
+    linear-gradient(160deg, rgba(16, 24, 73, 0.56) 0%, rgba(8, 10, 28, 0.84) 100%);
+  padding: 0.9rem 0.95rem;
+  backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 34px -26px rgba(102, 145, 255, 0.72);
 }
 
 .aurora-define-hero-footer {
@@ -900,6 +933,7 @@ body::after {
 }
 
 .aurora-candidate-card {
+  height: 100%;
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -1055,7 +1089,7 @@ body::after {
   }
 
   .aurora-define-hero-media {
-    height: clamp(260px, 56vw, 420px);
+    height: clamp(240px, 56vw, 360px);
   }
 }
 
@@ -1068,13 +1102,33 @@ body::after {
     grid-template-columns: minmax(0, 1fr) 0.75rem minmax(24rem, var(--aurora-dock-width, 40.5rem));
   }
 
+  .aurora-canvas-panel {
+    min-height: calc(100dvh - 8rem);
+  }
+
+  .aurora-dock-aside {
+    min-height: calc(100dvh - 8rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .aurora-define-brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .aurora-define-brief-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .aurora-dock-resizer {
     display: flex;
     position: relative;
     align-items: center;
     justify-content: center;
     width: 0.75rem;
-    min-height: calc(100dvh - 1rem);
+    min-height: calc(100dvh - 8rem);
     margin-block: 0.125rem;
     border: 0;
     padding: 0;

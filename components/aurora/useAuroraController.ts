@@ -222,6 +222,18 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
 }
 
+function summarizeFailureForTimeline(stage: string, errorMessage: string): string {
+  if (stage === "candidates_generate" && containsSchemaValidationNoise(errorMessage)) {
+    return "EXPLORE 후보 구조가 올바르지 않아 생성이 중단되었습니다. /run 으로 다시 시도하세요.";
+  }
+
+  if (stage === "candidates_generate") {
+    return "EXPLORE 후보 생성이 실패했습니다. /run 으로 다시 시도하거나 direction을 조금 더 구체적으로 정리하세요.";
+  }
+
+  return "이 단계에서 오류가 발생했습니다. 다시 시도하거나 입력을 조금 더 구체적으로 바꿔보세요.";
+}
+
 function readApiErrorMessage(body: unknown): string | null {
   if (!body || typeof body !== "object") {
     return null;
@@ -822,8 +834,9 @@ export function useAuroraController() {
 
     announcedFailedJobRef.current = latestFailedJob.id;
     const guide = buildStageGuideMessage(latestFailedJob.step, sessionPayload);
+    const summary = summarizeFailureForTimeline(latestFailedJob.step, latestFailedJob.error);
     appendTimelineMessage({
-      content: `${guide}\n\nFailure detail: ${latestFailedJob.error}`,
+      content: `${guide}\n\n${summary}`,
       subtitle: "latest failure",
       dedupeKey: `failed-job:${latestFailedJob.id}`
     });

@@ -90,16 +90,16 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     return (sessionPayload?.session.draft_spec?.direction as Record<string, unknown> | undefined) ?? null;
   }, [narrativeArtifact?.content, sessionPayload?.session.draft_spec?.direction]);
   const sceneSummary: Record<typeof activeScene, string> = {
-    DEFINE: "Review the synthesized direction, refine it in chat, and decide what Aurora should visualize next.",
-    EXPLORE: "Compare the three generated concepts and see how the direction branches visually.",
-    DECIDE: "Lock one direction, refine the chosen route if needed, and approve the build outputs.",
-    PACKAGE: "Collect the strategy pack, assets, and build-ready outputs in one export."
+    DEFINE: "Review the synthesized direction, refine it in chat, and hold before concept generation.",
+    EXPLORE: "Compare the three visual routes and decide which concept is worth taking forward.",
+    DECIDE: "Lock the chosen direction, inspect the tradeoffs, and approve the build path.",
+    PACKAGE: "Review the deliverables and export the strategy-plus-assets pack."
   };
   const sceneCanvasTitle: Record<typeof activeScene, string> = {
-    DEFINE: "Define the direction",
-    EXPLORE: "Explore concept routes",
-    DECIDE: "Choose the final route",
-    PACKAGE: "Package the deliverables"
+    DEFINE: "Shape the direction",
+    EXPLORE: "Compare the concepts",
+    DECIDE: "Choose the route",
+    PACKAGE: "Export the pack"
   };
   const sessionMetrics = [
     { label: "Session", value: sessionPayload?.session.id ?? sessionId ?? "Pending" },
@@ -120,6 +120,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
       value: `${(usageSummary?.by_type?.openai_tokens_total ?? 0).toLocaleString()} tok`
     }
   ];
+  const showSummaryActions = sessionReady && activeScene !== "DEFINE";
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
@@ -132,6 +133,9 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(648, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
+  const [defineWaitOverride, setDefineWaitOverride] = useState(false);
+  const [defineAutoDeadline, setDefineAutoDeadline] = useState<number | null>(null);
+  const [defineAutoRemainingSeconds, setDefineAutoRemainingSeconds] = useState<number | null>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -212,6 +216,59 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     } as CSSProperties;
   }, [dockWidth, sessionReady]);
 
+  const defineAutoEligible =
+    sessionReady &&
+    activeScene === "DEFINE" &&
+    activeStage === "brand_narrative" &&
+    sessionPayload?.session.status === "wait_user" &&
+    Boolean(directionSnapshot);
+
+  useEffect(() => {
+    if (!defineAutoEligible) {
+      setDefineWaitOverride(false);
+      setDefineAutoDeadline(null);
+      setDefineAutoRemainingSeconds(null);
+      return;
+    }
+
+    if (!autoContinue || defineWaitOverride) {
+      setDefineAutoDeadline(null);
+      setDefineAutoRemainingSeconds(null);
+      return;
+    }
+
+    setDefineAutoDeadline((current) => current ?? Date.now() + 60_000);
+  }, [activeStage, autoContinue, defineAutoEligible, defineWaitOverride, sessionReady]);
+
+  useEffect(() => {
+    if (!defineAutoEligible || !autoContinue || defineWaitOverride || defineAutoDeadline === null) {
+      return;
+    }
+
+    const syncCountdown = () => {
+      const remainingMs = defineAutoDeadline - Date.now();
+      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+      setDefineAutoRemainingSeconds(remainingSeconds);
+
+      if (remainingMs <= 0) {
+        setDefineAutoDeadline(null);
+        if (!busy) {
+          void handleRunGuidedAction("run_step");
+        }
+      }
+    };
+
+    syncCountdown();
+    const timer = window.setInterval(syncCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [autoContinue, busy, defineAutoDeadline, defineAutoEligible, defineWaitOverride, handleRunGuidedAction]);
+
+  const handlePauseDefineAutoAdvance = useCallback(() => {
+    setDefineWaitOverride(true);
+    setDefineAutoDeadline(null);
+    setDefineAutoRemainingSeconds(null);
+  }, []);
+
   const errorPanel = error ? (
     <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
       <p>{error}</p>
@@ -278,7 +335,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {rightPanelViewModel.primaryAction ? (
+                {showSummaryActions && rightPanelViewModel.primaryAction ? (
                   <button
                     className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     onClick={() => void handleRunGuidedAction(rightPanelViewModel.primaryAction!.id)}
@@ -292,7 +349,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     {rightPanelViewModel.primaryAction.label}
                   </button>
                 ) : null}
-                {rightPanelViewModel.secondaryAction ? (
+                {showSummaryActions && rightPanelViewModel.secondaryAction ? (
                   <button
                     className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     onClick={() => void handleRunGuidedAction(rightPanelViewModel.secondaryAction!.id)}
@@ -538,6 +595,23 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     <DefineScene
                       stage={activeStage}
                       direction={directionSnapshot as DirectionRecord | null}
+                      brief={{
+                        product: sessionPayload?.session.product ?? "",
+                        audience: sessionPayload?.session.audience ?? "",
+                        styleKeywords: sessionPayload?.session.style_keywords ?? [],
+                        constraint: sessionPayload?.session.constraint ?? null
+                      }}
+                      autoAdvance={
+                        defineAutoEligible
+                          ? {
+                              enabled: autoContinue,
+                              waiting: defineWaitOverride,
+                              secondsRemaining: defineAutoRemainingSeconds,
+                              onGenerate: () => void handleRunGuidedAction("run_step"),
+                              onWait: handlePauseDefineAutoAdvance
+                            }
+                          : null
+                      }
                     />
                   ) : null}
 
