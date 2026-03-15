@@ -246,34 +246,16 @@ export function ChatDock({
           : "xl:max-h-[calc(100dvh-1.5rem)]"
       }`}
     >
-      <div className="aurora-status-pill min-h-[5.25rem] rounded-[24px] px-3.5 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <h2 className="aurora-title-primary mt-1 text-[clamp(1.38rem,1.75vw,1.72rem)] leading-[1.04]">
-              {dockTitle(sessionReady)}
-            </h2>
-            <p className="mt-1.5 max-w-[17rem] text-[11px] leading-5 text-slate-300">
-              {dockHeadline(sessionReady, status)}
-            </p>
-          </div>
-          {sessionReady ? (
-            <span className={`rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] ${modelClass(modelSource)}`}>
-              {modelSource}
-            </span>
-          ) : null}
-        </div>
-      </div>
-
       {sessionReady ? (
-        <div className="aurora-oracle-card is-compact mt-2 rounded-[22px] px-3 py-2.5">
-          <div className="flex items-center gap-3">
+        <div className="aurora-status-pill rounded-[24px] px-3 py-3">
+          <div className="flex items-start gap-3">
             <div className="aurora-avatar-shell is-compact shrink-0">
               <div className="aurora-avatar-image">
                 <Image
                   src={AURORA_ASSETS.avatarPortrait}
                   alt="Aurora companion visual"
                   fill
-                  sizes="(min-width: 1280px) 8rem, (min-width: 768px) 8rem, 32vw"
+                  sizes="(min-width: 1280px) 8rem, (min-width: 768px) 7rem, 24vw"
                   className="object-cover object-[center_18%]"
                   priority
                 />
@@ -281,16 +263,41 @@ export function ChatDock({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <h3 className="aurora-title-primary text-[1.14rem] leading-[1.02]">Aurora</h3>
-                <span className="aurora-presence-chip px-3 text-[10px]">{presenceLabel(sessionReady, status)}</span>
+                <div className="min-w-0">
+                  <p className="aurora-title-label text-[9px] tracking-[0.18em]">Live Conversation</p>
+                  <h2 className="aurora-title-primary mt-1 text-[clamp(1.22rem,1.45vw,1.48rem)] leading-[1.02]">
+                    {dockTitle(sessionReady)}
+                  </h2>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="aurora-presence-chip px-3 text-[10px]">{presenceLabel(sessionReady, status)}</span>
+                  <span className={`rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] ${modelClass(modelSource)}`}>
+                    {modelSource}
+                  </span>
+                </div>
               </div>
               <p className="mt-1.5 text-[12px] leading-5 text-slate-300">
-                Live notes, prompts, and commands stay synchronized with the active flow.
+                {dockHeadline(sessionReady, status)}
               </p>
             </div>
           </div>
         </div>
       ) : (
+        <div className="aurora-status-pill min-h-[5.25rem] rounded-[24px] px-3.5 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="aurora-title-primary mt-1 text-[clamp(1.38rem,1.75vw,1.72rem)] leading-[1.04]">
+                {dockTitle(sessionReady)}
+              </h2>
+              <p className="mt-1.5 max-w-[17rem] text-[11px] leading-5 text-slate-300">
+                {dockHeadline(sessionReady, status)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!sessionReady ? (
         <div className="aurora-oracle-card mt-2.5 rounded-[24px] px-3.5 py-3">
           <div className="flex items-center gap-3">
             <div className="aurora-avatar-shell shrink-0" style={{ width: "8.5rem" }}>
@@ -316,7 +323,7 @@ export function ChatDock({
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {showArtifactsTab ? (
         <div className="mt-2.5 flex flex-wrap gap-2">
@@ -346,69 +353,101 @@ export function ChatDock({
       ) : null}
 
       {actionHub ? (
-        <div className="aurora-action-hub mt-2 rounded-[22px] px-3.5 py-3">
-          <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
-            <IconCommand className="h-3 w-3" />
-            {sessionReady ? "Next Action" : "Start Here"}
-          </p>
-          <p className="mt-1.5 text-[12px] leading-5 text-slate-200">{sessionReady ? actionHub.hint : preSessionHint}</p>
-
-          <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
-            {primaryAction ? (
-              <button
-                className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                onClick={() => {
-                  if (!onRunGuidedAction) {
-                    return;
-                  }
-                  void onRunGuidedAction(primaryAction.id);
-                }}
-                disabled={busy || primaryAction.disabled || !onRunGuidedAction}
-                title={primaryAction.disabledReason}
-              >
-                {primaryAction.label}
-              </button>
-            ) : null}
-            {sessionReady && secondaryAction ? (
-              <button
-                className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                onClick={() => {
-                  if (!onRunGuidedAction) {
-                    return;
-                  }
-                  void onRunGuidedAction(secondaryAction.id);
-                }}
-                disabled={busy || secondaryAction.disabled || !onRunGuidedAction}
-                title={secondaryAction.disabledReason}
-              >
-                {secondaryAction.label}
-              </button>
-            ) : null}
-          </div>
-
-          <div className="aurora-command-shell mt-2 rounded-[20px] px-3 py-2.5">
-            <p className="aurora-title-label text-[9px] tracking-[0.18em]">
-              {sessionReady ? "Suggested Command" : "Try This First"}
-            </p>
-            <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
-              {actionHub.suggestedCommand || "/help"}
-            </p>
-            {sessionReady ? <p className="mt-2 text-[11px] leading-5 text-slate-300">{actionHub.suggestedReason}</p> : null}
-          </div>
-
-          {sessionReady ? (
-            <div className="mt-2 rounded-[18px] border border-indigo-200/22 bg-slate-950/45 px-3 py-2">
-              <p className="aurora-title-label text-[9px] tracking-[0.18em]">Flow Usage</p>
-              <p className="mt-1 text-[12px] text-slate-100">
-                {tokenTotal.toLocaleString()} tokens · {textRequests.toLocaleString()} text calls · {imageGenerations.toLocaleString()} images
+        sessionReady ? (
+          <div className="aurora-action-hub aurora-surface-soft mt-2 shrink-0 rounded-[22px] px-3 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
+                  <IconCommand className="h-3 w-3" />
+                  Next Action
+                </p>
+                <p className="mt-1 text-[12px] leading-5 text-slate-200">{actionHub.hint}</p>
+              </div>
+              <p className="aurora-command-chip rounded-full px-3 py-1.5 text-[11px] font-semibold text-indigo-50">
+                {actionHub.suggestedCommand || "/help"}
               </p>
             </div>
-          ) : null}
-        </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {primaryAction ? (
+                <button
+                  className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                  onClick={() => {
+                    if (!onRunGuidedAction) {
+                      return;
+                    }
+                    void onRunGuidedAction(primaryAction.id);
+                  }}
+                  disabled={busy || primaryAction.disabled || !onRunGuidedAction}
+                  title={primaryAction.disabledReason}
+                >
+                  {primaryAction.label}
+                </button>
+              ) : null}
+              {secondaryAction ? (
+                <button
+                  className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                  onClick={() => {
+                    if (!onRunGuidedAction) {
+                      return;
+                    }
+                    void onRunGuidedAction(secondaryAction.id);
+                  }}
+                  disabled={busy || secondaryAction.disabled || !onRunGuidedAction}
+                  title={secondaryAction.disabledReason}
+                >
+                  {secondaryAction.label}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="rounded-full border border-indigo-200/22 bg-slate-950/45 px-3 py-1.5 text-[11px] text-slate-100">
+                {tokenTotal.toLocaleString()} tokens · {textRequests.toLocaleString()} text calls · {imageGenerations.toLocaleString()} images
+              </div>
+              <div className="rounded-full border border-indigo-200/18 bg-slate-950/36 px-3 py-1.5 text-[11px] text-slate-300">
+                {actionHub.suggestedReason}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="aurora-action-hub mt-2 rounded-[22px] px-3.5 py-3">
+            <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
+              <IconCommand className="h-3 w-3" />
+              Start Here
+            </p>
+            <p className="mt-1.5 text-[12px] leading-5 text-slate-200">{preSessionHint}</p>
+
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+              {primaryAction ? (
+                <button
+                  className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                  onClick={() => {
+                    if (!onRunGuidedAction) {
+                      return;
+                    }
+                    void onRunGuidedAction(primaryAction.id);
+                  }}
+                  disabled={busy || primaryAction.disabled || !onRunGuidedAction}
+                  title={primaryAction.disabledReason}
+                >
+                  {primaryAction.label}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="aurora-command-shell mt-2 rounded-[20px] px-3 py-2.5">
+              <p className="aurora-title-label text-[9px] tracking-[0.18em]">Try This First</p>
+              <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
+                {actionHub.suggestedCommand || "/help"}
+              </p>
+            </div>
+          </div>
+        )
       ) : null}
 
       {queuedCommands.length > 0 ? (
-        <div className="mt-2 space-y-2 rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
+        <div className="mt-2 max-h-40 shrink-0 space-y-2 overflow-auto rounded-[24px] border border-cyan-200/28 bg-cyan-400/8 p-3">
           <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.22em]">
             <IconClock className="h-3 w-3" />
             Queued Commands
@@ -445,7 +484,7 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "chat" && sessionReady ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5">
           <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[22px] p-2.5">
             <div className="h-full space-y-2.5 overflow-auto pr-1">
               {sessionReady ? (
@@ -486,7 +525,7 @@ export function ChatDock({
             </div>
           </div>
 
-          <div className="aurora-composer-shell shrink-0 space-y-2 rounded-[22px] p-2.5">
+          <div className="aurora-composer-shell shrink-0 space-y-1.5 rounded-[22px] p-2.5">
             <p className="aurora-title-label text-[9px] tracking-[0.18em]">Message Aurora</p>
             {commandNotice ? (
               <div className="aurora-surface-soft rounded-[18px] px-3 py-2 text-[11px] text-slate-300">
@@ -496,7 +535,7 @@ export function ChatDock({
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[68px] w-full rounded-[22px] px-3 py-3 text-sm"
+                className="aurora-input min-h-[60px] w-full rounded-[22px] px-3 py-3 text-sm"
                 placeholder='Type a note or use "/?" for commands.'
                 value={input}
                 onChange={(event) => {

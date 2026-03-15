@@ -96,3 +96,50 @@ test("pipeline supports revise then rerun and keeps artifacts", async () => {
   const artifacts = await storage.listArtifactsBySession(session.id);
   assert.ok(artifacts.some((artifact) => artifact.kind === "followup_asset"));
 });
+
+test("pipeline converts active job create conflicts into wait_user instead of throwing", async () => {
+  class ConflictOnCandidatesStorage extends MemoryStorageRepository {
+    async countActiveJobsBySession() {
+      return 0;
+    }
+
+    async createJob(input) {
+      if (input.step === "candidates_generate") {
+        throw new Error(`active job already exists for session ${input.session_id}`);
+      }
+      return super.createJob(input);
+    }
+  }
+
+  const storage = new ConflictOnCandidatesStorage();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "AB Aurora Direction Engine For Product Teams",
+    audience: "Vibe coders",
+    style_keywords: ["bold", "minimal", "future"],
+    auto_continue: true,
+    auto_pick_top1: true
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_integration_conflict_001"
+    }
+  });
+
+  const conflictedRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_integration_conflict_002"
+    }
+  });
+
+  assert.equal(conflictedRun.status, "wait_user");
+  assert.equal(conflictedRun.current_step, "candidates_generate");
+  assert.equal(conflictedRun.wait_user, true);
+  assert.match(conflictedRun.message, /Another active job exists/i);
+});

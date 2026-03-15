@@ -76,6 +76,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
   const activeScene = sessionReady ? currentScene : "DEFINE";
   const activeStage = sessionReady ? stage : "interview_collect";
+  const usageSummary = sessionPayload?.usage_summary ?? null;
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
   const narrativeArtifact = useMemo(() => {
     return (sessionPayload?.recent_artifacts ?? []).find((artifact) => artifact.kind === "brand_narrative") ?? null;
@@ -98,6 +99,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     DECIDE: "Lock one direction, refine the chosen route if needed, and approve the build outputs.",
     PACKAGE: "Collect the strategy pack, assets, and build-ready outputs in one export."
   };
+  const sceneCanvasTitle: Record<typeof activeScene, string> = {
+    DEFINE: "Define the direction",
+    EXPLORE: "Explore concept routes",
+    DECIDE: "Choose the final route",
+    PACKAGE: "Package the deliverables"
+  };
   const sessionMetrics = [
     { label: "Session", value: sessionPayload?.session.id ?? sessionId ?? "Pending" },
     { label: "Scene", value: activeScene },
@@ -105,6 +112,17 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     { label: "Top-3", value: String(latestTop3.length) },
     { label: "Selected", value: sessionPayload?.selected_candidate_id ?? "None" },
     { label: "Q0", value: sessionPayload?.session.intent_confidence?.toString() ?? "Unrated" }
+  ];
+  const summaryPills = [
+    { label: "Scene", value: activeScene },
+    { label: "Step", value: stage.replaceAll("_", " ") },
+    { label: "Concepts", value: String(latestTop3.length) },
+    { label: "Selected", value: sessionPayload?.selected_candidate_id ? "Locked" : "Open" },
+    { label: "Model", value: top3ModelSource },
+    {
+      label: "Usage",
+      value: `${(usageSummary?.by_type?.openai_tokens_total ?? 0).toLocaleString()} tok`
+    }
   ];
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
@@ -119,8 +137,6 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const overviewPills = sessionMetrics.filter((metric) => metric.label !== "Session").slice(0, 4);
-
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -249,7 +265,111 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
   return (
     <main className="aurora-page min-h-screen px-3 py-2.5 text-slate-100 md:px-4 md:py-3" style={pageStyle}>
-      <section className="mx-auto max-w-[96rem]">
+      <section className="mx-auto max-w-[96rem] space-y-2.5">
+        {sessionReady ? (
+          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3.5 py-3">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap gap-2">
+                  {summaryPills.map((metric) => (
+                    <span key={metric.label} className="aurora-session-pill">
+                      <span className="aurora-title-label text-[9px] tracking-[0.2em]">{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-[12px] leading-5 text-slate-300">{sceneSummary[activeScene]}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {rightPanelViewModel.primaryAction ? (
+                  <button
+                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                    onClick={() => void handleRunGuidedAction(rightPanelViewModel.primaryAction!.id)}
+                    disabled={
+                      busy ||
+                      rightPanelViewModel.primaryAction.disabled ||
+                      !rightPanelViewModel.primaryAction
+                    }
+                    title={rightPanelViewModel.primaryAction.disabledReason}
+                  >
+                    {rightPanelViewModel.primaryAction.label}
+                  </button>
+                ) : null}
+                {rightPanelViewModel.secondaryAction ? (
+                  <button
+                    className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                    onClick={() => void handleRunGuidedAction(rightPanelViewModel.secondaryAction!.id)}
+                    disabled={
+                      busy ||
+                      rightPanelViewModel.secondaryAction.disabled ||
+                      !rightPanelViewModel.secondaryAction
+                    }
+                    title={rightPanelViewModel.secondaryAction.disabledReason}
+                  >
+                    {rightPanelViewModel.secondaryAction.label}
+                  </button>
+                ) : null}
+                <button
+                  className="aurora-chip-soft shrink-0 px-3 text-[10px]"
+                  onClick={() => setSessionOverviewOpen((current) => !current)}
+                  type="button"
+                  aria-expanded={sessionOverviewOpen}
+                >
+                  {sessionOverviewOpen ? "Hide details" : "Show details"}
+                </button>
+              </div>
+            </div>
+
+            {sessionOverviewOpen ? (
+              <>
+                <div className="aurora-console-divider mt-3" />
+
+                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {sessionMetrics.map((metric) => (
+                      <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
+                        <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
+                        <span className="aurora-stat-value break-all">{metric.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="aurora-surface-soft rounded-[22px] px-4 py-3">
+                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Suggested Command</p>
+                      <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
+                        {rightPanelViewModel.suggestedCommand}
+                      </p>
+                      <p className="mt-2 text-[12px] leading-5 text-slate-300">{rightPanelViewModel.suggestedReason}</p>
+                    </div>
+
+                    <div className="aurora-surface-soft rounded-[22px] px-4 py-3">
+                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Flow Usage</p>
+                      <p className="mt-2 text-sm text-slate-100">
+                        {(usageSummary?.by_type?.openai_tokens_total ?? 0).toLocaleString()} tokens
+                      </p>
+                      <p className="mt-1 text-[12px] text-slate-300">
+                        {(usageSummary?.by_type?.openai_text_requests ?? 0).toLocaleString()} text calls ·{" "}
+                        {(usageSummary?.by_type?.openai_image_generations ?? 0).toLocaleString()} images
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {latestFailedJob ? (
+                  <details className="aurora-surface-soft mt-3 rounded-[22px] px-4 py-3 text-xs">
+                    <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
+                      {latestFailedJob.error}
+                    </pre>
+                  </details>
+                ) : null}
+              </>
+            ) : null}
+          </article>
+        ) : null}
+
         <div className={`aurora-workspace-shell ${sessionReady ? "is-session" : "is-setup"}`} style={workspaceStyle}>
           <div className="min-w-0 space-y-2.5">
             {!sessionReady ? (
@@ -391,76 +511,19 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                 {errorPanel}
               </article>
-            ) : (
-              <article className="aurora-panel aurora-card-shift aurora-session-overview rounded-[28px] px-3.5 py-3">
-                <button
-                  className="aurora-session-summary-toggle"
-                  onClick={() => setSessionOverviewOpen((current) => !current)}
-                  type="button"
-                  aria-expanded={sessionOverviewOpen}
-                >
-                  <div className="min-w-0">
-                    <p className="aurora-title-primary text-[clamp(1.02rem,1.45vw,1.22rem)] leading-[1.08]">
-                      Your session at a glance.
-                    </p>
-                    <p className="mt-1 text-[12px] text-slate-300">
-                      Keep runtime context nearby without pushing the scene canvas out of view.
-                    </p>
-                  </div>
-                  <span className="aurora-chip-soft shrink-0 px-3 text-[10px]">
-                    {sessionOverviewOpen ? "Hide summary" : "Show summary"}
-                  </span>
-                </button>
-
-                {sessionOverviewOpen ? (
-                  <>
-                    <div className="aurora-console-divider mt-3" />
-
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {sessionMetrics.map((metric) => (
-                        <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
-                          <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
-                          <span className="aurora-stat-value break-all">{metric.value}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {latestFailedJob ? (
-                      <details className="aurora-surface-soft mt-4 rounded-[22px] px-4 py-3 text-xs">
-                        <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
-                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
-                          {latestFailedJob.error}
-                        </pre>
-                      </details>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="aurora-session-pill-row mt-3">
-                    {overviewPills.map((metric) => (
-                      <span key={metric.label} className="aurora-session-pill">
-                        <span className="aurora-title-label text-[9px] tracking-[0.2em]">{metric.label}</span>
-                        <strong>{metric.value}</strong>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </article>
-            )}
+            ) : null}
 
             {sessionReady ? errorPanel : null}
 
             <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-4">
               <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
-                  <h1 className="aurora-display-title mt-3">How Aurora will guide this project.</h1>
-                  <p className="mt-3 max-w-2xl text-sm text-slate-300">{sceneSummary[activeScene]}</p>
+                  <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Workspace</p>
+                  <h1 className="aurora-display-title mt-2">{sceneCanvasTitle[activeScene]}</h1>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-300">{sceneSummary[activeScene]}</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="aurora-status-pill rounded-full px-4 py-2.5">
-                    <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Scene</p>
-                    <p className="aurora-title-primary mt-1 text-lg leading-none">{activeScene}</p>
-                  </div>
                   <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
                     {sessionReady ? stage.replaceAll("_", " ") : "Awaiting session"}
                   </span>
@@ -547,7 +610,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               status={sessionReady ? rightPanelViewModel.status : "idle"}
               modelSource={rightPanelViewModel.modelSource}
               usageSummary={sessionPayload?.usage_summary ?? null}
-              actionHub={rightPanelViewModel}
+              actionHub={sessionReady ? null : rightPanelViewModel}
               onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
               onExecuteSlash={(raw) => executeSlashCommand(raw)}
               onForceQueued={(queueId) => void handleForceQueued(queueId)}

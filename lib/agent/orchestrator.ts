@@ -39,6 +39,32 @@ interface StepResult {
   jobId?: string | null;
 }
 
+function isActiveJobConflictError(error: unknown): boolean {
+  return error instanceof Error && /active job already exists for session/i.test(error.message);
+}
+
+async function returnActiveJobConflict(
+  storage: StorageRepository,
+  session: SessionRecord,
+  step: AgentStep,
+  message: string
+): Promise<{ session: SessionRecord; result: StepResult }> {
+  const waitingSession = await storage.updateSession(session.id, {
+    current_step: step,
+    status: "wait_user"
+  });
+
+  return {
+    session: waitingSession,
+    result: {
+      nextStep: step,
+      waitUser: true,
+      message,
+      jobId: null
+    }
+  };
+}
+
 function clampScore(value: number): number {
   return Math.max(1, Math.min(5, value));
 }
@@ -756,14 +782,27 @@ async function executeStep(
       };
     }
 
-    const job = await storage.createJob({
-      session_id: session.id,
-      step: "candidates_generate",
-      payload: {
-        reason: request.action ?? "step_run",
-        direction_summary: direction.brief_summary
+    let job: Awaited<ReturnType<StorageRepository["createJob"]>>;
+    try {
+      job = await storage.createJob({
+        session_id: session.id,
+        step: "candidates_generate",
+        payload: {
+          reason: request.action ?? "step_run",
+          direction_summary: direction.brief_summary
+        }
+      });
+    } catch (error) {
+      if (isActiveJobConflictError(error)) {
+        return returnActiveJobConflict(
+          storage,
+          session,
+          "candidates_generate",
+          "Another active job exists for this session. Retry after completion."
+        );
       }
-    });
+      throw error;
+    }
 
     try {
       const generated = await generateCandidatesWithFallback({
@@ -950,11 +989,24 @@ async function executeStep(
       };
     }
 
-    const job = await storage.createJob({
-      session_id: session.id,
-      step: "approve_build",
-      payload: { selected_candidate_id: selectedCandidate.id }
-    });
+    let job: Awaited<ReturnType<StorageRepository["createJob"]>>;
+    try {
+      job = await storage.createJob({
+        session_id: session.id,
+        step: "approve_build",
+        payload: { selected_candidate_id: selectedCandidate.id }
+      });
+    } catch (error) {
+      if (isActiveJobConflictError(error)) {
+        return returnActiveJobConflict(
+          storage,
+          session,
+          "approve_build",
+          "Another active job exists for this session."
+        );
+      }
+      throw error;
+    }
 
     const tokens = {
       palette: {
@@ -1076,13 +1128,26 @@ async function executeStep(
         }
       };
     }
-    const job = await storage.createJob({
-      session_id: session.id,
-      step: "package",
-      payload: {
-        selected_candidate_id: session.selected_candidate_id
+    let job: Awaited<ReturnType<StorageRepository["createJob"]>>;
+    try {
+      job = await storage.createJob({
+        session_id: session.id,
+        step: "package",
+        payload: {
+          selected_candidate_id: session.selected_candidate_id
+        }
+      });
+    } catch (error) {
+      if (isActiveJobConflictError(error)) {
+        return returnActiveJobConflict(
+          storage,
+          session,
+          "package",
+          "Another active job exists for this session. Retry after completion."
+        );
       }
-    });
+      throw error;
+    }
     const bundleHash = sha256(JSON.stringify(session.final_spec));
     const packMeta = {
       session_id: session.id,
