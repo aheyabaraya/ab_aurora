@@ -207,6 +207,18 @@ test("parseEnv validates dev seed token requirement", () => {
   assert.equal(parsed.AUTO_PICK_TOP1, false);
   assert.equal(parsed.ALLOW_FILE_STORAGE_IN_PRODUCTION, true);
 
+  const normalizedBoolean = parseEnv({
+    NODE_ENV: "test",
+    AUTH_V2_ENABLED: "\"true\"",
+    RUNTIME_ENABLED: "true\n",
+    ENABLE_AGENT_CHAT_CONTROL: "'false",
+    NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED: "false'"
+  });
+  assert.equal(normalizedBoolean.AUTH_V2_ENABLED, true);
+  assert.equal(normalizedBoolean.RUNTIME_ENABLED, true);
+  assert.equal(normalizedBoolean.ENABLE_AGENT_CHAT_CONTROL, false);
+  assert.equal(normalizedBoolean.NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED, false);
+
   const normalizedSupabase = parseEnv({
     NODE_ENV: "production",
     NEXT_PUBLIC_SUPABASE_URL: "replace-with-your-project-url",

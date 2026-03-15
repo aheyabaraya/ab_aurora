@@ -13,6 +13,36 @@ function normalizeString(value: unknown): string | undefined {
 
 const emptyToUndefined = (value: unknown) => normalizeString(value);
 
+function normalizeBooleanLiteral(value: unknown): unknown {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  let candidate = normalized;
+  if (
+    (candidate.startsWith('"') && candidate.endsWith('"')) ||
+    (candidate.startsWith("'") && candidate.endsWith("'"))
+  ) {
+    candidate = candidate.slice(1, -1).trim();
+  } else {
+    if (candidate.startsWith('"') || candidate.startsWith("'")) {
+      candidate = candidate.slice(1).trim();
+    }
+    if (candidate.endsWith('"') || candidate.endsWith("'")) {
+      candidate = candidate.slice(0, -1).trim();
+    }
+  }
+
+  return candidate.toLowerCase();
+}
+
+function envBoolean(defaultValue: "true" | "false") {
+  return z
+    .preprocess(normalizeBooleanLiteral, z.enum(["true", "false"]).default(defaultValue))
+    .transform((value) => value === "true");
+}
+
 function normalizeSupabaseUrl(value: unknown): string | undefined {
   const normalized = normalizeString(value);
   if (!normalized) {
@@ -37,42 +67,27 @@ function normalizeSupabaseUrl(value: unknown): string | undefined {
   }
 }
 
-const stringBoolean = z
-  .enum(["true", "false"])
-  .default("false")
-  .transform((value) => value === "true");
+const stringBoolean = envBoolean("false");
 
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     APP_URL: z.string().url().default("http://localhost:3000"),
     AGENT_UI_MODE: z.enum(["chat_flat", "agent_stage"]).default("agent_stage"),
-    AUTO_CONTINUE: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
-    AUTO_PICK_TOP1: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
-    AUTH_V2_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
-    API_TOKEN_REQUIRED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
-    ALLOW_FILE_STORAGE_IN_PRODUCTION: z
-      .enum(["true", "false"])
-      .default("false")
-      .transform((value) => value === "true"),
-    SECURITY_HEADERS_STRICT: z
-      .enum(["true", "false"])
-      .default("true")
-      .transform((value) => value === "true"),
-    ENABLE_AGENT_CHAT_CONTROL: z
-      .enum(["true", "false"])
-      .default("true")
-      .transform((value) => value === "true"),
-    ENABLE_DEV_SEED_API: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    AUTO_CONTINUE: envBoolean("true"),
+    AUTO_PICK_TOP1: envBoolean("true"),
+    AUTH_V2_ENABLED: envBoolean("true"),
+    API_TOKEN_REQUIRED: envBoolean("false"),
+    ALLOW_FILE_STORAGE_IN_PRODUCTION: envBoolean("false"),
+    SECURITY_HEADERS_STRICT: envBoolean("true"),
+    ENABLE_AGENT_CHAT_CONTROL: envBoolean("true"),
+    ENABLE_DEV_SEED_API: envBoolean("false"),
     DEV_SEED_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-    RUNTIME_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    RUNTIME_ENABLED: envBoolean("false"),
     RUNTIME_MAX_ITERATIONS: z.coerce.number().int().min(1).max(100).default(12),
     RUNTIME_REPLAN_LIMIT: z.coerce.number().int().min(0).max(10).default(2),
     RUNTIME_TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
-    RUNTIME_MEMORY_PERSIST: z
-      .enum(["true", "false"])
-      .default("true")
-      .transform((value) => value === "true"),
+    RUNTIME_MEMORY_PERSIST: envBoolean("true"),
     RUNTIME_EVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.8),
     OPENAI_FALLBACK_MODE: z.enum(["deterministic_mock", "none"]).default("deterministic_mock"),
     NEXT_PUBLIC_SUPABASE_URL: z
@@ -87,23 +102,14 @@ const envSchema = z
     API_BEARER_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     ONBOARDING_CODE_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(300),
     ONBOARDING_STATE_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(600),
-    MOCK_ISSUER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+    MOCK_ISSUER_ENABLED: envBoolean("true"),
     MOCK_ISSUER_NAME: z.string().min(1).max(120).default("ab_aurora_mock"),
-    ONBOARDING_BYPASS_ENABLED: z
-      .enum(["true", "false"])
-      .default("false")
-      .transform((value) => value === "true"),
-    NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED: z
-      .enum(["true", "false"])
-      .default("false")
-      .transform((value) => value === "true"),
+    ONBOARDING_BYPASS_ENABLED: envBoolean("false"),
+    NEXT_PUBLIC_ONBOARDING_BYPASS_ENABLED: envBoolean("false"),
     OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     OPENAI_MODEL_TEXT: z.string().default("gpt-4o"),
     OPENAI_MODEL_IMAGE: z.string().default("gpt-image-1"),
-    OPENAI_STRICT_SESSION_GUARD: z
-      .enum(["true", "false"])
-      .default("false")
-      .transform((value) => value === "true"),
+    OPENAI_STRICT_SESSION_GUARD: envBoolean("false"),
     CHAT_OPENAI_LIMIT_PER_DAY: z.coerce.number().int().min(1).default(30),
     CHAT_OPENAI_MAX_TOKENS: z.coerce.number().int().min(64).max(1024).default(220),
     CHAT_OPENAI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.2),
