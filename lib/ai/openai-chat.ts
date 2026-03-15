@@ -22,6 +22,12 @@ type AssistantChatReplyInput = {
   optionHints: ChatOptionHint[];
 };
 
+export type OpenAiChatUsage = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+};
+
 function formatHints(hints: ChatOptionHint[]): string {
   if (hints.length === 0) {
     return "- /run: 다음 stage를 실행합니다.";
@@ -53,7 +59,10 @@ function summarizePipelineMessage(raw: string): string {
   return compact;
 }
 
-export async function generateAssistantChatReply(input: AssistantChatReplyInput): Promise<string> {
+export async function generateAssistantChatReplyWithUsage(input: AssistantChatReplyInput): Promise<{
+  content: string;
+  usage: OpenAiChatUsage | null;
+}> {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is required for OpenAI chat replies.");
   }
@@ -116,12 +125,37 @@ export async function generateAssistantChatReply(input: AssistantChatReplyInput)
         content?: string;
       };
     }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    };
   };
   const content = body.choices?.[0]?.message?.content?.trim();
   if (!content) {
     throw new Error("OpenAI chat returned empty content.");
   }
-  return content;
+
+  const usage =
+    typeof body.usage?.prompt_tokens === "number" &&
+    typeof body.usage?.completion_tokens === "number" &&
+    typeof body.usage?.total_tokens === "number"
+      ? {
+          prompt_tokens: body.usage.prompt_tokens,
+          completion_tokens: body.usage.completion_tokens,
+          total_tokens: body.usage.total_tokens
+        }
+      : null;
+
+  return {
+    content,
+    usage
+  };
+}
+
+export async function generateAssistantChatReply(input: AssistantChatReplyInput): Promise<string> {
+  const result = await generateAssistantChatReplyWithUsage(input);
+  return result.content;
 }
 
 export function buildRateLimitedAssistantReply(input: {

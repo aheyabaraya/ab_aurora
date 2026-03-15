@@ -382,6 +382,7 @@ export function ProConsole({ controller, onSwitchUiMode }: ProConsoleProps) {
           defaultTab="jobs"
           status={status}
           modelSource={top3ModelSource}
+          usageSummary={sessionPayload?.usage_summary ?? null}
           onSendChat={(message) => void handleSendChat(message)}
           onQuickAction={(actionId) => void handleQuickAction(actionId)}
           onExecuteSlash={(raw) => executeSlashCommand(raw)}

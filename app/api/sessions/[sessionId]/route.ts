@@ -36,9 +36,10 @@ export async function GET(
     return sessionAuth.response;
   }
   const session = sessionAuth.value;
-  const [artifacts, messages] = await Promise.all([
+  const [artifacts, messages, usageSummary] = await Promise.all([
     storage.listArtifactsBySession(sessionId),
-    storage.listMessagesBySession(sessionId, 50)
+    storage.listMessagesBySession(sessionId, 50),
+    storage.getUsageSummaryBySession(sessionId)
   ]);
   return jsonOk({
     session,
@@ -47,6 +48,7 @@ export async function GET(
     selected_candidate_id: session.selected_candidate_id,
     recent_artifacts: artifacts.slice(0, 20),
     recent_messages: messages,
+    usage_summary: usageSummary,
     request_id: requestId
   });
 }

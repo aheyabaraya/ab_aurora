@@ -6,7 +6,7 @@ import type { Candidate, SessionRecord } from "../../../lib/agent/types";
 import {
   buildFallbackAssistantReply,
   buildRateLimitedAssistantReply,
-  generateAssistantChatReply,
+  generateAssistantChatReplyWithUsage,
   type ChatOptionHint
 } from "../../../lib/ai/openai-chat";
 import {
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
       });
     } else {
       try {
-        assistantMessage = await generateAssistantChatReply({
+        const assistantResult = await generateAssistantChatReplyWithUsage({
           userMessage: input.message,
           actionType: action.type,
           pipelineMessage,
@@ -276,12 +276,35 @@ export async function POST(request: Request) {
           },
           optionHints
         });
+        assistantMessage = assistantResult.content;
         assistantSource = "openai";
         await safeTrackUsage(storage, {
           session_id: session.id,
           type: "openai_chat",
           amount: 1
         });
+        await safeTrackUsage(storage, {
+          session_id: session.id,
+          type: "openai_text_requests",
+          amount: 1
+        });
+        if (assistantResult.usage) {
+          await safeTrackUsage(storage, {
+            session_id: session.id,
+            type: "openai_tokens_input",
+            amount: assistantResult.usage.prompt_tokens
+          });
+          await safeTrackUsage(storage, {
+            session_id: session.id,
+            type: "openai_tokens_output",
+            amount: assistantResult.usage.completion_tokens
+          });
+          await safeTrackUsage(storage, {
+            session_id: session.id,
+            type: "openai_tokens_total",
+            amount: assistantResult.usage.total_tokens
+          });
+        }
       } catch {
         assistantSource = "fallback";
         assistantMessage = buildFallbackAssistantReply({

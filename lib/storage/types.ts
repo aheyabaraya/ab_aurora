@@ -24,6 +24,11 @@ import type {
   RuntimeToolCallRecord
 } from "../runtime/types";
 
+export interface UsageSummary {
+  total: number;
+  by_type: Record<string, number>;
+}
+
 export interface CreateSessionInput {
   owner_user_id?: string | null;
   mode: SessionMode;
@@ -101,6 +106,7 @@ export interface StorageRepository {
   updatePack(packId: string, patch: Partial<Pick<PackRecord, "meta" | "bundle_hash" | "cid" | "mint_tx">>): Promise<PackRecord>;
   getPack(packId: string): Promise<PackRecord | null>;
   trackUsage(input: { session_id: string; type: string; amount: number }): Promise<void>;
+  getUsageSummaryBySession(sessionId: string): Promise<UsageSummary>;
   createRuntimeGoal(input: {
     session_id: string;
     goal_type: RuntimeGoalType;

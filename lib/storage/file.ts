@@ -27,7 +27,8 @@ import type {
   CreateJobInput,
   CreatePackInput,
   CreateSessionInput,
-  StorageRepository
+  StorageRepository,
+  UsageSummary
 } from "./types";
 
 type DbShape = {
@@ -43,6 +44,12 @@ type DbShape = {
   runtime_evals: RuntimeEvalRecord[];
   runtime_memories: RuntimeMemoryRecord[];
   runtime_events: RuntimeEventRecord[];
+  usage: Array<{
+    session_id: string;
+    type: string;
+    amount: number;
+    created_at: string;
+  }>;
 };
 
 function nowIso(): string {
@@ -109,7 +116,8 @@ function ensureRuntimeFile() {
         runtime_tool_calls: [],
         runtime_evals: [],
         runtime_memories: [],
-        runtime_events: []
+        runtime_events: [],
+        usage: []
       };
       writeFileSync(runtimeFile, JSON.stringify(initial), "utf8");
     }
@@ -145,7 +153,8 @@ function loadDb(): DbShape {
     runtime_tool_calls: parsed.runtime_tool_calls ?? [],
     runtime_evals: parsed.runtime_evals ?? [],
     runtime_memories: parsed.runtime_memories ?? [],
-    runtime_events: parsed.runtime_events ?? []
+    runtime_events: parsed.runtime_events ?? [],
+    usage: parsed.usage ?? []
   };
 }
 
@@ -368,8 +377,31 @@ export class FileStorageRepository implements StorageRepository {
   }
 
   async trackUsage(input: { session_id: string; type: string; amount: number }): Promise<void> {
-    void input;
+    const db = loadDb();
+    db.usage.push({
+      session_id: input.session_id,
+      type: input.type,
+      amount: input.amount,
+      created_at: nowIso()
+    });
+    saveDb(db);
     return;
+  }
+
+  async getUsageSummaryBySession(sessionId: string): Promise<UsageSummary> {
+    const db = loadDb();
+    const byType: Record<string, number> = {};
+    for (const entry of db.usage) {
+      if (entry.session_id !== sessionId) {
+        continue;
+      }
+      byType[entry.type] = (byType[entry.type] ?? 0) + entry.amount;
+    }
+    const total = Object.values(byType).reduce((sum, value) => sum + value, 0);
+    return {
+      total,
+      by_type: byType
+    };
   }
 
   async createRuntimeGoal(input: {

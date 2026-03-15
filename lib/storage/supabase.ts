@@ -24,7 +24,8 @@ import type {
   CreateJobInput,
   CreatePackInput,
   CreateSessionInput,
-  StorageRepository
+  StorageRepository,
+  UsageSummary
 } from "./types";
 
 type JsonMap = Record<string, unknown>;
@@ -622,6 +623,34 @@ export class SupabaseStorageRepository implements StorageRepository {
         amount: input.amount
       }
     });
+  }
+
+  async getUsageSummaryBySession(sessionId: string): Promise<UsageSummary> {
+    const rows = await requestRows<JsonMap>({
+      method: "GET",
+      path: "usage",
+      query: {
+        session_id: `eq.${sessionId}`,
+        select: "type,amount",
+        order: "created_at.desc",
+        limit: "5000"
+      }
+    });
+
+    const byType: Record<string, number> = {};
+    for (const row of rows) {
+      const usageType = typeof row.type === "string" ? row.type : null;
+      if (!usageType) {
+        continue;
+      }
+      const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
+      byType[usageType] = (byType[usageType] ?? 0) + amount;
+    }
+    const total = Object.values(byType).reduce((sum, value) => sum + value, 0);
+    return {
+      total,
+      by_type: byType
+    };
   }
 
   async createRuntimeGoal(input: {

@@ -546,6 +546,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               showArtifactsTab={sessionReady && currentScene === "PACKAGE"}
               status={sessionReady ? rightPanelViewModel.status : "idle"}
               modelSource={rightPanelViewModel.modelSource}
+              usageSummary={sessionPayload?.usage_summary ?? null}
               actionHub={rightPanelViewModel}
               onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}
               onExecuteSlash={(raw) => executeSlashCommand(raw)}

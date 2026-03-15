@@ -24,7 +24,8 @@ import type {
   CreateJobInput,
   CreatePackInput,
   CreateSessionInput,
-  StorageRepository
+  StorageRepository,
+  UsageSummary
 } from "./types";
 
 const sessions = new Map<string, SessionRecord>();
@@ -39,6 +40,7 @@ const runtimeToolCalls = new Map<string, RuntimeToolCallRecord>();
 const runtimeEvals = new Map<string, RuntimeEvalRecord>();
 const runtimeMemories = new Map<string, RuntimeMemoryRecord>();
 const runtimeEvents = new Map<string, RuntimeEventRecord>();
+const usageBySession = new Map<string, Array<{ type: string; amount: number }>>();
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -243,8 +245,26 @@ export class MemoryStorageRepository implements StorageRepository {
   }
 
   async trackUsage(input: { session_id: string; type: string; amount: number }): Promise<void> {
-    void input;
+    const records = usageBySession.get(input.session_id) ?? [];
+    records.push({
+      type: input.type,
+      amount: input.amount
+    });
+    usageBySession.set(input.session_id, records);
     return;
+  }
+
+  async getUsageSummaryBySession(sessionId: string): Promise<UsageSummary> {
+    const records = usageBySession.get(sessionId) ?? [];
+    const byType: Record<string, number> = {};
+    for (const record of records) {
+      byType[record.type] = (byType[record.type] ?? 0) + record.amount;
+    }
+    const total = Object.values(byType).reduce((sum, value) => sum + value, 0);
+    return {
+      total,
+      by_type: byType
+    };
   }
 
   async createRuntimeGoal(input: {

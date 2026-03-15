@@ -95,6 +95,11 @@ export type ArtifactRecord = {
   content: Record<string, unknown>;
 };
 
+export type SessionUsageSummary = {
+  total: number;
+  by_type: Record<string, number>;
+};
+
 export type SessionPayload = {
   session: {
     id: string;
@@ -119,6 +124,7 @@ export type SessionPayload = {
   selected_candidate_id: string | null;
   recent_artifacts: ArtifactRecord[];
   recent_messages: SessionMessage[];
+  usage_summary?: SessionUsageSummary;
 };
 
 export type JobsPayload = {

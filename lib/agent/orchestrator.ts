@@ -11,7 +11,8 @@ import {
   generateConversationFollowupAsset,
   generateDirectionWithFallback,
   generateFollowupSocialAsset,
-  generateSocialAssetsWithFallback
+  generateSocialAssetsWithFallback,
+  type OpenAiTextUsage
 } from "../ai/openai";
 import { toVariationWidth } from "./candidate";
 import type {
@@ -131,6 +132,51 @@ function applyDirectionToDraft(session: SessionRecord, direction: BrandDirection
   });
 }
 
+async function safeTrackUsage(
+  storage: StorageRepository,
+  input: {
+    session_id: string;
+    type: string;
+    amount: number;
+  }
+) {
+  try {
+    await storage.trackUsage(input);
+  } catch {
+    // Usage tracking should never break pipeline progression.
+  }
+}
+
+async function trackOpenAiTextUsage(
+  storage: StorageRepository,
+  sessionId: string,
+  usage: OpenAiTextUsage | null
+) {
+  if (!usage) {
+    return;
+  }
+  await safeTrackUsage(storage, {
+    session_id: sessionId,
+    type: "openai_text_requests",
+    amount: 1
+  });
+  await safeTrackUsage(storage, {
+    session_id: sessionId,
+    type: "openai_tokens_input",
+    amount: usage.prompt_tokens
+  });
+  await safeTrackUsage(storage, {
+    session_id: sessionId,
+    type: "openai_tokens_output",
+    amount: usage.completion_tokens
+  });
+  await safeTrackUsage(storage, {
+    session_id: sessionId,
+    type: "openai_tokens_total",
+    amount: usage.total_tokens
+  });
+}
+
 async function recordArtifact(
   storage: StorageRepository,
   artifacts: ArtifactRecord[],
@@ -219,6 +265,13 @@ async function createSelectedRevision(
     selectedCandidate,
     assetType
   });
+  if (generatedImage.source === "openai") {
+    await safeTrackUsage(storage, {
+      session_id: session.id,
+      type: "openai_image_generations",
+      amount: 1
+    });
+  }
   const followup = generateFollowupSocialAsset({
     candidate: selectedCandidate,
     assetType
@@ -309,6 +362,9 @@ async function applyAction(
       currentDirection: getDirection(session),
       revisionNote: constraint
     });
+    if (directionResult.source === "openai") {
+      await trackOpenAiTextUsage(storage, session.id, directionResult.usage);
+    }
 
     const regenerateCandidates = payload?.regenerate_candidates === true;
     let nextStep: AgentStep = "brand_narrative";
@@ -426,6 +482,9 @@ async function applyAction(
         currentDirection: direction,
         revisionNote: prompt
       });
+      if (refinedDirection.source === "openai") {
+        await trackOpenAiTextUsage(storage, session.id, refinedDirection.usage);
+      }
       const nextSession = await updateDirectionSession(storage, session, {
         direction: refinedDirection.direction,
         constraint: prompt,
@@ -630,6 +689,9 @@ async function executeStep(
       styleKeywords: session.style_keywords,
       constraint: session.constraint
     });
+    if (synthesized.source === "openai") {
+      await trackOpenAiTextUsage(storage, session.id, synthesized.usage);
+    }
     const nextDraft = applyDirectionToDraft(session, synthesized.direction);
     const nextSession = await storage.updateSession(session.id, {
       draft_spec: nextDraft,
@@ -714,6 +776,16 @@ async function executeStep(
         candidateCount: env.TOP_K,
         topK: env.TOP_K
       });
+      if (generated.source === "openai") {
+        await trackOpenAiTextUsage(storage, session.id, generated.usage.text);
+        if (generated.usage.image_generations > 0) {
+          await safeTrackUsage(storage, {
+            session_id: session.id,
+            type: "openai_image_generations",
+            amount: generated.usage.image_generations
+          });
+        }
+      }
       if (generated.candidates.length !== env.TOP_K) {
         throw new Error(`Expected ${env.TOP_K} concepts but received ${generated.candidates.length}.`);
       }
@@ -901,6 +973,13 @@ async function executeStep(
       sessionId: session.id,
       candidate: selectedCandidate
     });
+    if (socialAssets.source === "openai") {
+      await safeTrackUsage(storage, {
+        session_id: session.id,
+        type: "openai_image_generations",
+        amount: 3
+      });
+    }
     const codePlan = {
       stack: "nextjs-tailwind",
       components: ["DirectionHero", "ConceptGallery", "SelectionPanel", "ExportDock"],

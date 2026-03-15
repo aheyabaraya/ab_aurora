@@ -66,6 +66,11 @@ const SOCIAL_IMAGE_SPECS = [
 ] as const;
 
 type SocialImageKey = (typeof SOCIAL_IMAGE_SPECS)[number]["key"];
+export type OpenAiTextUsage = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+};
 
 function normalizeLines(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -251,7 +256,7 @@ async function fetchJsonChatCompletion<T>(input: {
   user: string;
   temperature?: number;
   schema: z.ZodType<T>;
-}): Promise<T> {
+}): Promise<{ data: T; usage: OpenAiTextUsage | null }> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -281,12 +286,32 @@ async function fetchJsonChatCompletion<T>(input: {
         content?: string;
       };
     }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    };
   };
   const content = completion.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error("Empty OpenAI response");
   }
-  return input.schema.parse(JSON.parse(content));
+
+  const usage =
+    typeof completion.usage?.prompt_tokens === "number" &&
+    typeof completion.usage?.completion_tokens === "number" &&
+    typeof completion.usage?.total_tokens === "number"
+      ? {
+          prompt_tokens: completion.usage.prompt_tokens,
+          completion_tokens: completion.usage.completion_tokens,
+          total_tokens: completion.usage.total_tokens
+        }
+      : null;
+
+  return {
+    data: input.schema.parse(JSON.parse(content)),
+    usage
+  };
 }
 
 async function generateOpenAiImageUrl(input: {
@@ -338,25 +363,25 @@ export async function generateDirectionWithFallback(input: {
   constraint?: string | null;
   currentDirection?: BrandDirection | null;
   revisionNote?: string | null;
-}): Promise<{ direction: BrandDirection; source: "openai" | "mock" }> {
+}): Promise<{ direction: BrandDirection; source: "openai" | "mock"; usage: OpenAiTextUsage | null }> {
   const fallbackDirection = toFallbackDirection(input);
   if (!env.OPENAI_API_KEY) {
-    return { direction: fallbackDirection, source: "mock" };
+    return { direction: fallbackDirection, source: "mock", usage: null };
   }
 
   try {
-    const direction = await fetchJsonChatCompletion({
+    const result = await fetchJsonChatCompletion({
       system: "You are a senior brand strategist who writes structured creative direction as JSON.",
       user: buildDirectionPrompt(input),
       temperature: input.currentDirection ? 0.45 : 0.65,
       schema: directionResponseSchema
     });
-    return { direction, source: "openai" };
+    return { direction: result.data, source: "openai", usage: result.usage };
   } catch (error) {
     if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
       throw error;
     }
-    return { direction: fallbackDirection, source: "mock" };
+    return { direction: fallbackDirection, source: "mock", usage: null };
   }
 }
 
@@ -369,7 +394,14 @@ export async function generateCandidatesWithFallback(input: {
   direction: BrandDirection;
   candidateCount?: number;
   topK?: number;
-}): Promise<{ candidates: Candidate[]; source: "openai" | "mock" }> {
+}): Promise<{
+  candidates: Candidate[];
+  source: "openai" | "mock";
+  usage: {
+    text: OpenAiTextUsage | null;
+    image_generations: number;
+  };
+}> {
   const candidateCount = input.candidateCount ?? env.TOP_K;
   const topK = input.topK ?? env.TOP_K;
   const variationWidth = toVariationWidth(input.intentConfidence);
@@ -383,7 +415,14 @@ export async function generateCandidatesWithFallback(input: {
       variationWidth,
       candidateCount
     });
-    return { candidates: selectTopCandidates(fallback, topK), source: "mock" };
+    return {
+      candidates: selectTopCandidates(fallback, topK),
+      source: "mock",
+      usage: {
+        text: null,
+        image_generations: 0
+      }
+    };
   }
 
   try {
@@ -401,7 +440,7 @@ export async function generateCandidatesWithFallback(input: {
       schema: candidateResponseSchema
     });
 
-    const trimmed = parsed.candidates.slice(0, topK);
+    const trimmed = parsed.data.candidates.slice(0, topK);
     const images = await Promise.all(
       trimmed.map((candidate) =>
         generateOpenAiImageUrl({
@@ -414,7 +453,11 @@ export async function generateCandidatesWithFallback(input: {
 
     return {
       candidates: trimmed.map((candidate, index) => toCandidate(index, candidate, images[index])),
-      source: "openai"
+      source: "openai",
+      usage: {
+        text: parsed.usage,
+        image_generations: trimmed.length
+      }
     };
   } catch (error) {
     if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
@@ -428,7 +471,14 @@ export async function generateCandidatesWithFallback(input: {
       variationWidth,
       candidateCount
     });
-    return { candidates: selectTopCandidates(fallback, topK), source: "mock" };
+    return {
+      candidates: selectTopCandidates(fallback, topK),
+      source: "mock",
+      usage: {
+        text: null,
+        image_generations: 0
+      }
+    };
   }
 }
 

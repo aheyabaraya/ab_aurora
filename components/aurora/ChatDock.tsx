@@ -13,7 +13,8 @@ import type {
   ModelSource,
   QueuedCommand,
   QuickActionId,
-  RightPanelViewModel
+  RightPanelViewModel,
+  SessionUsageSummary
 } from "./types";
 
 type TabId = "chat" | "artifacts" | "jobs";
@@ -31,6 +32,7 @@ type ChatDockProps = {
   showArtifactsTab?: boolean;
   status?: string;
   modelSource?: ModelSource;
+  usageSummary?: SessionUsageSummary | null;
   actionHub?: RightPanelViewModel | null;
   onSendChat?: (message: string) => void;
   onQuickAction?: (actionId: QuickActionId) => void;
@@ -168,6 +170,7 @@ export function ChatDock({
   showArtifactsTab = false,
   status = "idle",
   modelSource = "UNKNOWN",
+  usageSummary = null,
   actionHub,
   onSendChat,
   onRunGuidedAction,
@@ -192,6 +195,9 @@ export function ChatDock({
   const preSessionHint = primaryAction?.disabled
     ? "Complete the brief, then start the session."
     : "The brief is ready. Start the session.";
+  const tokenTotal = usageSummary?.by_type?.openai_tokens_total ?? 0;
+  const imageGenerations = usageSummary?.by_type?.openai_image_generations ?? 0;
+  const textRequests = usageSummary?.by_type?.openai_text_requests ?? 0;
 
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
@@ -389,6 +395,15 @@ export function ChatDock({
             </p>
             {sessionReady ? <p className="mt-2 text-[11px] leading-5 text-slate-300">{actionHub.suggestedReason}</p> : null}
           </div>
+
+          {sessionReady ? (
+            <div className="mt-2 rounded-[18px] border border-indigo-200/22 bg-slate-950/45 px-3 py-2">
+              <p className="aurora-title-label text-[9px] tracking-[0.18em]">Flow Usage</p>
+              <p className="mt-1 text-[12px] text-slate-100">
+                {tokenTotal.toLocaleString()} tokens · {textRequests.toLocaleString()} text calls · {imageGenerations.toLocaleString()} images
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
