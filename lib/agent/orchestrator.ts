@@ -830,7 +830,12 @@ async function executeStep(
       }
       await storage.updateJob(job.id, {
         status: "completed",
-        logs: [`source:${generated.source}`, `top:${generated.candidates.length}`]
+        logs: [
+          `source:${generated.source}`,
+          `top:${generated.candidates.length}`,
+          `render_failures:${generated.render_failures.length}`,
+          ...generated.render_failures.map((failure) => `render_failure:${failure.candidate_id}:${failure.error}`)
+        ]
       });
       const nextSession = await storage.updateSession(session.id, {
         latest_top3: generated.candidates,
@@ -847,7 +852,8 @@ async function executeStep(
         content: {
           source: generated.source,
           direction,
-          candidates: generated.candidates
+          candidates: generated.candidates,
+          render_failures: generated.render_failures
         }
       });
       return {
@@ -855,13 +861,25 @@ async function executeStep(
         result: {
           nextStep: "top3_select",
           waitUser: true,
-          message: "Three concepts are ready. Choose one to continue.",
+          message:
+            generated.render_failures.length > 0
+              ? `Three concepts are ready. ${generated.render_failures.length} render fallback(s) were used.`
+              : "Three concepts are ready. Choose one to continue.",
           jobId: job.id
         }
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Concept generation failed.";
-      await storage.updateJob(job.id, { status: "failed", error: message });
+      console.error("[agent.candidates_generate.failed]", {
+        session_id: session.id,
+        job_id: job.id,
+        error: message
+      });
+      await storage.updateJob(job.id, {
+        status: "failed",
+        error: message,
+        logs: [`error:${message}`]
+      });
       const failedSession = await storage.updateSession(session.id, {
         status: "failed",
         current_step: "candidates_generate"

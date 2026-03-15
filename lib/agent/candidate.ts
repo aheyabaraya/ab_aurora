@@ -63,7 +63,7 @@ function deriveVariationBoost(variationWidth: VariationWidth): number {
   return 0.04;
 }
 
-function toMockCandidateImageUrl(input: {
+export function toMockCandidateImageUrl(input: {
   candidateName: string;
   headline: string;
   narrative: string;

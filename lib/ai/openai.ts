@@ -3,6 +3,7 @@ import { env } from "../env";
 import {
   generateDeterministicCandidates,
   selectTopCandidates,
+  toMockCandidateImageUrl,
   toVariationWidth
 } from "../agent/candidate";
 import type { Candidate, VariationWidth } from "../agent/types";
@@ -74,6 +75,21 @@ export type OpenAiTextUsage = {
 
 function normalizeLines(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function toLoggableError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function truncateForLog(value: string, limit = 4000): string {
+  return value.length > limit ? `${value.slice(0, limit)}...` : value;
+}
+
+function logOpenAiFailure(event: string, details: Record<string, unknown>) {
+  console.error(event, details);
 }
 
 function clampScore(score: number): number {
@@ -318,6 +334,7 @@ async function generateOpenAiImageUrl(input: {
   prompt: string;
   size: (typeof SOCIAL_IMAGE_SPECS)[number]["size"];
   responseFormat?: "url" | "b64_json";
+  logContext?: Record<string, unknown>;
 }): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -337,6 +354,13 @@ async function generateOpenAiImageUrl(input: {
 
   if (!response.ok) {
     const errorBody = await response.text();
+    logOpenAiFailure("[openai.image.failed]", {
+      model: env.OPENAI_MODEL_IMAGE,
+      size: input.size,
+      status: response.status,
+      error: truncateForLog(errorBody),
+      ...input.logContext
+    });
     throw new Error(`OpenAI image call failed (${response.status}): ${errorBody}`);
   }
 
@@ -401,6 +425,12 @@ export async function generateCandidatesWithFallback(input: {
     text: OpenAiTextUsage | null;
     image_generations: number;
   };
+  render_failures: Array<{
+    candidate_id: string;
+    candidate_name: string;
+    error: string;
+    fallback_used: boolean;
+  }>;
 }> {
   const candidateCount = input.candidateCount ?? env.TOP_K;
   const topK = input.topK ?? env.TOP_K;
@@ -421,7 +451,8 @@ export async function generateCandidatesWithFallback(input: {
       usage: {
         text: null,
         image_generations: 0
-      }
+      },
+      render_failures: []
     };
   }
 
@@ -441,15 +472,56 @@ export async function generateCandidatesWithFallback(input: {
     });
 
     const trimmed = parsed.data.candidates.slice(0, topK);
-    const images = await Promise.all(
-      trimmed.map((candidate) =>
+    const imageResults = await Promise.allSettled(
+      trimmed.map((candidate, index) =>
         generateOpenAiImageUrl({
           prompt: candidate.image_prompt,
           size: "1024x1536",
-          responseFormat: "b64_json"
+          responseFormat: "b64_json",
+          logContext: {
+            session_id: input.sessionId,
+            candidate_index: index + 1,
+            candidate_name: candidate.naming.recommended,
+            operation: "candidates_generate"
+          }
         })
       )
     );
+
+    const renderFailures: Array<{
+      candidate_id: string;
+      candidate_name: string;
+      error: string;
+      fallback_used: boolean;
+    }> = [];
+
+    const images = trimmed.map((candidate, index) => {
+      const result = imageResults[index];
+      if (result.status === "fulfilled") {
+        return result.value;
+      }
+
+      const error = truncateForLog(toLoggableError(result.reason));
+      renderFailures.push({
+        candidate_id: `cand_${index + 1}`,
+        candidate_name: candidate.naming.recommended,
+        error,
+        fallback_used: true
+      });
+      logOpenAiFailure("[openai.candidates.image_fallback]", {
+        session_id: input.sessionId,
+        candidate_index: index + 1,
+        candidate_name: candidate.naming.recommended,
+        model: env.OPENAI_MODEL_IMAGE,
+        error
+      });
+      return toMockCandidateImageUrl({
+        candidateName: candidate.naming.recommended,
+        headline: candidate.ui_plan.headline,
+        narrative: candidate.narrative_summary,
+        colors: candidate.moodboard.colors
+      });
+    });
 
     return {
       candidates: trimmed.map((candidate, index) => toCandidate(index, candidate, images[index])),
@@ -457,9 +529,16 @@ export async function generateCandidatesWithFallback(input: {
       usage: {
         text: parsed.usage,
         image_generations: trimmed.length
-      }
+      },
+      render_failures: renderFailures
     };
   } catch (error) {
+    logOpenAiFailure("[openai.candidates.failed]", {
+      session_id: input.sessionId,
+      model_text: env.OPENAI_MODEL_TEXT,
+      model_image: env.OPENAI_MODEL_IMAGE,
+      error: truncateForLog(toLoggableError(error))
+    });
     if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
       throw error;
     }
@@ -477,7 +556,8 @@ export async function generateCandidatesWithFallback(input: {
       usage: {
         text: null,
         image_generations: 0
-      }
+      },
+      render_failures: []
     };
   }
 }

@@ -222,29 +222,170 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
 }
 
-function resolveRunStepBody(payload: SessionPayload | null): {
-  step?: string;
-  action?: string;
-  payload?: Record<string, unknown>;
-} {
-  const currentStep = payload?.session.current_step;
-  if (!currentStep) {
-    return {};
+function readApiErrorMessage(body: unknown): string | null {
+  if (!body || typeof body !== "object") {
+    return null;
+  }
+  if ("error" in body && typeof body.error === "string" && body.error.trim().length > 0) {
+    return body.error.trim();
+  }
+  if ("message" in body && typeof body.message === "string" && body.message.trim().length > 0) {
+    return body.message.trim();
+  }
+  return null;
+}
+
+function normalizeActionErrorMessage(
+  error: unknown,
+  context: {
+    currentStep?: string | null;
+    hasActiveJob?: boolean;
+  } = {}
+): string {
+  const apiBodyMessage = error instanceof ApiError ? readApiErrorMessage(error.body) : null;
+  const rawMessage = apiBodyMessage ?? toErrorMessage(error);
+  const normalized = rawMessage.trim();
+
+  if (/active job already exists for session/i.test(normalized)) {
+    return "Aurora is already processing this session. Wait for the current job to finish, then continue.";
+  }
+
+  if (/Invalid run-step payload/i.test(normalized) || /Invalid runtime step payload/i.test(normalized)) {
+    return "Aurora is still preparing the next stage. Wait a moment, then try again.";
+  }
+
+  if (/OpenAI image call failed/i.test(normalized) && context.currentStep === "candidates_generate") {
+    return "Concept rendering failed while generating images. Retry once, then inspect the latest failure details.";
+  }
+
+  if (/OPENAI_API_KEY is required/i.test(normalized)) {
+    return "OpenAI is not configured on this deployment, so Aurora can not answer yet.";
+  }
+
+  return normalized;
+}
+
+type RunStepRequestDecision =
+  | {
+      kind: "ready";
+      body: {
+        step?: string;
+        action?: string;
+        payload?: Record<string, unknown>;
+      };
+    }
+  | {
+      kind: "blocked";
+      message: string;
+      subtitle?: string;
+    };
+
+function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: boolean): RunStepRequestDecision {
+  if (!payload) {
+    return {
+      kind: "blocked",
+      message: "Aurora is still loading this session. Wait a moment, then try again.",
+      subtitle: "session loading"
+    };
+  }
+
+  const currentStep = payload.session.current_step;
+  const status = payload.session.status;
+  const hasDirection = Boolean(payload.session.draft_spec?.direction);
+  const top3Count = payload.latest_top3?.length ?? 0;
+  const hasSelection = Boolean(payload.selected_candidate_id);
+
+  if (status === "running" || hasActiveJob) {
+    return {
+      kind: "blocked",
+      message: "Aurora is already processing the current stage. Wait for the active job to finish.",
+      subtitle: "stage running"
+    };
+  }
+
+  if (
+    currentStep === "interview_collect" ||
+    currentStep === "intent_gate" ||
+    currentStep === "spec_draft" ||
+    (currentStep === "brand_narrative" && !hasDirection)
+  ) {
+    return {
+      kind: "ready",
+      body: {
+        step: "interview_collect",
+        payload: {
+          bootstrap_until_direction: true
+        }
+      }
+    };
   }
 
   if (currentStep === "brand_narrative") {
     return {
-      step: "candidates_generate"
+      kind: "ready",
+      body: {
+        step: "candidates_generate"
+      }
+    };
+  }
+
+  if (currentStep === "candidates_generate") {
+    return {
+      kind: "blocked",
+      message: "Concept generation is already in progress. Wait for Aurora to finish rendering the three options.",
+      subtitle: "render in progress"
+    };
+  }
+
+  if (currentStep === "top3_select") {
+    if (top3Count === 0) {
+      return {
+        kind: "ready",
+        body: {
+          step: "candidates_generate"
+        }
+      };
+    }
+
+    if (!hasSelection) {
+      return {
+        kind: "blocked",
+        message: "Pick one concept first. After selection, Aurora can continue to the build stage.",
+        subtitle: "selection required"
+      };
+    }
+
+    return {
+      kind: "ready",
+      body: {
+        action: "proceed"
+      }
+    };
+  }
+
+  if (currentStep === "approve_build") {
+    return {
+      kind: "ready",
+      body: {
+        action: "proceed"
+      }
     };
   }
 
   if (currentStep === "package" || currentStep === "done") {
     return {
-      step: "package"
+      kind: "ready",
+      body: {
+        step: "package"
+      }
     };
   }
 
-  return {};
+  return {
+    kind: "blocked",
+    message: "This stage is not ready for /run yet. Wait for Aurora to finish the current transition.",
+    subtitle: "stage not ready"
+  };
 }
 
 type ActionFn = () => Promise<void>;
@@ -290,6 +431,8 @@ export function useAuroraController() {
   const stageRef = useRef<string | null>(null);
   const flushingRef = useRef(false);
   const lastFailedActionRef = useRef<ActionFn | null>(null);
+  const lastTimelineNoticeRef = useRef<string | null>(null);
+  const announcedFailedJobRef = useRef<string | null>(null);
   const [canRetry, setCanRetry] = useState(false);
 
   useEffect(() => {
@@ -354,7 +497,9 @@ export function useAuroraController() {
   );
 
   const handleActionError = useCallback((actionError: unknown, retryAction?: ActionFn) => {
-    const message = toErrorMessage(actionError);
+    const message = normalizeActionErrorMessage(actionError, {
+      currentStep: sessionPayload?.session.current_step
+    });
     setError(message);
     if (actionError instanceof ApiError) {
       setErrorStatus(actionError.status);
@@ -369,7 +514,21 @@ export function useAuroraController() {
       lastFailedActionRef.current = retryAction;
       setCanRetry(true);
     }
-  }, []);
+    const dedupeKey = `error:${message}`;
+    if (lastTimelineNoticeRef.current !== dedupeKey) {
+      lastTimelineNoticeRef.current = dedupeKey;
+      setStageMessages((current) => [
+        ...current,
+        {
+          id: `stage_${crypto.randomUUID()}`,
+          type: "system",
+          content: message,
+          createdAt: nowIso(),
+          subtitle: actionError instanceof ApiError ? "request error" : "system error"
+        }
+      ]);
+    }
+  }, [sessionPayload?.session.current_step]);
 
   const runWithRecovery = useCallback(
     async (action: ActionFn, retryAction?: ActionFn): Promise<boolean> => {
@@ -458,6 +617,12 @@ export function useAuroraController() {
     return (jobsPayload?.jobs ?? []).some((job) => job.status === "pending" || job.status === "running");
   }, [jobsPayload?.jobs]);
 
+  const latestFailedJob = useMemo(() => {
+    return [...(jobsPayload?.jobs ?? [])]
+      .filter((job) => job.status === "failed" && Boolean(job.error))
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0] ?? null;
+  }, [jobsPayload?.jobs]);
+
   const shouldQueueIntervention = useMemo(() => {
     return sessionPayload?.session.status === "running" && hasActiveJob;
   }, [hasActiveJob, sessionPayload?.session.status]);
@@ -473,6 +638,37 @@ export function useAuroraController() {
     // TEMP: allow session start during testing even when setup is incomplete.
     return true;
   }, []);
+
+  const appendTimelineMessage = useCallback(
+    (input: {
+      content: string;
+      subtitle?: string;
+      dedupeKey?: string;
+    }) => {
+      const content = input.content.trim();
+      if (content.length === 0) {
+        return;
+      }
+
+      const dedupeKey = input.dedupeKey ?? `${input.subtitle ?? "system"}:${content}`;
+      if (lastTimelineNoticeRef.current === dedupeKey) {
+        return;
+      }
+
+      lastTimelineNoticeRef.current = dedupeKey;
+      setStageMessages((current) => [
+        ...current,
+        {
+          id: `stage_${crypto.randomUUID()}`,
+          type: "system",
+          content,
+          createdAt: nowIso(),
+          subtitle: input.subtitle ?? "system note"
+        }
+      ]);
+    },
+    []
+  );
 
   const appendQueuedCommand = useCallback((command: Omit<QueuedCommand, "id" | "createdAt">) => {
     setQueuedCommands((current) => [
@@ -604,21 +800,34 @@ export function useAuroraController() {
     if (previousStage && previousStage !== currentStage) {
       const scene = resolveSceneFromStep(currentStage);
       const guide = buildStageGuideMessage(currentStage, sessionPayload);
-      setStageMessages((current) => [
-        ...current,
-        {
-          id: `stage_${crypto.randomUUID()}`,
-          type: "system",
-          content: `${scene} scene으로 전환되었습니다 (${currentStage}).\n${guide}`,
-          createdAt: nowIso(),
-          subtitle: "stage update"
-        }
-      ]);
+      appendTimelineMessage({
+        content: `${scene} scene으로 전환되었습니다 (${currentStage}).\n${guide}`,
+        subtitle: "stage update",
+        dedupeKey: `stage:${currentStage}`
+      });
       void flushQueuedCommands();
     }
 
     stageRef.current = currentStage;
-  }, [flushQueuedCommands, sessionPayload]);
+  }, [appendTimelineMessage, flushQueuedCommands, sessionPayload]);
+
+  useEffect(() => {
+    if (!latestFailedJob || !latestFailedJob.error) {
+      return;
+    }
+
+    if (announcedFailedJobRef.current === latestFailedJob.id) {
+      return;
+    }
+
+    announcedFailedJobRef.current = latestFailedJob.id;
+    const guide = buildStageGuideMessage(latestFailedJob.step, sessionPayload);
+    appendTimelineMessage({
+      content: `${guide}\n\nFailure detail: ${latestFailedJob.error}`,
+      subtitle: "latest failure",
+      dedupeKey: `failed-job:${latestFailedJob.id}`
+    });
+  }, [appendTimelineMessage, latestFailedJob, sessionPayload]);
 
   const handleStartSession = useCallback(async (): Promise<StartSessionResult> => {
     const run = async () => {
@@ -648,6 +857,8 @@ export function useAuroraController() {
       setRuntimeSnapshot(null);
       setQueuedCommands([]);
       setStageMessages([]);
+      lastTimelineNoticeRef.current = null;
+      announcedFailedJobRef.current = null;
       stageRef.current = null;
       setSessionId(response.session_id);
       const bootstrap = await requestJson<{
@@ -703,8 +914,24 @@ export function useAuroraController() {
       return;
     }
 
+    const decision = resolveRunStepDecision(sessionPayload, hasActiveJob);
+    if (decision.kind === "blocked") {
+      appendTimelineMessage({
+        content: decision.message,
+        subtitle: decision.subtitle ?? "run blocked",
+        dedupeKey: `run-blocked:${decision.message}`
+      });
+      setError(null);
+      setErrorStatus(null);
+      if (sessionId) {
+        void refreshSession(sessionId).catch((refreshError) => {
+          handleActionError(refreshError);
+        });
+      }
+      return;
+    }
+
     const run = async () => {
-      const nextStepRequest = resolveRunStepBody(sessionPayload);
       const response = await requestJson<{
         runtime_meta?: {
           goal_id?: string;
@@ -713,7 +940,7 @@ export function useAuroraController() {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
-          ...nextStepRequest,
+          ...decision.body,
           idempotency_key: crypto.randomUUID()
         })
       });
@@ -725,7 +952,17 @@ export function useAuroraController() {
     };
 
     await runWithRecovery(run, run);
-  }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId, sessionPayload]);
+  }, [
+    appendTimelineMessage,
+    handleActionError,
+    hasActiveJob,
+    refreshRuntimeGoal,
+    refreshSession,
+    requestJson,
+    runWithRecovery,
+    sessionId,
+    sessionPayload
+  ]);
 
   const handleSelectCandidate = useCallback(
     async (candidateId: string) => {
@@ -1101,6 +1338,11 @@ export function useAuroraController() {
           const message = "Session is required. Run /start first.";
           setError(message);
           setErrorStatus(null);
+          appendTimelineMessage({
+            content: message,
+            subtitle: "chat blocked",
+            dedupeKey: `chat-blocked:${message}`
+          });
           return {
             accepted: false,
             kind: "chat",
@@ -1226,6 +1468,11 @@ export function useAuroraController() {
         const message = "Unknown slash command. Try /help.";
         setError(message);
         setErrorStatus(null);
+        appendTimelineMessage({
+          content: message,
+          subtitle: "command blocked",
+          dedupeKey: `command-blocked:${message}`
+        });
         return {
           accepted: false,
           kind: "slash",
@@ -1240,6 +1487,11 @@ export function useAuroraController() {
       if (contextMessage) {
         setError(contextMessage);
         setErrorStatus(null);
+        appendTimelineMessage({
+          content: contextMessage,
+          subtitle: "command blocked",
+          dedupeKey: `command-blocked:${parsed.id}:${contextMessage}`
+        });
         return {
           accepted: false,
           kind: "slash",
@@ -1252,6 +1504,11 @@ export function useAuroraController() {
         const message = "This command can not be queued. Wait for current stage to finish.";
         setError(message);
         setErrorStatus(null);
+        appendTimelineMessage({
+          content: message,
+          subtitle: "command blocked",
+          dedupeKey: `command-blocked:${parsed.id}:${message}`
+        });
         return {
           accepted: false,
           kind: "slash",
@@ -1359,6 +1616,7 @@ export function useAuroraController() {
       };
     },
     [
+      appendTimelineMessage,
       handleConfirmBuild,
       handleExportZip,
       handleRegenerateOutputs,
@@ -1609,6 +1867,7 @@ export function useAuroraController() {
     currentScene,
     activeStepIndex,
     hasActiveJob,
+    latestFailedJob,
     shouldQueueIntervention,
     queuedCommands,
     chatEntries,

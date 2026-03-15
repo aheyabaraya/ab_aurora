@@ -493,7 +493,7 @@ body::after {
 
 .aurora-workspace-shell {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.5rem;
   align-items: start;
 }
 
@@ -1065,7 +1065,7 @@ body::after {
   }
 
   .aurora-workspace-shell.is-session {
-    grid-template-columns: minmax(0, 1fr) 0.9rem minmax(21rem, var(--aurora-dock-width, 24rem));
+    grid-template-columns: minmax(0, 1fr) 0.75rem minmax(24rem, var(--aurora-dock-width, 40.5rem));
   }
 
   .aurora-dock-resizer {
@@ -1073,8 +1073,8 @@ body::after {
     position: relative;
     align-items: center;
     justify-content: center;
-    width: 0.9rem;
-    min-height: calc(100dvh - 1.5rem);
+    width: 0.75rem;
+    min-height: calc(100dvh - 1rem);
     margin-block: 0.125rem;
     border: 0;
     padding: 0;

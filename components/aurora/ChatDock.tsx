@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AURORA_ASSETS } from "./aurora-assets";
 import { filterSlashCommands } from "./slash-commands";
 import type {
@@ -184,6 +184,7 @@ export function ChatDock({
   const [commandNotice, setCommandNotice] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
   const slashMatches = useMemo(() => {
     return filterSlashCommands(input).slice(0, 10);
@@ -199,6 +200,17 @@ export function ChatDock({
   const imageGenerations = usageSummary?.by_type?.openai_image_generations ?? 0;
   const textRequests = usageSummary?.by_type?.openai_text_requests ?? 0;
 
+  useEffect(() => {
+    if (currentTab !== "chat") {
+      return;
+    }
+    const viewport = chatScrollRef.current;
+    if (!viewport) {
+      return;
+    }
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [commandNotice, currentTab, entries]);
+
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
     const isSlash = trimmed.startsWith("/");
@@ -206,11 +218,13 @@ export function ChatDock({
       return;
     }
 
+    setInput("");
+    setHighlightIndex(0);
+    setCommandNotice("");
+
     if (!onExecuteSlash) {
       if (isSlash) {
         setCommandNotice("Slash command execution is not configured.");
-        setInput("");
-        setHighlightIndex(0);
         return;
       }
       if (!sessionReady) {
@@ -222,19 +236,18 @@ export function ChatDock({
         return;
       }
       onSendChat(trimmed);
-      setInput("");
       return;
     }
 
-    const result = await onExecuteSlash(trimmed);
-    if (result.message) {
-      setCommandNotice(result.message);
-    } else {
-      setCommandNotice("");
-    }
-    if (isSlash || result.accepted) {
-      setInput("");
-      setHighlightIndex(0);
+    try {
+      const result = await onExecuteSlash(trimmed);
+      if (result.message) {
+        setCommandNotice(result.message);
+      } else {
+        setCommandNotice("");
+      }
+    } catch (error) {
+      setCommandNotice(error instanceof Error ? error.message : "Command failed.");
     }
   };
 
@@ -242,8 +255,8 @@ export function ChatDock({
     <article
       className={`aurora-panel aurora-dock flex min-h-[30rem] min-w-0 flex-col rounded-[32px] p-3.5 md:p-4 ${
         sessionReady
-          ? "aurora-dock-live xl:h-[calc(100dvh-1.5rem)] xl:max-h-[calc(100dvh-1.5rem)] xl:min-h-0"
-          : "xl:max-h-[calc(100dvh-1.5rem)]"
+          ? "aurora-dock-live xl:h-[calc(100dvh-1rem)] xl:max-h-[calc(100dvh-1rem)] xl:min-h-0"
+          : "xl:max-h-[calc(100dvh-1rem)]"
       }`}
     >
       {sessionReady ? (
@@ -486,7 +499,7 @@ export function ChatDock({
       {currentTab === "chat" && sessionReady ? (
         <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5">
           <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[22px] p-2.5">
-            <div className="h-full space-y-2.5 overflow-auto pr-1">
+            <div ref={chatScrollRef} className="h-full space-y-2.5 overflow-auto pr-1">
               {sessionReady ? (
                 <div
                   className={`aurora-safety-banner rounded-[18px] border px-3 py-2 text-[11px] ${
@@ -579,20 +592,21 @@ export function ChatDock({
               />
 
               {showSlashPopover ? (
-                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-[20px] border border-indigo-200/28 bg-slate-950/96 p-1.5 shadow-xl">
+                <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-[20px] border border-cyan-100/34 bg-[linear-gradient(180deg,rgba(44,63,154,0.96)_0%,rgba(12,18,58,0.98)_44%,rgba(5,9,28,0.99)_100%)] p-1.5 shadow-[0_28px_70px_-28px_rgba(102,157,255,0.92),0_18px_36px_-22px_rgba(255,191,122,0.48)] backdrop-blur-xl">
+                  <div className="px-2.5 pb-1.5 pt-1 text-[10px] uppercase tracking-[0.2em] text-cyan-50/78">Slash commands</div>
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}
                       className={`w-full rounded-[14px] px-2.5 py-2 text-left text-xs ${
                         index === highlightIndex
-                          ? "border border-indigo-200/38 bg-indigo-400/18 text-indigo-50"
-                          : "border border-transparent text-slate-200 hover:bg-slate-800/70"
+                          ? "border border-cyan-100/38 bg-[linear-gradient(100deg,rgba(92,178,255,0.24)_0%,rgba(112,118,255,0.22)_52%,rgba(211,149,255,0.18)_100%)] text-indigo-50"
+                          : "border border-transparent bg-slate-950/18 text-slate-100 hover:bg-slate-900/58"
                       }`}
                       onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => void execute(command.canonical)}
                     >
                       <p className="font-semibold">{command.canonical}</p>
-                      <p className="mt-1 text-[11px] text-slate-400">{command.help}</p>
+                      <p className="mt-1 text-[11px] text-slate-300">{command.help}</p>
                     </button>
                   ))}
                 </div>

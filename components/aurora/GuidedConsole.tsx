@@ -19,8 +19,8 @@ type GuidedConsoleProps = {
 };
 
 function clampDockWidth(width: number, viewportWidth: number): number {
-  const minimum = 340;
-  const maximum = Math.max(minimum, Math.min(560, viewportWidth - 420));
+  const minimum = 420;
+  const maximum = Math.max(minimum, Math.min(720, viewportWidth - 520));
   return Math.min(Math.max(width, minimum), maximum);
 }
 
@@ -54,6 +54,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     currentScene,
     chatEntries,
     queuedCommands,
+    latestFailedJob,
     shouldQueueIntervention,
     buildConfirmRequired,
     rightPanelViewModel,
@@ -88,11 +89,6 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     }
     return (sessionPayload?.session.draft_spec?.direction as Record<string, unknown> | undefined) ?? null;
   }, [narrativeArtifact?.content, sessionPayload?.session.draft_spec?.direction]);
-  const latestFailedJob = useMemo(() => {
-    return [...(jobsPayload?.jobs ?? [])]
-      .filter((job) => job.status === "failed" && Boolean(job.error))
-      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
-  }, [jobsPayload?.jobs]);
   const sceneSummary: Record<typeof activeScene, string> = {
     DEFINE: "Review the synthesized direction, refine it in chat, and decide what Aurora should visualize next.",
     EXPLORE: "Compare the three generated concepts and see how the direction branches visually.",
@@ -129,11 +125,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
   const [dockWidth, setDockWidth] = useState(() => {
     if (typeof window === "undefined") {
-      return 396;
+      return 648;
     }
     const storedWidth = window.localStorage.getItem("aurora:dock-width");
     const parsed = Number(storedWidth);
-    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : 396;
+    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(648, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -264,10 +260,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   ) : null;
 
   return (
-    <main className="aurora-page min-h-screen px-3 py-2.5 text-slate-100 md:px-4 md:py-3" style={pageStyle}>
-      <section className="mx-auto max-w-[96rem] space-y-2.5">
+    <main className="aurora-page min-h-screen px-2.5 py-2 text-slate-100 md:px-3.5 md:py-2.5" style={pageStyle}>
+      <section className="mx-auto max-w-[98rem] space-y-2">
         {sessionReady ? (
-          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3.5 py-3">
+          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3 py-2.5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap gap-2">
@@ -371,7 +367,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
         ) : null}
 
         <div className={`aurora-workspace-shell ${sessionReady ? "is-session" : "is-setup"}`} style={workspaceStyle}>
-          <div className="min-w-0 space-y-2.5">
+          <div className="min-w-0 space-y-2">
             {!sessionReady ? (
               <article
                 className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-3.5 md:p-4 ${
@@ -515,7 +511,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
             {sessionReady ? errorPanel : null}
 
-            <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-4">
+            <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-3.5">
               <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
                   <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Workspace</p>
@@ -595,7 +591,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
             </button>
           ) : null}
 
-          <aside className={sessionReady ? "aurora-dock-aside h-fit xl:sticky xl:top-3" : "aurora-dock-aside h-fit"}>
+          <aside className={sessionReady ? "aurora-dock-aside h-fit xl:sticky xl:top-2" : "aurora-dock-aside h-fit"}>
             <ChatDock
               entries={chatEntries}
               artifacts={sessionPayload?.recent_artifacts ?? []}
