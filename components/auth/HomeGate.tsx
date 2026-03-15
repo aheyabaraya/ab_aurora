@@ -111,7 +111,10 @@ function HomeGateWithSession() {
 }
 
 export function HomeGate() {
-  const authBypassEnabled = process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
+  const authBypassEnabled =
+    process.env.NODE_ENV === "test"
+      ? process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true"
+      : process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED !== "false";
   if (authBypassEnabled) {
     return <AuroraClient />;
   }

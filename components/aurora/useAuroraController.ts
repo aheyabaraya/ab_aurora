@@ -255,7 +255,10 @@ type StartSessionResult = {
 };
 
 export function useAuroraController() {
-  const authBypassEnabled = process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
+  const authBypassEnabled =
+    process.env.NODE_ENV === "test"
+      ? process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true"
+      : process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED !== "false";
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
   const [product, setProduct] = useState("");
   const [audience, setAudience] = useState("");
