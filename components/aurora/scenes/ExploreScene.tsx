@@ -1,13 +1,14 @@
 "use client";
 
 import { Top3Cards } from "../Top3Cards";
-import type { Candidate, ModelSource } from "../types";
+import type { Candidate, ImagePreviewPayload, ModelSource } from "../types";
 
 type ExploreSceneProps = {
   candidates: Candidate[];
   selectedCandidateId: string | null;
   modelSource: ModelSource;
   busy: boolean;
+  onPreviewImage: (image: ImagePreviewPayload) => void;
   onSelect: (candidateId: string) => void;
   onConfirmBuild: () => void;
 };
@@ -17,6 +18,7 @@ export function ExploreScene({
   selectedCandidateId,
   modelSource,
   busy,
+  onPreviewImage,
   onSelect,
   onConfirmBuild
 }: ExploreSceneProps) {
@@ -52,7 +54,11 @@ export function ExploreScene({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="aurora-title-primary text-[1.28rem]">Compare the three visual directions Aurora generated.</h2>
+          <h2 className="aurora-title-primary text-[1.28rem]">Compare the three story-and-asset bundles Aurora generated.</h2>
+          <p className="mt-2 max-w-3xl text-sm text-slate-300">
+            Each concept combines one hero image, three supporting assets, and a short narrative so you can judge the
+            brand direction as a complete bundle.
+          </p>
         </div>
         <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
           {modelSource}
@@ -64,6 +70,7 @@ export function ExploreScene({
         busy={busy}
         buildRequired={false}
         preferChatCommands
+        onPreviewImage={onPreviewImage}
         onSelect={onSelect}
         onConfirmBuild={onConfirmBuild}
       />

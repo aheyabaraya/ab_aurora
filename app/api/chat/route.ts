@@ -31,12 +31,19 @@ type AssistantSource = "openai" | "rate_limited" | "fallback";
 function buildOptionHints(session: SessionRecord): ChatOptionHint[] {
   const hints: ChatOptionHint[] = [];
   const top3 = (session.latest_top3 ?? []).slice(0, 3);
+  const directionReadyForConcepts = session.draft_spec?.direction?.clarity?.ready_for_concepts !== false;
 
-  if (session.current_step === "brand_narrative") {
+  if (session.current_step === "brand_narrative" && directionReadyForConcepts) {
     hints.push({
       command: "/run",
       title: "Generate Concepts",
-      description: "현재 direction을 기준으로 3개 후보를 생성합니다."
+      description: "현재 direction을 기준으로 hero+supporting asset bundle 3개를 생성합니다."
+    });
+  } else if (session.current_step === "brand_narrative") {
+    hints.push({
+      command: "Reply in chat",
+      title: "Answer Aurora",
+      description: "DEFINE 질문에 답하면 Aurora가 direction을 더 구체적으로 정리합니다."
     });
   }
 
@@ -48,14 +55,9 @@ function buildOptionHints(session: SessionRecord): ChatOptionHint[] {
         description: candidate.narrative_summary.slice(0, 96)
       });
     });
-    hints.push({
-      command: "/regen top3",
-      title: "Regenerate 3 concepts",
-      description: "현재 direction 기준으로 3개 후보를 다시 생성합니다."
-    });
   }
 
-  if (session.current_step === "approve_build") {
+  if (session.current_step === "approve_build" || (session.current_step === "top3_select" && session.selected_candidate_id)) {
     hints.push({
       command: "/build",
       title: "Build selected direction",
@@ -69,21 +71,18 @@ function buildOptionHints(session: SessionRecord): ChatOptionHint[] {
       title: "Export pack",
       description: "전략과 산출물을 zip으로 내보냅니다."
     });
-    hints.push({
-      command: "/regen outputs",
-      title: "Regenerate outputs",
-      description: "산출물만 다시 생성합니다."
-    });
   }
 
-  hints.push({
-    command: "/run",
-    title: session.current_step === "brand_narrative" ? "Generate Concepts" : "Continue",
-    description:
-      session.current_step === "brand_narrative"
-        ? "현재 direction으로 3개 후보를 생성합니다."
-        : "현재 stage의 다음 실행을 진행합니다."
-  });
+  if (!(session.current_step === "brand_narrative" && !directionReadyForConcepts)) {
+    hints.push({
+      command: "/run",
+      title: session.current_step === "brand_narrative" ? "Generate Concepts" : "Continue",
+      description:
+        session.current_step === "brand_narrative"
+          ? "현재 direction으로 3개 concept bundle을 생성합니다."
+          : "현재 stage의 다음 실행을 진행합니다."
+    });
+  }
 
   const unique = new Map<string, ChatOptionHint>();
   for (const hint of hints) {

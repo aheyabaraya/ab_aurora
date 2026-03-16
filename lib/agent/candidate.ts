@@ -1,6 +1,6 @@
 import { env } from "../env";
 import { sha256 } from "../utils/hash";
-import type { Candidate, VariationWidth } from "./types";
+import type { Candidate, CandidateStory, SupportingAsset, VariationWidth } from "./types";
 
 const COLOR_PRESETS = [
   ["#0B1020", "#1F3A5F", "#B6D9F5"],
@@ -100,6 +100,88 @@ export function toMockCandidateImageUrl(input: {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function toMockSupportingAssetImageUrl(input: {
+  title: string;
+  kind: string;
+  prompt: string;
+  colors: string[];
+}): string {
+  const [base = "#0B1020", glow = "#6B7CFF", accent = "#F6D365"] = input.colors;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${base}" />
+          <stop offset="60%" stop-color="${glow}" stop-opacity="0.74" />
+          <stop offset="100%" stop-color="#070A16" />
+        </linearGradient>
+      </defs>
+      <rect width="1024" height="1024" fill="url(#bg)" />
+      <rect x="48" y="48" width="928" height="928" rx="42" fill="none" stroke="rgba(255,255,255,0.16)" />
+      <circle cx="512" cy="402" r="188" fill="${accent}" fill-opacity="0.18" />
+      <text x="92" y="132" fill="rgba(255,255,255,0.92)" font-family="Georgia, serif" font-size="52">${input.title}</text>
+      <text x="92" y="196" fill="rgba(255,255,255,0.56)" font-family="Arial, sans-serif" font-size="24">${input.kind}</text>
+      <foreignObject x="92" y="732" width="824" height="180">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="color: rgba(235,240,255,0.8); font-family: Arial, sans-serif; font-size: 24px; line-height: 1.5;">
+          ${input.prompt}
+        </div>
+      </foreignObject>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function resolveSupportingAssetKinds(): Array<{ kind: string; label: string }> {
+  return [
+    { kind: "portrait", label: "Character study" },
+    { kind: "background", label: "Atmosphere background" },
+    { kind: "prop", label: "Signature prop" }
+  ];
+}
+
+function buildSupportingAssets(input: {
+  candidateName: string;
+  product: string;
+  audience: string;
+  keywordHint: string;
+  colors: string[];
+}): SupportingAsset[] {
+  return resolveSupportingAssetKinds().map((asset, index) => {
+    const prompt = [
+      `Create a ${asset.kind} asset for ${input.candidateName}.`,
+      `Product: ${input.product}.`,
+      `Audience: ${input.audience}.`,
+      `Mood: ${input.keywordHint}.`,
+      `Palette: ${input.colors.join(", ")}.`
+    ].join(" ");
+    return {
+      id: `asset_${index + 1}`,
+      kind: asset.kind,
+      title: asset.label,
+      prompt,
+      image_url: toMockSupportingAssetImageUrl({
+        title: asset.label,
+        kind: asset.kind,
+        prompt,
+        colors: input.colors
+      })
+    };
+  });
+}
+
+function buildStory(input: {
+  product: string;
+  audience: string;
+  candidateName: string;
+  keywordHint: string;
+}): CandidateStory {
+  return {
+    premise: `${input.candidateName} frames ${input.product} as a brand world for ${input.audience}.`,
+    narrative: `${input.product} moves through a ${input.keywordHint} hero moment, a supporting environment, and a signature object so the brand reads as a full narrative instead of a single moodboard still.`,
+    asset_rationale: "The bundle pairs one primary hero with supporting environment and prop images so story, interface direction, and brand texture can be reviewed together."
+  };
+}
+
 function makeNamingSeed(product: string, index: number): string[] {
   const base = product.trim().split(/\s+/).slice(0, 2).join("");
   const left = `${base}Nova${index + 1}`;
@@ -148,8 +230,9 @@ export function generateDeterministicCandidates(input: {
   candidateCount?: number;
 }): Candidate[] {
   const candidateCount = input.candidateCount ?? env.CANDIDATE_COUNT;
+  const safeKeywords = input.styleKeywords.length > 0 ? input.styleKeywords : ["focused"];
   const rng = makeRng(
-    `${input.sessionId}:${input.product}:${input.audience}:${input.styleKeywords.join(",")}:${input.variationWidth}`
+    `${input.sessionId}:${input.product}:${input.audience}:${safeKeywords.join(",")}:${input.variationWidth}`
   );
 
   const candidates: Candidate[] = [];
@@ -159,7 +242,7 @@ export function generateDeterministicCandidates(input: {
     const layout = pick(rng, LAYOUT_PRESETS);
     const cta = pick(rng, CTA_PRESETS);
     const suffix = pick(rng, RATIONALE_SUFFIX);
-    const keywordHint = input.styleKeywords[index % input.styleKeywords.length];
+    const keywordHint = safeKeywords[index % safeKeywords.length];
     const headline = `${input.product} for ${input.audience}`;
     const narrativeSummary = `${input.product} frames ${input.audience} through a ${keywordHint} direction that feels decisive and ready to ship.`;
     const imagePrompt = [
@@ -170,6 +253,19 @@ export function generateDeterministicCandidates(input: {
       `Moodboard: ${input.product} brand mood, ${keywordHint}, tailored for ${input.audience}.`,
       `Palette: ${colors.join(", ")}.`
     ].join("\n");
+    const supportingAssets = buildSupportingAssets({
+      candidateName: namingCandidates[0],
+      product: input.product,
+      audience: input.audience,
+      keywordHint,
+      colors
+    });
+    const story = buildStory({
+      product: input.product,
+      audience: input.audience,
+      candidateName: namingCandidates[0],
+      keywordHint
+    });
     const candidate: Candidate = {
       id: `cand_${index + 1}`,
       rank: index + 1,
@@ -197,11 +293,13 @@ export function generateDeterministicCandidates(input: {
         narrative: narrativeSummary,
         colors
       }),
+      supporting_assets: supportingAssets,
+      story,
       revision_basis: null
     };
     candidate.score = scoreCandidate({
       candidate,
-      styleKeywords: input.styleKeywords,
+      styleKeywords: safeKeywords,
       audience: input.audience,
       variationWidth: input.variationWidth
     });

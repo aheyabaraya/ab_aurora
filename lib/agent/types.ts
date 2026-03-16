@@ -37,6 +37,20 @@ export type ArtifactKind =
   | "followup_asset"
   | "chat_action";
 
+export interface SupportingAsset {
+  id: string;
+  kind: string;
+  title: string;
+  prompt: string;
+  image_url: string;
+}
+
+export interface CandidateStory {
+  premise: string;
+  narrative: string;
+  asset_rationale: string;
+}
+
 export interface Candidate {
   id: string;
   rank: number;
@@ -59,10 +73,20 @@ export interface Candidate {
   narrative_summary: string;
   image_prompt: string;
   image_url: string;
+  supporting_assets: SupportingAsset[];
+  story: CandidateStory;
   revision_basis?: string | null;
 }
 
 export type { BrandDirection };
+
+export interface DirectionClarity {
+  score: number;
+  ready_for_concepts: boolean;
+  summary: string;
+  missing_inputs: string[];
+  followup_questions: string[];
+}
 
 export interface SessionRecord {
   id: string;

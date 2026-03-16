@@ -101,6 +101,38 @@ function getDirection(session: SessionRecord): BrandDirection | null {
   return session.draft_spec?.direction ?? null;
 }
 
+function getDirectionClarity(direction: BrandDirection | null | undefined) {
+  return (
+    direction?.clarity ?? {
+      score: 1,
+      ready_for_concepts: false,
+      summary: "Aurora needs a clearer brief before concept generation.",
+      missing_inputs: ["product clarity", "primary audience", "visual tone"],
+      followup_questions: [
+        "What exactly are you building or launching, in one concrete sentence?",
+        "Who is the highest-priority audience for this first brand direction?",
+        "Give Aurora 3 to 5 style keywords so the visual tone is less ambiguous."
+      ]
+    }
+  );
+}
+
+function directionNeedsMoreDefinition(direction: BrandDirection | null | undefined): boolean {
+  return !getDirectionClarity(direction).ready_for_concepts;
+}
+
+function buildDirectionClarifyMessage(direction: BrandDirection | null | undefined): string {
+  const clarity = getDirectionClarity(direction);
+  const questions = clarity.followup_questions.length > 0 ? clarity.followup_questions : [direction?.next_question ?? ""];
+  return [
+    clarity.summary,
+    ...questions.slice(0, 3).map((question, index) => `${index + 1}. ${question}`),
+    "Reply in chat and Aurora will tighten the direction before concept generation."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function needsClarification(session: SessionRecord, score: number): boolean {
   const hasFullBrief =
     session.product.trim().length >= 3 &&
@@ -252,6 +284,64 @@ async function recordDirectionSnapshot(
   });
 }
 
+async function recordDirectionClarifyArtifact(
+  storage: StorageRepository,
+  artifacts: ArtifactRecord[],
+  input: {
+    session: SessionRecord;
+    direction: BrandDirection;
+    title: string;
+  }
+) {
+  const clarity = getDirectionClarity(input.direction);
+  if (clarity.ready_for_concepts) {
+    return;
+  }
+  await recordArtifact(storage, artifacts, {
+    sessionId: input.session.id,
+    step: "brand_narrative",
+    kind: "clarify_questions",
+    title: input.title,
+    content: {
+      score: clarity.score,
+      summary: clarity.summary,
+      missing_inputs: clarity.missing_inputs,
+      questions: clarity.followup_questions
+    }
+  });
+}
+
+async function appendDirectionGuidanceMessage(
+  storage: StorageRepository,
+  session: SessionRecord,
+  direction: BrandDirection
+) {
+  const clarity = getDirectionClarity(direction);
+  const content = clarity.ready_for_concepts
+    ? [
+        direction.brief_summary,
+        "",
+        direction.next_question,
+        `Default bundle after 60s: ${direction.asset_intent.default_bundle}.`
+      ].join("\n")
+    : [
+        direction.brief_summary,
+        "",
+        buildDirectionClarifyMessage(direction)
+      ].join("\n");
+
+  await storage.appendMessage({
+    session_id: session.id,
+    role: "assistant",
+    content,
+    metadata: {
+      provider: "agent_bootstrap",
+      message_type: "direction_update",
+      ready_for_concepts: clarity.ready_for_concepts
+    }
+  });
+}
+
 async function updateDirectionSession(
   storage: StorageRepository,
   session: SessionRecord,
@@ -391,8 +481,8 @@ async function applyAction(
     if (directionResult.source === "openai") {
       await trackOpenAiTextUsage(storage, session.id, directionResult.usage);
     }
+    const directionNeedsClarification = directionNeedsMoreDefinition(directionResult.direction);
 
-    const regenerateCandidates = payload?.regenerate_candidates === true;
     let nextStep: AgentStep = "brand_narrative";
     let nextStatus: SessionRecord["status"] = "wait_user";
     let consumed = true;
@@ -402,11 +492,21 @@ async function applyAction(
       nextStep = "approve_build";
       nextStatus = "wait_user";
       message = await createSelectedRevision(storage, artifacts, session, constraint, "social_x");
-    } else if (regenerateCandidates || session.current_step !== "brand_narrative") {
+    } else if (directionNeedsClarification) {
+      nextStep = "brand_narrative";
+      nextStatus = "wait_user";
+      consumed = true;
+      message = buildDirectionClarifyMessage(directionResult.direction);
+    } else if (session.current_step === "brand_narrative") {
+      nextStep = "brand_narrative";
+      nextStatus = "wait_user";
+      consumed = true;
+      message = "Direction updated. Generate concept bundles when you are ready.";
+    } else {
       nextStep = "candidates_generate";
       nextStatus = "running";
       consumed = false;
-      message = "Direction updated. Regenerating 3 concepts.";
+      message = "Direction updated. Regenerating 3 concept bundles.";
     }
 
     const nextSession = await updateDirectionSession(storage, session, {
@@ -429,6 +529,14 @@ async function applyAction(
       source: directionResult.source,
       revisionNote: constraint
     });
+    if (!session.selected_candidate_id && directionNeedsClarification) {
+      await recordDirectionClarifyArtifact(storage, artifacts, {
+        session: refreshed,
+        direction: directionResult.direction,
+        title: "Direction still needs clarification"
+      });
+      await appendDirectionGuidanceMessage(storage, refreshed, directionResult.direction);
+    }
     return {
       session: refreshed,
       consumed,
@@ -437,7 +545,8 @@ async function applyAction(
   }
 
   if (actionType === "rerun_candidates") {
-    if (!getDirection(session)) {
+    const direction = getDirection(session);
+    if (!direction) {
       const next = await storage.updateSession(session.id, {
         current_step: "brand_narrative",
         status: "wait_user"
@@ -446,6 +555,17 @@ async function applyAction(
         session: next,
         consumed: true,
         message: "Direction is not ready yet. Refine the brief first."
+      };
+    }
+    if (directionNeedsMoreDefinition(direction)) {
+      const next = await storage.updateSession(session.id, {
+        current_step: "brand_narrative",
+        status: "wait_user"
+      });
+      return {
+        session: next,
+        consumed: true,
+        message: buildDirectionClarifyMessage(direction)
       };
     }
 
@@ -532,7 +652,31 @@ async function applyAction(
   }
 
   if (actionType === "proceed") {
+    if (session.current_step === "top3_select" && session.selected_candidate_id) {
+      const next = await storage.updateSession(session.id, {
+        current_step: "approve_build",
+        status: "wait_user"
+      });
+      return {
+        session: next,
+        consumed: false,
+        message: "Selected direction confirmed. Running build approval."
+      };
+    }
+
     if (session.current_step === "brand_narrative" && getDirection(session)) {
+      const direction = getDirection(session);
+      if (directionNeedsMoreDefinition(direction)) {
+        const next = await storage.updateSession(session.id, {
+          current_step: "brand_narrative",
+          status: "wait_user"
+        });
+        return {
+          session: next,
+          consumed: true,
+          message: buildDirectionClarifyMessage(direction)
+        };
+      }
       const next = await storage.updateSession(session.id, {
         current_step: "candidates_generate",
         status: "running",
@@ -701,9 +845,11 @@ async function executeStep(
       return {
         session: readySession,
         result: {
-          nextStep: "candidates_generate",
+          nextStep: "brand_narrative",
           waitUser: true,
-          message: "Direction ready. Generate concepts when you are ready.",
+          message: directionNeedsMoreDefinition(existingDirection)
+            ? buildDirectionClarifyMessage(existingDirection)
+            : "Direction ready. Generate concept bundles when you are ready.",
           jobId: null
         }
       };
@@ -730,24 +876,23 @@ async function executeStep(
       title: "Direction synthesized",
       source: synthesized.source
     });
-    await storage.appendMessage({
-      session_id: session.id,
-      role: "assistant",
-      content: `${synthesized.direction.brief_summary}\n\n${synthesized.direction.next_question}`,
-      metadata: {
-        provider: "agent_bootstrap",
-        message_type: "direction_update"
-      }
+    await recordDirectionClarifyArtifact(storage, artifacts, {
+      session: nextSession,
+      direction: synthesized.direction,
+      title: "Direction follow-up needed"
     });
+    await appendDirectionGuidanceMessage(storage, nextSession, synthesized.direction);
     return {
       session: nextSession,
       result: {
-        nextStep: "candidates_generate",
-        waitUser: true,
-        message: "Direction synthesized. Refine it in chat or generate concepts.",
-        jobId: null
-      }
-    };
+          nextStep: "brand_narrative",
+          waitUser: true,
+          message: directionNeedsMoreDefinition(synthesized.direction)
+            ? buildDirectionClarifyMessage(synthesized.direction)
+            : "Direction synthesized. Refine it in chat or generate concept bundles.",
+          jobId: null
+        }
+      };
   }
 
   if (step === "candidates_generate") {
@@ -763,6 +908,21 @@ async function executeStep(
           nextStep: "brand_narrative",
           waitUser: true,
           message: "Direction is missing. Refine direction before generating concepts.",
+          jobId: null
+        }
+      };
+    }
+    if (directionNeedsMoreDefinition(direction)) {
+      const waitingSession = await storage.updateSession(session.id, {
+        status: "wait_user",
+        current_step: "brand_narrative"
+      });
+      return {
+        session: waitingSession,
+        result: {
+          nextStep: "brand_narrative",
+          waitUser: true,
+          message: buildDirectionClarifyMessage(direction),
           jobId: null
         }
       };
@@ -863,8 +1023,8 @@ async function executeStep(
           waitUser: true,
           message:
             generated.render_failures.length > 0
-              ? `Three concepts are ready. ${generated.render_failures.length} render fallback(s) were used.`
-              : "Three concepts are ready. Choose one to continue.",
+              ? `Three concept bundles are ready. ${generated.render_failures.length} render fallback(s) were used.`
+              : "Three concept bundles are ready. Choose one to continue.",
           jobId: job.id
         }
       };
@@ -1026,108 +1186,151 @@ async function executeStep(
       throw error;
     }
 
-    const tokens = {
-      palette: {
-        primary: selectedCandidate.moodboard.colors[0],
-        secondary: selectedCandidate.moodboard.colors[1],
-        accent: selectedCandidate.moodboard.colors[2]
-      },
-      typography: {
-        headline: "sora",
-        body: "system-ui"
-      },
-      spacing: { base: 8, scale: [8, 12, 16, 24, 32] },
-      radius: { card: 16, button: 999 }
-    };
-    const socialAssets = await generateSocialAssetsWithFallback({
-      sessionId: session.id,
-      candidate: selectedCandidate
-    });
-    if (socialAssets.source === "openai") {
-      await safeTrackUsage(storage, {
-        session_id: session.id,
-        type: "openai_image_generations",
-        amount: 3
-      });
-    }
-    const codePlan = {
-      stack: "nextjs-tailwind",
-      components: ["DirectionHero", "ConceptGallery", "SelectionPanel", "ExportDock"],
-      route: "/",
-      narrative_focus: direction.narrative_summary
-    };
-    const validation = {
-      eslint: "pass",
-      tsc: "pass",
-      attempts: 1,
-      timing_ms: 180
-    };
-    const finalSpec = brandSpecFinalSchema.parse({
-      ...session.draft_spec,
-      stage: "final",
-      direction,
-      moodboard: selectedCandidate.moodboard,
-      ui_plan: selectedCandidate.ui_plan,
-      naming: selectedCandidate.naming,
-      tokens,
-      social_assets: socialAssets,
-      code_plan: codePlan,
-      selected_candidate_id: selectedCandidate.id,
-      candidates: session.latest_top3
-    });
-
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      jobId: job.id,
-      step,
-      kind: "tokens",
-      title: "Design tokens generated",
-      content: tokens
-    });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      jobId: job.id,
-      step,
-      kind: "social_assets",
-      title: "Social assets generated",
-      content: socialAssets
-    });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      jobId: job.id,
-      step,
-      kind: "code_plan",
-      title: "Code plan generated",
-      content: codePlan
-    });
-    await recordArtifact(storage, artifacts, {
-      sessionId: session.id,
-      jobId: job.id,
-      step,
-      kind: "validation",
-      title: "Validation report",
-      content: validation
-    });
-
-    await storage.updateJob(job.id, {
-      status: "completed",
-      logs: ["tokens", "social_assets", "code_plan", "validation"]
-    });
-
-    const nextSession = await storage.updateSession(session.id, {
-      final_spec: finalSpec,
-      current_step: "package",
+    await storage.updateSession(session.id, {
+      current_step: "approve_build",
       status: "running"
     });
-    return {
-      session: nextSession,
-      result: {
-        nextStep: "package",
-        waitUser: false,
-        message: "Build outputs completed.",
-        jobId: job.id
+    console.info("[agent.approve_build.started]", {
+      session_id: session.id,
+      job_id: job.id,
+      selected_candidate_id: selectedCandidate.id
+    });
+
+    try {
+      const tokens = {
+        palette: {
+          primary: selectedCandidate.moodboard.colors[0],
+          secondary: selectedCandidate.moodboard.colors[1],
+          accent: selectedCandidate.moodboard.colors[2]
+        },
+        typography: {
+          headline: "sora",
+          body: "system-ui"
+        },
+        spacing: { base: 8, scale: [8, 12, 16, 24, 32] },
+        radius: { card: 16, button: 999 }
+      };
+      const socialAssets = await generateSocialAssetsWithFallback({
+        sessionId: session.id,
+        candidate: selectedCandidate
+      });
+      if (socialAssets.source === "openai") {
+        await safeTrackUsage(storage, {
+          session_id: session.id,
+          type: "openai_image_generations",
+          amount: 3
+        });
       }
-    };
+      const codePlan = {
+        stack: "nextjs-tailwind",
+        components: ["DirectionHero", "ConceptGallery", "SelectionPanel", "ExportDock"],
+        route: "/",
+        narrative_focus: direction.narrative_summary
+      };
+      const validation = {
+        eslint: "pass",
+        tsc: "pass",
+        attempts: 1,
+        timing_ms: 180
+      };
+      const finalSpec = brandSpecFinalSchema.parse({
+        ...session.draft_spec,
+        stage: "final",
+        direction,
+        moodboard: selectedCandidate.moodboard,
+        ui_plan: selectedCandidate.ui_plan,
+        naming: selectedCandidate.naming,
+        tokens,
+        social_assets: socialAssets,
+        code_plan: codePlan,
+        selected_candidate_id: selectedCandidate.id,
+        candidates: session.latest_top3
+      });
+
+      await recordArtifact(storage, artifacts, {
+        sessionId: session.id,
+        jobId: job.id,
+        step,
+        kind: "tokens",
+        title: "Design tokens generated",
+        content: tokens
+      });
+      await recordArtifact(storage, artifacts, {
+        sessionId: session.id,
+        jobId: job.id,
+        step,
+        kind: "social_assets",
+        title: "Social assets generated",
+        content: socialAssets
+      });
+      await recordArtifact(storage, artifacts, {
+        sessionId: session.id,
+        jobId: job.id,
+        step,
+        kind: "code_plan",
+        title: "Code plan generated",
+        content: codePlan
+      });
+      await recordArtifact(storage, artifacts, {
+        sessionId: session.id,
+        jobId: job.id,
+        step,
+        kind: "validation",
+        title: "Validation report",
+        content: validation
+      });
+
+      await storage.updateJob(job.id, {
+        status: "completed",
+        logs: ["tokens", "social_assets", "code_plan", "validation"]
+      });
+
+      const nextSession = await storage.updateSession(session.id, {
+        final_spec: finalSpec,
+        current_step: "package",
+        status: "running"
+      });
+      console.info("[agent.approve_build.completed]", {
+        session_id: session.id,
+        job_id: job.id,
+        selected_candidate_id: selectedCandidate.id
+      });
+      return {
+        session: nextSession,
+        result: {
+          nextStep: "package",
+          waitUser: false,
+          message: "Build outputs completed.",
+          jobId: job.id
+        }
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Build failed.";
+      console.error("[agent.approve_build.failed]", {
+        session_id: session.id,
+        job_id: job.id,
+        selected_candidate_id: selectedCandidate.id,
+        error: message
+      });
+      await storage.updateJob(job.id, {
+        status: "failed",
+        error: message,
+        logs: [`error:${message}`]
+      });
+      const failedSession = await storage.updateSession(session.id, {
+        current_step: "approve_build",
+        status: "failed"
+      });
+      return {
+        session: failedSession,
+        result: {
+          nextStep: "approve_build",
+          waitUser: true,
+          message,
+          jobId: job.id
+        }
+      };
+    }
   }
 
   if (step === "package") {

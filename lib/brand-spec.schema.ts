@@ -7,6 +7,20 @@ const intentSchema = z.object({
   direction_source: z.enum(["user", "agent"]).optional()
 });
 
+const supportingAssetSchema = z.object({
+  id: z.string().default("asset_1"),
+  kind: z.string(),
+  title: z.string(),
+  prompt: z.string(),
+  image_url: z.string().default("")
+});
+
+const candidateStorySchema = z.object({
+  premise: z.string(),
+  narrative: z.string(),
+  asset_rationale: z.string()
+});
+
 const candidateSchema = z.object({
   id: z.string(),
   rank: z.number().int().min(1),
@@ -29,7 +43,30 @@ const candidateSchema = z.object({
   narrative_summary: z.string(),
   image_prompt: z.string(),
   image_url: z.string(),
+  supporting_assets: z.array(supportingAssetSchema).default([]),
+  story: candidateStorySchema.default({
+    premise: "",
+    narrative: "",
+    asset_rationale: ""
+  }),
   revision_basis: z.string().nullable().optional()
+});
+
+const directionAssetIntentSchema = z.object({
+  focus: z.string(),
+  rationale: z.string(),
+  priority_order: z.array(z.string()).min(3),
+  default_bundle: z.string(),
+  defaults_applied: z.boolean(),
+  question: z.string()
+});
+
+const directionClaritySchema = z.object({
+  score: z.number().int().min(1).max(5),
+  ready_for_concepts: z.boolean(),
+  summary: z.string(),
+  missing_inputs: z.array(z.string()).default([]),
+  followup_questions: z.array(z.string()).default([])
 });
 
 export const brandDirectionSchema = z.object({
@@ -42,7 +79,22 @@ export const brandDirectionSchema = z.object({
   visual_principles: z.array(z.string()).min(3),
   image_intent: z.string(),
   prompt_seed: z.string(),
-  next_question: z.string()
+  next_question: z.string(),
+  asset_intent: directionAssetIntentSchema.default({
+    focus: "balanced",
+    rationale: "Balance a clear hero subject with environmental context and one signature prop.",
+    priority_order: ["portrait", "background", "prop"],
+    default_bundle: "balanced hero + background + prop",
+    defaults_applied: true,
+    question: "For the first concept set, should Aurora emphasize portrait, background, or signature prop?"
+  }),
+  clarity: directionClaritySchema.default({
+    score: 3,
+    ready_for_concepts: false,
+    summary: "Aurora needs a clearer brief before concept generation.",
+    missing_inputs: [],
+    followup_questions: []
+  })
 });
 
 const baseBrandSpecSchema = z.object({

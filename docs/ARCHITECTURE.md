@@ -125,3 +125,15 @@ All runtime tables use RLS deny-by-default and service-role access path.
   - phase 1: `RUNTIME_ENABLED=false`
   - phase 2: `RUNTIME_ENABLED=true` after smoke checks
 - Instant rollback path: set `RUNTIME_ENABLED=false`.
+
+---
+
+## Prompting Decision Note
+
+- Near-term priority: finish the current AB Aurora flow first with the existing direct OpenAI integration path.
+- Do not introduce Vercel AI Gateway or broader model-routing changes until the current user flow is stable end-to-end.
+- After the current flow is complete, add OpenAI prompt/dashboard integration to improve prompt consistency, structure, and output polish.
+- Target direction for that follow-up:
+  - keep one primary text model for direction/refinement/candidate planning to preserve stylistic consistency
+  - keep image generation separate
+  - move prompt definitions into reusable prompt assets so system guidance and stage-specific prompt inputs are centrally managed

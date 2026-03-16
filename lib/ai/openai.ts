@@ -6,8 +6,107 @@ import {
   toMockCandidateImageUrl,
   toVariationWidth
 } from "../agent/candidate";
-import type { Candidate, VariationWidth } from "../agent/types";
+import type { Candidate, SupportingAsset, VariationWidth } from "../agent/types";
 import type { BrandDirection } from "../brand-spec.schema";
+
+function createDefaultDirectionAssetIntent() {
+  return {
+    focus: "balanced",
+    rationale: "Balance a cinematic hero subject with environmental context and one signature prop.",
+    priority_order: ["portrait", "background", "prop"],
+    default_bundle: "balanced hero + background + prop",
+    defaults_applied: true,
+    question: "For the first concept set, should Aurora emphasize portrait, background, or signature prop?"
+  };
+}
+
+const DIRECTION_ASSET_INTENT_DEFAULT = createDefaultDirectionAssetIntent();
+
+const GENERIC_PRODUCT_PATTERNS = [
+  /^(untitled concept|concept|app|ai app|tool|ai tool|service|platform|website|brand)$/i,
+  /^(product|startup|project)$/i
+] as const;
+
+const GENERIC_AUDIENCE_PATTERNS = [
+  /^(general audience|everyone|all users|users|people|customers)$/i,
+  /^(b2c|b2b)$/i
+] as const;
+
+const GENERIC_CONSTRAINT_PATTERNS = [/^open direction/i, /^none provided$/i, /^explore broadly$/i] as const;
+
+function buildDirectionClarityHeuristic(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+}): BrandDirection["clarity"] {
+  const product = input.product.trim();
+  const audience = input.audience.trim();
+  const styleKeywords = uniqueStrings(input.styleKeywords.map((keyword) => keyword.trim()).filter(Boolean));
+  const constraint = input.constraint?.trim() ?? "";
+  const missingInputs: string[] = [];
+  const followupQuestions: string[] = [];
+  const productWordCount = product.split(/\s+/).filter(Boolean).length;
+  const audienceWordCount = audience.split(/\s+/).filter(Boolean).length;
+
+  const productTooGeneric =
+    (product.length < 6 && productWordCount < 2) ||
+    GENERIC_PRODUCT_PATTERNS.some((pattern) => pattern.test(product.toLowerCase()));
+  if (productTooGeneric) {
+    missingInputs.push("product clarity");
+    followupQuestions.push("What exactly are you building or launching, in one concrete sentence?");
+  }
+
+  const audienceTooGeneric =
+    (audience.length < 6 && audienceWordCount < 1) ||
+    GENERIC_AUDIENCE_PATTERNS.some((pattern) => pattern.test(audience.toLowerCase()));
+  if (audienceTooGeneric) {
+    missingInputs.push("primary audience");
+    followupQuestions.push("Who is the highest-priority audience for this first brand direction?");
+  }
+
+  if (styleKeywords.length < 3) {
+    missingInputs.push("visual tone");
+    followupQuestions.push("Give Aurora 3 to 5 style keywords so the visual tone is less ambiguous.");
+  }
+
+  const constraintIsGeneric =
+    constraint.length === 0 || GENERIC_CONSTRAINT_PATTERNS.some((pattern) => pattern.test(constraint.toLowerCase()));
+  if (constraintIsGeneric && missingInputs.length > 0) {
+    missingInputs.push("non-negotiable note");
+    followupQuestions.push("What is one non-negotiable design requirement Aurora must preserve?");
+  }
+
+  const readyForConcepts = missingInputs.length === 0;
+  const score = Math.max(1, Math.min(5, 5 - missingInputs.length));
+
+  return {
+    score,
+    ready_for_concepts: readyForConcepts,
+    summary: readyForConcepts
+      ? "Direction is specific enough to generate concept bundles."
+      : `Aurora still needs ${missingInputs.length === 1 ? "one clearer answer" : `${missingInputs.length} clearer answers`} before concept generation.`,
+    missing_inputs: missingInputs,
+    followup_questions: uniqueStrings(followupQuestions).slice(0, 3)
+  };
+}
+
+const directionAssetIntentSchema = z.object({
+  focus: z.string(),
+  rationale: z.string(),
+  priority_order: z.array(z.string()).min(3),
+  default_bundle: z.string(),
+  defaults_applied: z.boolean(),
+  question: z.string()
+});
+
+const directionClaritySchema = z.object({
+  score: z.number().int().min(1).max(5),
+  ready_for_concepts: z.boolean(),
+  summary: z.string(),
+  missing_inputs: z.array(z.string()).default([]),
+  followup_questions: z.array(z.string()).default([])
+});
 
 const directionResponseSchema = z.object({
   brief_summary: z.string(),
@@ -19,7 +118,28 @@ const directionResponseSchema = z.object({
   visual_principles: z.array(z.string()).min(3),
   image_intent: z.string(),
   prompt_seed: z.string(),
-  next_question: z.string()
+  next_question: z.string(),
+  asset_intent: directionAssetIntentSchema.default(createDefaultDirectionAssetIntent()),
+  clarity: directionClaritySchema.default(
+    buildDirectionClarityHeuristic({
+      product: "Untitled concept",
+      audience: "General audience",
+      styleKeywords: [],
+      constraint: null
+    })
+  )
+});
+
+const candidateSupportingAssetSchema = z.object({
+  kind: z.string(),
+  title: z.string(),
+  prompt: z.string()
+});
+
+const candidateStorySchema = z.object({
+  premise: z.string(),
+  narrative: z.string(),
+  asset_rationale: z.string()
 });
 
 const candidateResponseSchema = z.object({
@@ -42,7 +162,29 @@ const candidateResponseSchema = z.object({
         }),
         rationale: z.string(),
         narrative_summary: z.string(),
-        image_prompt: z.string()
+        image_prompt: z.string(),
+        supporting_assets: z.array(candidateSupportingAssetSchema).length(3).default([
+          {
+            kind: "portrait",
+            title: "Character study",
+            prompt: "Create a character-led support asset."
+          },
+          {
+            kind: "background",
+            title: "Atmosphere background",
+            prompt: "Create an environment-led support asset."
+          },
+          {
+            kind: "prop",
+            title: "Signature prop",
+            prompt: "Create a symbolic prop-led support asset."
+          }
+        ]),
+        story: candidateStorySchema.default({
+          premise: "",
+          narrative: "",
+          asset_rationale: ""
+        })
       })
     )
     .min(3)
@@ -96,6 +238,45 @@ function clampScore(score: number): number {
   return Number(Math.max(0.45, Math.min(0.98, score)).toFixed(3));
 }
 
+function toDirectionAssetIntent(input: {
+  focus?: string | null;
+  defaultsApplied?: boolean;
+} = {}): BrandDirection["asset_intent"] {
+  const normalizedFocus = input.focus?.trim().toLowerCase();
+  if (normalizedFocus?.includes("background")) {
+    return {
+      ...DIRECTION_ASSET_INTENT_DEFAULT,
+      focus: "background",
+      rationale: "Lead with environment and atmosphere, then support it with a human focal point and one symbolic prop.",
+      priority_order: ["background", "portrait", "prop"],
+      defaults_applied: input.defaultsApplied ?? false
+    };
+  }
+  if (normalizedFocus?.includes("prop")) {
+    return {
+      ...DIRECTION_ASSET_INTENT_DEFAULT,
+      focus: "prop",
+      rationale: "Lead with a signature object or symbolic detail, then support it with portrait energy and environmental context.",
+      priority_order: ["prop", "portrait", "background"],
+      defaults_applied: input.defaultsApplied ?? false
+    };
+  }
+  if (normalizedFocus?.includes("portrait") || normalizedFocus?.includes("human") || normalizedFocus?.includes("character")) {
+    return {
+      ...DIRECTION_ASSET_INTENT_DEFAULT,
+      focus: "portrait",
+      rationale: "Lead with a human-centered hero, then support it with a branded environment and one memorable prop detail.",
+      priority_order: ["portrait", "background", "prop"],
+      defaults_applied: input.defaultsApplied ?? false
+    };
+  }
+  return {
+    ...DIRECTION_ASSET_INTENT_DEFAULT,
+    priority_order: [...DIRECTION_ASSET_INTENT_DEFAULT.priority_order],
+    defaults_applied: input.defaultsApplied ?? true
+  };
+}
+
 function toFallbackDirection(input: {
   product: string;
   audience: string;
@@ -105,6 +286,12 @@ function toFallbackDirection(input: {
   const keywords = input.styleKeywords.length > 0 ? input.styleKeywords : ["clear", "cinematic", "premium"];
   const [toneA = "clear", toneB = "cinematic", toneC = "premium"] = keywords;
   const constraint = input.constraint?.trim() || "Keep the direction decisive, premium, and build-ready.";
+  const clarity = buildDirectionClarityHeuristic({
+    product: input.product,
+    audience: input.audience,
+    styleKeywords: input.styleKeywords,
+    constraint: input.constraint
+  });
 
   return {
     brief_summary: `${input.product} is being shaped for ${input.audience} with ${keywords.join(", ")} cues.`,
@@ -127,14 +314,21 @@ function toFallbackDirection(input: {
       `Keep the system ${toneC} with restrained accents and intentional typography.`,
       `Honor this non-negotiable note: ${constraint}`
     ],
-    image_intent: `Show ${input.product} as a premium, image-led brand direction for ${input.audience}, with one clear hero scene and a sense of momentum.`,
+    image_intent: `Show ${input.product} as a premium, image-led brand direction for ${input.audience}, preferably through a human-centered hero scene with one clear focal subject and a sense of momentum.`,
     prompt_seed: [
       `${input.product} brand concept`,
       `for ${input.audience}`,
       `mood: ${keywords.join(", ")}`,
-      `constraint: ${constraint}`
+      `constraint: ${constraint}`,
+      "prefer a cinematic person-led hero scene"
     ].join(", "),
-    next_question: "What image should Aurora explore first?"
+    next_question: clarity.ready_for_concepts
+      ? DIRECTION_ASSET_INTENT_DEFAULT.question
+      : clarity.followup_questions[0] ?? DIRECTION_ASSET_INTENT_DEFAULT.question,
+    asset_intent: toDirectionAssetIntent({
+      defaultsApplied: true
+    }),
+    clarity
   };
 }
 
@@ -151,7 +345,13 @@ function buildDirectionPrompt(input: {
     "You create concise brand direction documents for AB Aurora.",
     `Mode: ${mode}.`,
     "Return JSON only.",
-    "Fields required: brief_summary, brand_promise, audience_tension, narrative_summary, voice_principles, anti_goals, visual_principles, image_intent, prompt_seed, next_question.",
+    "Fields required: brief_summary, brand_promise, audience_tension, narrative_summary, voice_principles, anti_goals, visual_principles, image_intent, prompt_seed, next_question, asset_intent, clarity.",
+    "asset_intent must be an object with: focus, rationale, priority_order, default_bundle, defaults_applied, question.",
+    "clarity must be an object with: score, ready_for_concepts, summary, missing_inputs, followup_questions.",
+    "focus should answer whether the first concept set should lean toward portrait, background, prop, or stay balanced.",
+    "ready_for_concepts must stay false if product, audience, visual tone, or non-negotiables are still ambiguous.",
+    "If ready_for_concepts is false, next_question must be the highest-priority clarification question and clarity.followup_questions must contain 1 to 3 targeted questions.",
+    "If ready_for_concepts is true, next_question should ask whether Aurora should emphasize portrait, background, or prop first.",
     "Write like a creative strategist with execution discipline.",
     `Product: ${input.product}`,
     `Audience: ${input.audience}`,
@@ -159,7 +359,8 @@ function buildDirectionPrompt(input: {
     `Constraint: ${input.constraint?.trim() || "None provided"}`,
     input.currentDirection ? `Current direction: ${JSON.stringify(input.currentDirection)}` : null,
     input.revisionNote ? `Refinement request: ${input.revisionNote}` : null,
-    "Keep the direction decisive and ready to generate images from."
+    "Keep the direction decisive and ready to generate images from.",
+    "AB Aurora should ask follow-up questions in DEFINE until the project being built is clear enough to get high-quality concept bundles in one pass."
   ]
     .filter(Boolean)
     .join("\n");
@@ -181,19 +382,25 @@ function toCandidatePrompt(input: {
     "You generate brand direction candidates.",
     "Return JSON only with field \"candidates\".",
     `Return exactly ${input.candidateCount} candidates.`,
-    "Each candidate must contain naming, moodboard, ui_plan, rationale, narrative_summary, image_prompt.",
+    "Each candidate must contain naming, moodboard, ui_plan, rationale, narrative_summary, image_prompt, supporting_assets, story.",
     "naming must be an object: { recommended: string, candidates: string[] }.",
     "moodboard must be an object: { title: string, prompt: string, colors: string[] }.",
     "ui_plan must be an object: { headline: string, layout: string[], cta: string }.",
+    "supporting_assets must be an array of exactly 3 objects: { kind: string, title: string, prompt: string }.",
+    "story must be an object: { premise: string, narrative: string, asset_rationale: string }.",
     "Do not return strings or arrays in place of those objects.",
     "Use hex colors in moodboard.colors when possible.",
+    "Prefer cinematic hero concepts with a clear human or character presence when the brief does not forbid people.",
+    "Avoid pure abstract moodboard imagery unless the direction explicitly asks for non-human or purely graphic treatment.",
+    "Each candidate is an asset bundle: 1 hero image plus 3 supporting assets and one story block.",
+    "The supporting assets should usually cover portrait/background/prop unless the asset intent asks for a different emphasis.",
     "Make each candidate materially distinct while staying inside the shared direction.",
     `Product: ${input.product}`,
     `Audience: ${input.audience}`,
     `Style keywords: ${input.styleKeywords.join(", ")}`,
     `Variation width: ${input.variationWidth}`,
     `Direction: ${JSON.stringify(input.direction)}`,
-    'Example candidate shape: {"naming":{"recommended":"Aurora Arc","candidates":["Aurora Arc","Aurora Line"]},"moodboard":{"title":"Quiet cosmic ritual","prompt":"deep navy aura with restrained cyan glow","colors":["#0B1020","#365BFF","#F4B860"]},"ui_plan":{"headline":"Shape the brand with calm confidence","layout":["hero","proof-strip","feature-grid","cta-footer"],"cta":"Generate Concepts"},"rationale":"...","narrative_summary":"...","image_prompt":"..."}'
+    'Example candidate shape: {"naming":{"recommended":"Aurora Arc","candidates":["Aurora Arc","Aurora Line"]},"moodboard":{"title":"Quiet cosmic ritual","prompt":"deep navy aura with restrained cyan glow","colors":["#0B1020","#365BFF","#F4B860"]},"ui_plan":{"headline":"Shape the brand with calm confidence","layout":["hero","proof-strip","feature-grid","cta-footer"],"cta":"Generate Concepts"},"rationale":"...","narrative_summary":"...","image_prompt":"...","supporting_assets":[{"kind":"portrait","title":"Character study","prompt":"..."},{"kind":"background","title":"Atmosphere background","prompt":"..."},{"kind":"prop","title":"Signature prop","prompt":"..."}],"story":{"premise":"...","narrative":"...","asset_rationale":"..."}}'
   ].join("\n");
 }
 
@@ -235,11 +442,183 @@ function isColorToken(value: string): boolean {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
 
+function resolveAssetKindOrder(direction: BrandDirection | null | undefined): Array<{ kind: string; title: string }> {
+  const focus = direction?.asset_intent?.focus?.toLowerCase() ?? "balanced";
+  if (focus.includes("background")) {
+    return [
+      { kind: "background", title: "Atmosphere background" },
+      { kind: "portrait", title: "Character study" },
+      { kind: "prop", title: "Signature prop" }
+    ];
+  }
+  if (focus.includes("prop")) {
+    return [
+      { kind: "prop", title: "Signature prop" },
+      { kind: "portrait", title: "Character study" },
+      { kind: "background", title: "Atmosphere background" }
+    ];
+  }
+  return [
+    { kind: "portrait", title: "Character study" },
+    { kind: "background", title: "Atmosphere background" },
+    { kind: "prop", title: "Signature prop" }
+  ];
+}
+
+function buildDefaultSupportingAssets(input: {
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  direction: BrandDirection | null | undefined;
+  candidateName: string;
+  narrativeSummary: string;
+  heroPrompt: string;
+}): Array<{ kind: string; title: string; prompt: string }> {
+  const keywordSeed = input.styleKeywords.join(", ") || "cinematic, premium";
+  return resolveAssetKindOrder(input.direction).map((asset) => ({
+    kind: asset.kind,
+    title: asset.title,
+    prompt: [
+      `Create a ${asset.kind} support image for ${input.candidateName}.`,
+      `Product: ${input.product}.`,
+      `Audience: ${input.audience}.`,
+      `Narrative cue: ${input.narrativeSummary}.`,
+      `Mood keywords: ${keywordSeed}.`,
+      `Hero prompt seed: ${input.heroPrompt}.`
+    ].join(" ")
+  }));
+}
+
+function normalizeDirectionClarity(input: {
+  raw: unknown;
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+  nextQuestion: string;
+}): BrandDirection["clarity"] {
+  const fallback = buildDirectionClarityHeuristic({
+    product: input.product,
+    audience: input.audience,
+    styleKeywords: input.styleKeywords,
+    constraint: input.constraint
+  });
+  const rawRecord =
+    input.raw && typeof input.raw === "object" && !Array.isArray(input.raw)
+      ? (input.raw as Record<string, unknown>)
+      : null;
+  const rawScore = Number(rawRecord?.score);
+  const modelReady =
+    typeof rawRecord?.ready_for_concepts === "boolean" ? rawRecord.ready_for_concepts : fallback.ready_for_concepts;
+  const missingInputs = uniqueStrings([
+    ...fallback.missing_inputs,
+    ...toStringList(rawRecord?.missing_inputs ?? rawRecord?.missing)
+  ]);
+  const followupQuestions = uniqueStrings([
+    ...toStringList(rawRecord?.followup_questions ?? rawRecord?.questions),
+    ...(fallback.ready_for_concepts ? [] : fallback.followup_questions),
+    ...((!modelReady || !fallback.ready_for_concepts) && input.nextQuestion.trim().length > 0 ? [input.nextQuestion] : [])
+  ]).slice(0, 3);
+  const readyForConcepts = Boolean(modelReady) && fallback.ready_for_concepts;
+  const score = readyForConcepts
+    ? Math.max(4, Number.isFinite(rawScore) ? Math.round(rawScore) : fallback.score)
+    : Math.min(
+        Number.isFinite(rawScore) ? Math.max(1, Math.round(rawScore)) : fallback.score,
+        Math.max(1, 5 - missingInputs.length)
+      );
+
+  return {
+    score: Math.max(1, Math.min(5, score)),
+    ready_for_concepts: readyForConcepts,
+    summary:
+      toScalarString(rawRecord?.summary) ||
+      (readyForConcepts ? "Direction is specific enough to generate concept bundles." : fallback.summary),
+    missing_inputs: readyForConcepts ? [] : missingInputs,
+    followup_questions: readyForConcepts ? [] : followupQuestions
+  };
+}
+
+function normalizeDirectionResponsePayload(input: {
+  raw: unknown;
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  constraint?: string | null;
+}): BrandDirection {
+  const fallback = toFallbackDirection(input);
+  const rawRecord = input.raw && typeof input.raw === "object" && !Array.isArray(input.raw)
+    ? (input.raw as Record<string, unknown>)
+    : {};
+  const rawAssetIntent = rawRecord.asset_intent;
+  const assetIntentRecord =
+    rawAssetIntent && typeof rawAssetIntent === "object" && !Array.isArray(rawAssetIntent)
+      ? (rawAssetIntent as Record<string, unknown>)
+      : null;
+  const normalizedFocus =
+    toScalarString(assetIntentRecord?.focus, toScalarString(rawAssetIntent, fallback.asset_intent.focus)) ||
+    fallback.asset_intent.focus;
+  const assetIntent = {
+    ...toDirectionAssetIntent({
+      focus: normalizedFocus,
+      defaultsApplied:
+        typeof assetIntentRecord?.defaults_applied === "boolean"
+          ? assetIntentRecord.defaults_applied
+          : fallback.asset_intent.defaults_applied
+    }),
+    rationale:
+      toScalarString(assetIntentRecord?.rationale, fallback.asset_intent.rationale) ||
+      fallback.asset_intent.rationale,
+    priority_order:
+      uniqueStrings(toStringList(assetIntentRecord?.priority_order)).length >= 3
+        ? uniqueStrings(toStringList(assetIntentRecord?.priority_order)).slice(0, 3)
+        : [...fallback.asset_intent.priority_order],
+    default_bundle:
+      toScalarString(assetIntentRecord?.default_bundle, fallback.asset_intent.default_bundle) ||
+      fallback.asset_intent.default_bundle,
+    question: toScalarString(assetIntentRecord?.question, fallback.asset_intent.question) || fallback.asset_intent.question
+  };
+  const nextQuestion = toScalarString(rawRecord.next_question, assetIntent.question) || assetIntent.question;
+  const clarity = normalizeDirectionClarity({
+    raw: rawRecord.clarity,
+    product: input.product,
+    audience: input.audience,
+    styleKeywords: input.styleKeywords,
+    constraint: input.constraint,
+    nextQuestion
+  });
+
+  return {
+    brief_summary: toScalarString(rawRecord.brief_summary, fallback.brief_summary) || fallback.brief_summary,
+    brand_promise: toScalarString(rawRecord.brand_promise, fallback.brand_promise) || fallback.brand_promise,
+    audience_tension: toScalarString(rawRecord.audience_tension, fallback.audience_tension) || fallback.audience_tension,
+    narrative_summary:
+      toScalarString(rawRecord.narrative_summary, fallback.narrative_summary) || fallback.narrative_summary,
+    voice_principles:
+      uniqueStrings(toStringList(rawRecord.voice_principles)).length >= 2
+        ? uniqueStrings(toStringList(rawRecord.voice_principles)).slice(0, 4)
+        : fallback.voice_principles,
+    anti_goals:
+      uniqueStrings(toStringList(rawRecord.anti_goals)).length >= 2
+        ? uniqueStrings(toStringList(rawRecord.anti_goals)).slice(0, 4)
+        : fallback.anti_goals,
+    visual_principles:
+      uniqueStrings(toStringList(rawRecord.visual_principles)).length >= 3
+        ? uniqueStrings(toStringList(rawRecord.visual_principles)).slice(0, 5)
+        : fallback.visual_principles,
+    image_intent: toScalarString(rawRecord.image_intent, fallback.image_intent) || fallback.image_intent,
+    prompt_seed: toScalarString(rawRecord.prompt_seed, fallback.prompt_seed) || fallback.prompt_seed,
+    next_question: clarity.ready_for_concepts ? nextQuestion : clarity.followup_questions[0] ?? nextQuestion,
+    asset_intent: assetIntent,
+    clarity
+  };
+}
+
 function normalizeCandidateResponsePayload(input: {
   raw: unknown;
   product: string;
   audience: string;
   styleKeywords: string[];
+  direction: BrandDirection;
 }): z.infer<typeof candidateResponseSchema> {
   const fallbackColors = ["#0B1020", "#365BFF", "#F4B860"];
   const fallbackLayout = ["hero", "proof-strip", "feature-grid", "cta-footer"];
@@ -256,7 +635,7 @@ function normalizeCandidateResponsePayload(input: {
       const fallbackName = `${input.product} Concept ${index + 1}`;
       const fallbackHeadline = `${input.product} for ${input.audience}`;
       const fallbackNarrative = `${input.product} frames ${input.audience} through a ${fallbackKeyword} direction with clear momentum.`;
-      const fallbackPrompt = `${input.product} brand concept for ${input.audience}, ${input.styleKeywords.join(", ") || "focused"}, premium hero image.`;
+      const fallbackPrompt = `${input.product} brand concept for ${input.audience}, ${input.styleKeywords.join(", ") || "focused"}, premium human-centered hero image, cinematic subject, expressive portrait scene.`;
       const candidateRecord =
         rawCandidate && typeof rawCandidate === "object" ? (rawCandidate as Record<string, unknown>) : {};
 
@@ -309,6 +688,54 @@ function normalizeCandidateResponsePayload(input: {
       const uiPlanCta =
         toScalarString(uiPlanRecord?.cta, toStringList(uiPlanValue).at(-1) ?? "Explore this direction") || "Explore this direction";
 
+      const defaultSupportingAssets = buildDefaultSupportingAssets({
+        product: input.product,
+        audience: input.audience,
+        styleKeywords: input.styleKeywords,
+        direction: input.direction,
+        candidateName: recommendedName,
+        narrativeSummary: toScalarString(candidateRecord.narrative_summary, fallbackNarrative) || fallbackNarrative,
+        heroPrompt: toScalarString(candidateRecord.image_prompt, fallbackPrompt) || fallbackPrompt
+      });
+      const rawSupportingAssets = Array.isArray(candidateRecord.supporting_assets)
+        ? candidateRecord.supporting_assets
+        : [];
+      const supportingAssets = defaultSupportingAssets.map((fallbackAsset, assetIndex) => {
+        const rawAsset = rawSupportingAssets[assetIndex];
+        const assetRecord =
+          rawAsset && typeof rawAsset === "object" && !Array.isArray(rawAsset)
+            ? (rawAsset as Record<string, unknown>)
+            : null;
+        return {
+          kind: toScalarString(assetRecord?.kind, fallbackAsset.kind) || fallbackAsset.kind,
+          title: toScalarString(assetRecord?.title, fallbackAsset.title) || fallbackAsset.title,
+          prompt: toScalarString(assetRecord?.prompt, fallbackAsset.prompt) || fallbackAsset.prompt
+        };
+      });
+
+      const storyValue = candidateRecord.story;
+      const storyRecord =
+        storyValue && typeof storyValue === "object" && !Array.isArray(storyValue)
+          ? (storyValue as Record<string, unknown>)
+          : null;
+      const story = {
+        premise:
+          toScalarString(storyRecord?.premise, `${recommendedName} gives ${input.product} a story-led point of view.`) ||
+          `${recommendedName} gives ${input.product} a story-led point of view.`,
+        narrative:
+          toScalarString(
+            storyRecord?.narrative,
+            `${recommendedName} pairs a hero scene with supporting background and prop details so ${input.audience} can feel a complete brand world instead of a single static moodboard.`
+          ) ||
+          `${recommendedName} pairs a hero scene with supporting background and prop details so ${input.audience} can feel a complete brand world instead of a single static moodboard.`,
+        asset_rationale:
+          toScalarString(
+            storyRecord?.asset_rationale,
+            "The asset bundle combines one decisive hero with supporting images that explain environment, object language, and brand tone."
+          ) ||
+          "The asset bundle combines one decisive hero with supporting images that explain environment, object language, and brand tone."
+      };
+
       return {
         naming: {
           recommended: recommendedName,
@@ -329,7 +756,9 @@ function normalizeCandidateResponsePayload(input: {
           `${recommendedName} creates a clearer route for ${input.audience}.`,
         narrative_summary:
           toScalarString(candidateRecord.narrative_summary, fallbackNarrative) || fallbackNarrative,
-        image_prompt: toScalarString(candidateRecord.image_prompt, fallbackPrompt) || fallbackPrompt
+        image_prompt: toScalarString(candidateRecord.image_prompt, fallbackPrompt) || fallbackPrompt,
+        supporting_assets: supportingAssets,
+        story
       };
     })
   };
@@ -338,7 +767,8 @@ function normalizeCandidateResponsePayload(input: {
 function toCandidate(
   index: number,
   item: z.infer<typeof candidateResponseSchema>["candidates"][number],
-  imageUrl: string
+  imageUrl: string,
+  supportingAssets: SupportingAsset[]
 ): Candidate {
   return {
     id: `cand_${index + 1}`,
@@ -362,7 +792,42 @@ function toCandidate(
     narrative_summary: item.narrative_summary,
     image_prompt: item.image_prompt,
     image_url: imageUrl,
+    supporting_assets: supportingAssets,
+    story: item.story,
     revision_basis: null
+  };
+}
+
+function ensureCandidateBundle(input: {
+  candidate: z.infer<typeof candidateResponseSchema>["candidates"][number];
+  product: string;
+  audience: string;
+  styleKeywords: string[];
+  direction: BrandDirection;
+}): z.infer<typeof candidateResponseSchema>["candidates"][number] {
+  const supportingAssets =
+    input.candidate.supporting_assets ??
+    buildDefaultSupportingAssets({
+      product: input.product,
+      audience: input.audience,
+      styleKeywords: input.styleKeywords,
+      direction: input.direction,
+      candidateName: input.candidate.naming.recommended,
+      narrativeSummary: input.candidate.narrative_summary,
+      heroPrompt: input.candidate.image_prompt
+    });
+
+  const story =
+    input.candidate.story ?? {
+      premise: `${input.candidate.naming.recommended} gives ${input.product} a story-led direction.`,
+      narrative: input.candidate.narrative_summary,
+      asset_rationale: "The bundle combines one hero with supporting environment and prop imagery."
+    };
+
+  return {
+    ...input.candidate,
+    supporting_assets: supportingAssets,
+    story
   };
 }
 
@@ -380,6 +845,20 @@ function toSocialAssetPrompt(input: {
     `Moodboard prompt: ${input.candidate.moodboard.prompt}.`,
     `Palette hint: ${input.candidate.moodboard.colors.join(", ")}.`
   ].join("\n");
+}
+
+function toMockSupportingAssetImageUrl(input: {
+  candidateName: string;
+  assetTitle: string;
+  prompt: string;
+  colors: string[];
+}): string {
+  return toMockCandidateImageUrl({
+    candidateName: `${input.candidateName} / ${input.assetTitle}`,
+    headline: input.assetTitle,
+    narrative: input.prompt,
+    colors: input.colors
+  });
 }
 
 function toMockRevisionImageUrl(input: {
@@ -411,13 +890,13 @@ function toMockRevisionImageUrl(input: {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-async function fetchJsonChatCompletion<T>(input: {
+async function fetchJsonChatCompletion<S extends z.ZodTypeAny>(input: {
   system: string;
   user: string;
   temperature?: number;
-  schema: z.ZodType<T>;
+  schema: S;
   coerce?: (value: unknown) => unknown;
-}): Promise<{ data: T; usage: OpenAiTextUsage | null }> {
+}): Promise<{ data: z.output<S>; usage: OpenAiTextUsage | null }> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -543,9 +1022,23 @@ export async function generateDirectionWithFallback(input: {
       system: "You are a senior brand strategist who writes structured creative direction as JSON.",
       user: buildDirectionPrompt(input),
       temperature: input.currentDirection ? 0.45 : 0.65,
-      schema: directionResponseSchema
+      schema: directionResponseSchema,
+      coerce: (rawValue) => {
+        const directParse = directionResponseSchema.safeParse(rawValue);
+        if (directParse.success) {
+          return directParse.data;
+        }
+
+        return normalizeDirectionResponsePayload({
+          raw: rawValue,
+          product: input.product,
+          audience: input.audience,
+          styleKeywords: input.styleKeywords,
+          constraint: input.constraint
+        });
+      }
     });
-    return { direction: result.data, source: "openai", usage: result.usage };
+    return { direction: directionResponseSchema.parse(result.data), source: "openai", usage: result.usage };
   } catch (error) {
     if (env.OPENAI_FALLBACK_MODE !== "deterministic_mock") {
       throw error;
@@ -624,7 +1117,8 @@ export async function generateCandidatesWithFallback(input: {
           raw: rawValue,
           product: input.product,
           audience: input.audience,
-          styleKeywords: input.styleKeywords
+          styleKeywords: input.styleKeywords,
+          direction: input.direction
         });
         const repairedParse = candidateResponseSchema.safeParse(repaired);
         if (repairedParse.success) {
@@ -642,8 +1136,16 @@ export async function generateCandidatesWithFallback(input: {
       }
     });
 
-    const trimmed = parsed.data.candidates.slice(0, topK);
-    const imageResults = await Promise.allSettled(
+    const trimmed = parsed.data.candidates.slice(0, topK).map((candidate) =>
+      ensureCandidateBundle({
+        candidate,
+        product: input.product,
+        audience: input.audience,
+        styleKeywords: input.styleKeywords,
+        direction: input.direction
+      })
+    );
+    const heroImageResults = await Promise.allSettled(
       trimmed.map((candidate, index) =>
         generateOpenAiImageUrl({
           prompt: candidate.image_prompt,
@@ -659,6 +1161,26 @@ export async function generateCandidatesWithFallback(input: {
       )
     );
 
+    const supportingImageResults = await Promise.allSettled(
+      trimmed.flatMap((candidate, candidateIndex) =>
+        (candidate.supporting_assets ?? []).map((asset, assetIndex) =>
+          generateOpenAiImageUrl({
+            prompt: asset.prompt,
+            size: "1024x1024",
+            responseFormat: "b64_json",
+            logContext: {
+              session_id: input.sessionId,
+              candidate_index: candidateIndex + 1,
+              candidate_name: candidate.naming.recommended,
+              supporting_asset_index: assetIndex + 1,
+              supporting_asset_kind: asset.kind,
+              operation: "candidates_generate_supporting"
+            }
+          })
+        )
+      )
+    );
+
     const renderFailures: Array<{
       candidate_id: string;
       candidate_name: string;
@@ -666,8 +1188,8 @@ export async function generateCandidatesWithFallback(input: {
       fallback_used: boolean;
     }> = [];
 
-    const images = trimmed.map((candidate, index) => {
-      const result = imageResults[index];
+    const heroImages = trimmed.map((candidate, index) => {
+      const result = heroImageResults[index];
       if (result.status === "fulfilled") {
         return result.value;
       }
@@ -694,12 +1216,62 @@ export async function generateCandidatesWithFallback(input: {
       });
     });
 
+    const supportingImagesByCandidate = trimmed.map((candidate, candidateIndex) => {
+      const candidateAssets = candidate.supporting_assets ?? [];
+      return candidateAssets.map((asset, assetIndex) => {
+        const resultIndex = candidateIndex * candidateAssets.length + assetIndex;
+        const result = supportingImageResults[resultIndex];
+        if (result?.status === "fulfilled") {
+          return {
+            id: `asset_${assetIndex + 1}`,
+            kind: asset.kind,
+            title: asset.title,
+            prompt: asset.prompt,
+            image_url: result.value
+          };
+        }
+
+        const error = truncateForLog(
+          result && result.status === "rejected" ? toLoggableError(result.reason) : "Supporting asset render failed."
+        );
+        renderFailures.push({
+          candidate_id: `cand_${candidateIndex + 1}`,
+          candidate_name: candidate.naming.recommended,
+          error: `${asset.kind}:${error}`,
+          fallback_used: true
+        });
+        logOpenAiFailure("[openai.candidates.image_fallback]", {
+          session_id: input.sessionId,
+          candidate_index: candidateIndex + 1,
+          candidate_name: candidate.naming.recommended,
+          supporting_asset_index: assetIndex + 1,
+          supporting_asset_kind: asset.kind,
+          model: env.OPENAI_MODEL_IMAGE,
+          error
+        });
+        return {
+          id: `asset_${assetIndex + 1}`,
+          kind: asset.kind,
+          title: asset.title,
+          prompt: asset.prompt,
+          image_url: toMockSupportingAssetImageUrl({
+            candidateName: candidate.naming.recommended,
+            assetTitle: asset.title,
+            prompt: asset.prompt,
+            colors: candidate.moodboard.colors
+          })
+        };
+      });
+    });
+
     return {
-      candidates: trimmed.map((candidate, index) => toCandidate(index, candidate, images[index])),
+      candidates: trimmed.map((candidate, index) =>
+        toCandidate(index, candidate, heroImages[index], supportingImagesByCandidate[index] ?? [])
+      ),
       source: "openai",
       usage: {
         text: parsed.usage,
-        image_generations: trimmed.length
+        image_generations: trimmed.reduce((count, candidate) => count + 1 + (candidate.supporting_assets ?? []).length, 0)
       },
       render_failures: renderFailures
     };
@@ -854,6 +1426,14 @@ function toConversationAssetPrompt(input: {
     input.selectedCandidate ? `Selected candidate name: ${input.selectedCandidate.naming.recommended}.` : null,
     input.selectedCandidate ? `Candidate narrative: ${normalizeLines(input.selectedCandidate.narrative_summary)}.` : null,
     input.selectedCandidate ? `Candidate image prompt seed: ${normalizeLines(input.selectedCandidate.image_prompt)}.` : null,
+    input.selectedCandidate?.story?.narrative
+      ? `Selected story bundle: ${normalizeLines(input.selectedCandidate.story.narrative)}.`
+      : null,
+    input.selectedCandidate?.supporting_assets?.length
+      ? `Supporting asset cues: ${input.selectedCandidate.supporting_assets
+          .map((asset) => `${asset.kind}=${normalizeLines(asset.prompt)}`)
+          .join(" | ")}.`
+      : null,
     `User request: ${input.userMessage}.`,
     "Translate the request into a single cohesive visual scene with premium lighting and clear subject focus."
   ]

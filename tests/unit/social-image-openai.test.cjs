@@ -279,6 +279,9 @@ test("generateCandidatesWithFallback keeps three candidates when one image rende
     assert.equal(generated.source, "openai");
     assert.equal(generated.render_failures.length, 1);
     assert.equal(generated.render_failures[0].candidate_id, "cand_2");
+    assert.equal(generated.candidates[0].supporting_assets.length, 3);
+    assert.equal(typeof generated.candidates[0].story.premise, "string");
+    assert.equal(generated.usage.image_generations, 12);
     assert.equal(generated.candidates[0].image_url.startsWith("data:image/png;base64,"), true);
     assert.equal(generated.candidates[1].image_url.startsWith("data:image/svg+xml"), true);
     assert.equal(generated.candidates[2].image_url.startsWith("data:image/png;base64,"), true);

@@ -187,8 +187,8 @@ export function ChatDock({
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
   const slashMatches = useMemo(() => {
-    return filterSlashCommands(input).slice(0, 10);
-  }, [input]);
+    return filterSlashCommands(input, { sessionReady }).slice(0, 10);
+  }, [input, sessionReady]);
   const showSlashPopover = currentTab === "chat" && input.trim().startsWith("/") && slashMatches.length > 0;
   const selectedCommand = showSlashPopover ? slashMatches[highlightIndex] : null;
   const primaryAction = actionHub?.primaryAction ?? null;
@@ -574,7 +574,7 @@ export function ChatDock({
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[60px] w-full rounded-[22px] px-3 py-3 text-sm"
+                className="aurora-input min-h-[76px] w-full resize-none rounded-[22px] px-3 py-3.5 text-sm leading-6"
                 placeholder='Type a note or use "/?" for commands.'
                 value={input}
                 onChange={(event) => {

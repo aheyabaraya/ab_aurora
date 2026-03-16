@@ -143,3 +143,50 @@ test("pipeline converts active job create conflicts into wait_user instead of th
   assert.equal(conflictedRun.wait_user, true);
   assert.match(conflictedRun.message, /Another active job exists/i);
 });
+
+test("pipeline normalizes proceed from selected top3 state into build on first click", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "AB Aurora Direction Engine For Product Teams",
+    audience: "Vibe coders",
+    style_keywords: ["bold", "minimal", "future"],
+    auto_continue: true,
+    auto_pick_top1: true
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_build_normalize_001"
+    }
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_build_normalize_002"
+    }
+  });
+
+  await storage.updateSession(session.id, {
+    current_step: "top3_select",
+    status: "wait_user",
+    selected_candidate_id: "cand_1"
+  });
+
+  const buildRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_build_normalize_003"
+    }
+  });
+
+  assert.equal(buildRun.current_step, "done");
+  assert.equal(buildRun.status, "completed");
+});

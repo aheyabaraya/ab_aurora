@@ -12,6 +12,8 @@ type ResolveGuidedActionInput = {
   packReady: boolean;
   shouldQueueIntervention: boolean;
   canStartSession: boolean;
+  defineReadyForConcepts: boolean;
+  defineFollowupQuestion: string | null;
 };
 
 export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): RightPanelViewModel {
@@ -82,7 +84,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
         id: "run_step",
         label: "Generate Concepts"
       };
-      model.hint = "현재 direction을 기준으로 3개 concept를 생성합니다.";
+      model.hint = "현재 direction을 기준으로 hero + supporting asset bundle 3개를 생성합니다.";
       model.suggestedCommand = "/run";
       model.suggestedReason = "후보 3개가 아직 생성되지 않았습니다.";
       return model;
@@ -130,16 +132,25 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     }
 
     model.primaryAction = {
-      id: "run_step",
-      label: input.status === "wait_user" ? "Continue DECIDE" : "Continue"
+      id: "confirm_build",
+      label: "Build"
     };
     model.secondaryAction = {
       id: "regenerate_top3",
       label: "Regenerate 3 Concepts"
     };
-    model.hint = "선택을 확정하고 PACKAGE 씬으로 진행하세요.";
-    model.suggestedCommand = "/run";
-    model.suggestedReason = "선택 이후 다음 단계로 진행합니다.";
+    model.hint = "선택을 확정했다면 바로 Build로 넘기고 PACKAGE 씬으로 진행하세요.";
+    model.suggestedCommand = "/build";
+    model.suggestedReason = "선택안이 있으면 첫 Build 클릭에서 approve_build를 직접 실행합니다.";
+    return model;
+  }
+
+  if (!input.defineReadyForConcepts) {
+    model.primaryAction = null;
+    model.secondaryAction = null;
+    model.hint = "Aurora still needs one clearer answer before concept generation.";
+    model.suggestedCommand = "/help";
+    model.suggestedReason = input.defineFollowupQuestion ?? "Reply in chat to clarify what you are building and who it is for.";
     return model;
   }
 
@@ -151,8 +162,8 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
 
   if (input.shouldQueueIntervention) {
     model.hint = "현재 작업 중입니다. Chat 입력은 다음 stage에서 반영됩니다.";
-    model.suggestedCommand = "/tone calmer";
-    model.suggestedReason = "수정 지시는 queued로 안전하게 적재됩니다.";
+    model.suggestedCommand = "Reply in chat";
+    model.suggestedReason = "수정 지시는 자연어로 보내면 queued로 안전하게 적재됩니다.";
   } else {
     model.hint = "Direction을 정리한 뒤 concept generation으로 넘어가세요.";
     model.suggestedCommand = "/run";

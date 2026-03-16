@@ -55,17 +55,19 @@ test("validateSlashCommandContext enforces session requirements", () => {
 });
 
 test("filterSlashCommands lists relevant slash entries", () => {
-  const commands = filterSlashCommands("/to");
-  assert.equal(commands.some((item) => item.id === "tone_editorial"), true);
+  const commands = filterSlashCommands("/", { sessionReady: true });
+  assert.equal(commands.some((item) => item.id === "run_step"), true);
+  assert.equal(commands.some((item) => item.id === "tone_editorial"), false);
 });
 
 test("filterSlashCommands keeps setup visible when argument prefix exists", () => {
-  const commands = filterSlashCommands("/setup q0");
+  const commands = filterSlashCommands("/setup q0", { sessionReady: false });
   assert.equal(commands.some((item) => item.id === "setup_brief"), true);
 });
 
 test("buildSlashHelpText includes command descriptions", () => {
-  const help = buildSlashHelpText();
+  const help = buildSlashHelpText({ sessionReady: true });
   assert.equal(help.includes("/pick 1"), true);
   assert.equal(help.includes("Select candidate #1."), true);
+  assert.equal(help.includes("/tone editorial"), false);
 });

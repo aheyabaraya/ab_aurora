@@ -40,6 +40,20 @@ export function resolveSceneFromStep(step: string | null | undefined): Scene {
   return "DEFINE";
 }
 
+export type SupportingAsset = {
+  id: string;
+  kind: string;
+  title: string;
+  prompt: string;
+  image_url: string;
+};
+
+export type CandidateStory = {
+  premise: string;
+  narrative: string;
+  asset_rationale: string;
+};
+
 export type Candidate = {
   id: string;
   rank: number;
@@ -62,7 +76,26 @@ export type Candidate = {
   narrative_summary: string;
   image_prompt: string;
   image_url: string;
+  supporting_assets?: SupportingAsset[];
+  story?: CandidateStory | null;
   revision_basis?: string | null;
+};
+
+export type DirectionAssetIntent = {
+  focus: string;
+  rationale: string;
+  priority_order: string[];
+  default_bundle: string;
+  defaults_applied: boolean;
+  question: string;
+};
+
+export type DirectionClarity = {
+  score: number;
+  ready_for_concepts: boolean;
+  summary: string;
+  missing_inputs: string[];
+  followup_questions: string[];
 };
 
 export type DirectionRecord = {
@@ -76,6 +109,8 @@ export type DirectionRecord = {
   image_intent: string;
   prompt_seed: string;
   next_question: string;
+  asset_intent?: DirectionAssetIntent;
+  clarity?: DirectionClarity;
 };
 
 export type SessionMessage = {
@@ -171,6 +206,13 @@ export type ChatEntry = {
   imageUrl?: string;
 };
 
+export type ImagePreviewPayload = {
+  src: string;
+  alt: string;
+  title: string;
+  subtitle?: string;
+};
+
 export type QueuedCommand = {
   id: string;
   kind: "chat" | "revise";
@@ -225,6 +267,7 @@ export type SlashCommandSpec = {
   canonical: string;
   aliasesKo: string[];
   help: string;
+  paletteVisibility?: "always" | "pre_session" | "active_session" | "hidden";
   requiresSession?: boolean;
   requiresRuntimeGoal?: boolean;
   queueable?: boolean;

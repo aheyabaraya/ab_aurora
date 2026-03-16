@@ -24,6 +24,7 @@ import {
   validateSlashCommandContext
 } from "./slash-commands";
 import { getSupabaseBrowserClient } from "../../lib/auth/supabase-client";
+import type { DirectionClarity } from "./types";
 
 class ApiError extends Error {
   status: number;
@@ -98,7 +99,7 @@ function summarizeArtifactForTimeline(artifact: ArtifactRecord): { content: stri
 
   if (artifact.kind === "candidates_top3") {
     return {
-      content: "Three concepts are ready for comparison.",
+      content: "Three concept bundles are ready for comparison.",
       subtitle: "concept render"
     };
   }
@@ -188,6 +189,22 @@ function parseSetupCommand(raw: string): ParsedSetupCommand | null {
   };
 }
 
+function getDirectionClarityFromPayload(payload: SessionPayload | null): DirectionClarity | null {
+  return payload?.session.draft_spec?.direction?.clarity ?? null;
+}
+
+function buildDefineClarifyMessage(payload: SessionPayload | null): string {
+  const clarity = getDirectionClarityFromPayload(payload);
+  if (!clarity || clarity.ready_for_concepts) {
+    return "DEFINE 단계입니다. 좌측 direction과 asset bundle focus를 정리하고, 준비되면 /run 으로 3개 concept bundle을 생성합니다.";
+  }
+
+  const firstQuestion = clarity.followup_questions[0];
+  return firstQuestion
+    ? `DEFINE 단계입니다. 아직 후보 생성으로 넘어가기엔 brief가 부족합니다. 먼저 이 질문에 답하세요: ${firstQuestion}`
+    : "DEFINE 단계입니다. Aurora가 방향을 더 명확히 하기 위해 추가 답변을 기다리고 있습니다.";
+}
+
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
   const status = payload?.session.status;
   if (status === "failed" && stage === "candidates_generate") {
@@ -195,7 +212,7 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   }
 
   if (stage === "brand_narrative") {
-    return "DEFINE 단계입니다. 좌측 direction을 정리하고, 준비되면 /run 으로 3개 concept를 생성합니다.";
+    return buildDefineClarifyMessage(payload);
   }
 
   if (stage === "top3_select") {
@@ -203,7 +220,7 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
     const optionLines = candidates.map((candidate, index) => {
       return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.narrative_summary.slice(0, 52)})`;
     });
-    optionLines.push("- /regen top3: 후보 3개를 다시 생성");
+    optionLines.push("- 자연어로 수정 지시: 선택 전에는 3개 concept bundle이 함께 다시 정리됩니다.");
     return `DECIDE 선택 단계입니다.\n${optionLines.join("\n")}`;
   }
 
@@ -212,14 +229,14 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   }
 
   if (stage === "package" || stage === "done") {
-    return "PACKAGE 단계입니다. /export 로 내보내거나 /regen outputs 로 산출물만 재생성할 수 있습니다.";
+    return "PACKAGE 단계입니다. /export 로 내보내거나 우측 액션에서 산출물을 다시 생성할 수 있습니다.";
   }
 
   if (stage === "candidates_generate") {
-    return "EXPLORE 단계입니다. Direction을 기준으로 3개 concept를 생성하고 있습니다.";
+    return "EXPLORE 단계입니다. Direction을 기준으로 hero + supporting asset bundle 3개를 생성하고 있습니다.";
   }
 
-  return "다음 단계 진행은 /run, 스타일 수정은 /tone calmer 또는 /tone editorial 을 사용하세요.";
+  return "다음 단계 진행은 /run 을 사용하고, 방향 수정은 채팅에 자연어로 바로 적어주세요.";
 }
 
 function summarizeFailureForTimeline(stage: string, errorMessage: string): string {
@@ -304,6 +321,7 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
   const currentStep = payload.session.current_step;
   const status = payload.session.status;
   const hasDirection = Boolean(payload.session.draft_spec?.direction);
+  const directionClarity = getDirectionClarityFromPayload(payload);
   const top3Count = payload.latest_top3?.length ?? 0;
   const hasSelection = Boolean(payload.selected_candidate_id);
 
@@ -333,6 +351,13 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
   }
 
   if (currentStep === "brand_narrative") {
+    if (directionClarity?.ready_for_concepts === false) {
+      return {
+        kind: "blocked",
+        message: buildDefineClarifyMessage(payload),
+        subtitle: "clarification required"
+      };
+    }
     return {
       kind: "ready",
       body: {
@@ -370,6 +395,7 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
     return {
       kind: "ready",
       body: {
+        step: "approve_build",
         action: "proceed"
       }
     };
@@ -379,6 +405,7 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
     return {
       kind: "ready",
       body: {
+        step: "approve_build",
         action: "proceed"
       }
     };
@@ -1026,6 +1053,7 @@ export function useAuroraController() {
         method: "POST",
         body: JSON.stringify({
           session_id: sessionId,
+          step: "approve_build",
           action: "proceed",
           idempotency_key: crypto.randomUUID()
         })
@@ -1235,6 +1263,37 @@ export function useAuroraController() {
     await runWithRecovery(run, run);
   }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
 
+  const handleUpdateDefineBrief = useCallback(
+    async (input: {
+      product: string;
+      audience: string;
+      styleKeywords: string[];
+      constraint: string;
+      q0IntentConfidence: number | null;
+    }) => {
+      if (!sessionId) {
+        return;
+      }
+
+      const run = async () => {
+        await requestJson(`/api/sessions/${sessionId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            product: input.product.trim(),
+            audience: input.audience.trim(),
+            style_keywords: input.styleKeywords,
+            constraint: input.constraint.trim(),
+            q0_intent_confidence: input.q0IntentConfidence ?? 3
+          })
+        });
+        await refreshSession(sessionId);
+      };
+
+      await runWithRecovery(run, run);
+    },
+    [refreshSession, requestJson, runWithRecovery, sessionId]
+  );
+
   const handleExportZip = useCallback(async () => {
     if (!sessionPayload || !sessionId) {
       return;
@@ -1259,6 +1318,21 @@ export function useAuroraController() {
       const packMetaArtifact = artifactByKind.get("pack_meta") ?? null;
       const selectedCandidate =
         (sessionPayload.latest_top3 ?? []).find((candidate) => candidate.id === sessionPayload.selected_candidate_id) ?? null;
+      const selectedPromptManifest = selectedCandidate
+        ? {
+            hero: {
+              prompt: selectedCandidate.image_prompt,
+              image_url: selectedCandidate.image_url
+            },
+            supporting_assets: (selectedCandidate.supporting_assets ?? []).map((asset) => ({
+              id: asset.id,
+              kind: asset.kind,
+              title: asset.title,
+              prompt: asset.prompt,
+              image_url: asset.image_url
+            }))
+          }
+        : null;
       const followupManifest = sessionPayload.recent_artifacts
         .filter((artifact) => artifact.kind === "followup_asset")
         .map((artifact) => ({
@@ -1300,7 +1374,17 @@ export function useAuroraController() {
         )
       );
       zip.file("selected_candidate_summary.json", JSON.stringify(selectedCandidate, null, 2));
-      zip.file("selected_prompt_manifest.json", JSON.stringify(followupManifest, null, 2));
+      zip.file(
+        "selected_prompt_manifest.json",
+        JSON.stringify(
+          {
+            selected_candidate: selectedPromptManifest,
+            revisions: followupManifest
+          },
+          null,
+          2
+        )
+      );
       zip.file("final_spec.json", JSON.stringify(sessionPayload.session.final_spec ?? null, null, 2));
       zip.file("tokens.json", JSON.stringify(tokensArtifact?.content ?? null, null, 2));
       zip.file("social_assets.json", JSON.stringify(socialAssetsArtifact?.content ?? null, null, 2));
@@ -1376,7 +1460,7 @@ export function useAuroraController() {
             accepted: false,
             kind: "slash",
             commandId: "setup_brief",
-            message: "Setup commands are only available before /start. Use /tone or /regen commands after session start."
+            message: "Setup commands are only available before /start. After session start, use chat or the action buttons."
           };
         }
 
@@ -1535,7 +1619,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: "help",
-          message: buildSlashHelpText()
+          message: buildSlashHelpText({ sessionReady: Boolean(sessionId) })
         };
       }
 
@@ -1784,8 +1868,9 @@ export function useAuroraController() {
     return merged;
   }, [sessionPayload?.recent_artifacts, sessionPayload?.recent_messages, stageMessages]);
 
-  const buildConfirmRequired =
-    sessionPayload?.session.current_step === "approve_build";
+  const buildConfirmRequired = Boolean(sessionPayload?.selected_candidate_id) &&
+    (sessionPayload?.session.current_step === "approve_build" ||
+      sessionPayload?.session.current_step === "top3_select");
 
   const top3ModelSource = useMemo<ModelSource>(() => {
     const top3Artifact = (sessionPayload?.recent_artifacts ?? [])
@@ -1811,6 +1896,10 @@ export function useAuroraController() {
     );
   }, [sessionPayload]);
 
+  const defineDirectionClarity = useMemo(() => getDirectionClarityFromPayload(sessionPayload), [sessionPayload]);
+  const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
+  const defineFollowupQuestion = defineDirectionClarity?.followup_questions?.[0] ?? null;
+
   const rightPanelViewModel = useMemo<RightPanelViewModel>(() => {
     const resolved = resolveGuidedActionViewModel({
       sessionId,
@@ -1823,7 +1912,9 @@ export function useAuroraController() {
       runtimeGoalId,
       packReady,
       shouldQueueIntervention,
-      canStartSession
+      canStartSession,
+      defineReadyForConcepts,
+      defineFollowupQuestion
     });
     return {
       ...resolved,
@@ -1833,6 +1924,8 @@ export function useAuroraController() {
     buildConfirmRequired,
     canStartSession,
     currentScene,
+    defineFollowupQuestion,
+    defineReadyForConcepts,
     packReady,
     runtimeGoalId,
     sessionId,
@@ -1898,6 +1991,7 @@ export function useAuroraController() {
     handleRunGuidedAction,
     handleRegenerateTop3,
     handleRegenerateOutputs,
+    handleUpdateDefineBrief,
     handleExportZip,
     handleStartRuntimeGoal,
     handleRuntimeStep,

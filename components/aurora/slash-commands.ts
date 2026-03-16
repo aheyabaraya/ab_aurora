@@ -1,26 +1,33 @@
 import type { SlashCommandId, SlashCommandSpec } from "./types";
 
+type SlashPaletteContext = {
+  sessionReady: boolean;
+};
+
 export const SLASH_COMMANDS: SlashCommandSpec[] = [
   {
     id: "start_session",
     category: "session",
     canonical: "/start",
     aliasesKo: ["/시작"],
-    help: "Start a new session from the current brief."
+    help: "Start a new session from the current brief.",
+    paletteVisibility: "pre_session"
   },
   {
     id: "setup_brief",
     category: "session",
     canonical: "/setup",
     aliasesKo: ["/설정"],
-    help: "Set setup fields before start. Example: /setup q0 4"
+    help: "Set setup fields before start. Example: /setup q0 4",
+    paletteVisibility: "pre_session"
   },
   {
     id: "run_step",
     category: "pipeline",
     canonical: "/run",
     aliasesKo: ["/진행"],
-    help: "Run the next stage."
+    help: "Run the next stage.",
+    paletteVisibility: "active_session"
   },
   {
     id: "confirm_build",
@@ -28,6 +35,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/build",
     aliasesKo: ["/빌드", "/승인"],
     help: "Confirm build when approve step is waiting.",
+    paletteVisibility: "active_session",
     requiresSession: true
   },
   {
@@ -36,6 +44,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/pick 1",
     aliasesKo: ["/선택 1"],
     help: "Select candidate #1.",
+    paletteVisibility: "active_session",
     requiresSession: true,
     queueable: true
   },
@@ -45,6 +54,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/pick 2",
     aliasesKo: ["/선택 2"],
     help: "Select candidate #2.",
+    paletteVisibility: "active_session",
     requiresSession: true,
     queueable: true
   },
@@ -54,6 +64,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/pick 3",
     aliasesKo: ["/선택 3"],
     help: "Select candidate #3.",
+    paletteVisibility: "active_session",
     requiresSession: true,
     queueable: true
   },
@@ -63,6 +74,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/regen top3",
     aliasesKo: ["/재생성 top3", "/재생성 top-3"],
     help: "Regenerate Top-3 candidates.",
+    paletteVisibility: "hidden",
     requiresSession: true,
     queueable: true
   },
@@ -72,6 +84,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/regen outputs",
     aliasesKo: ["/재생성 outputs", "/재생성 산출물"],
     help: "Regenerate package outputs from selected candidate.",
+    paletteVisibility: "hidden",
     requiresSession: true
   },
   {
@@ -80,6 +93,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/export",
     aliasesKo: ["/내보내기"],
     help: "Export pack zip.",
+    paletteVisibility: "active_session",
     requiresSession: true
   },
   {
@@ -88,6 +102,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/tone editorial",
     aliasesKo: ["/톤 에디토리얼"],
     help: "Make style more editorial.",
+    paletteVisibility: "hidden",
     requiresSession: true,
     queueable: true
   },
@@ -97,6 +112,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/tone less-futuristic",
     aliasesKo: ["/톤 미래감축소"],
     help: "Reduce futuristic accents.",
+    paletteVisibility: "hidden",
     requiresSession: true,
     queueable: true
   },
@@ -106,6 +122,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/tone calmer",
     aliasesKo: ["/톤 차분하게"],
     help: "Make the direction calmer.",
+    paletteVisibility: "hidden",
     requiresSession: true,
     queueable: true
   },
@@ -115,6 +132,7 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     canonical: "/tone ritual",
     aliasesKo: ["/톤 리추얼"],
     help: "Increase ritual mood.",
+    paletteVisibility: "hidden",
     requiresSession: true,
     queueable: true
   },
@@ -123,7 +141,8 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
     category: "utility",
     canonical: "/help",
     aliasesKo: ["/도움말"],
-    help: "Show slash command help."
+    help: "Show slash command help.",
+    paletteVisibility: "always"
   }
 ];
 
@@ -141,17 +160,35 @@ function expandAliases(spec: SlashCommandSpec): string[] {
   return [spec.canonical, ...spec.aliasesKo].map(toLower);
 }
 
-export function filterSlashCommands(query: string): SlashCommandSpec[] {
+function isSurfacedCommand(spec: SlashCommandSpec, context: SlashPaletteContext): boolean {
+  const visibility = spec.paletteVisibility ?? "always";
+  if (visibility === "hidden") {
+    return false;
+  }
+  if (visibility === "pre_session") {
+    return !context.sessionReady;
+  }
+  if (visibility === "active_session") {
+    return context.sessionReady;
+  }
+  return true;
+}
+
+function listSurfacedSlashCommands(context: SlashPaletteContext): SlashCommandSpec[] {
+  return SLASH_COMMANDS.filter((spec) => isSurfacedCommand(spec, context));
+}
+
+export function filterSlashCommands(query: string, context: SlashPaletteContext = { sessionReady: false }): SlashCommandSpec[] {
   const normalized = toLower(query);
   if (!normalized.startsWith("/")) {
     return [];
   }
 
   if (normalized === "/") {
-    return SLASH_COMMANDS;
+    return listSurfacedSlashCommands(context);
   }
 
-  return SLASH_COMMANDS.filter((spec) => {
+  return listSurfacedSlashCommands(context).filter((spec) => {
     return expandAliases(spec).some((alias) => alias.includes(normalized) || normalized.startsWith(`${alias} `));
   });
 }
@@ -192,6 +229,11 @@ export function validateSlashCommandContext(
   return null;
 }
 
-export function buildSlashHelpText(): string {
-  return SLASH_COMMANDS.map((spec) => `${spec.canonical} - ${spec.help}`).join("\n");
+export function buildSlashHelpText(context: SlashPaletteContext = { sessionReady: false }): string {
+  const commands = listSurfacedSlashCommands(context);
+  return [
+    ...commands.map((spec) => `${spec.canonical} - ${spec.help}`),
+    "",
+    "Use natural language in chat for tone shifts or refinement requests."
+  ].join("\n");
 }

@@ -73,6 +73,9 @@ export interface StorageRepository {
       Pick<
         SessionRecord,
         | "constraint"
+        | "product"
+        | "audience"
+        | "style_keywords"
         | "current_step"
         | "status"
         | "auto_continue"

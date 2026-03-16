@@ -17,7 +17,9 @@ test("build confirmation state pins Build as primary action", () => {
     runtimeGoalId: "goal_1",
     packReady: false,
     shouldQueueIntervention: false,
-    canStartSession: true
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
   });
 
   assert.equal(model.primaryAction?.id, "confirm_build");
@@ -37,12 +39,14 @@ test("running define with active job shows queue hint", () => {
     runtimeGoalId: null,
     packReady: false,
     shouldQueueIntervention: true,
-    canStartSession: true
+    canStartSession: true,
+    defineReadyForConcepts: false,
+    defineFollowupQuestion: "Who is the highest-priority audience for this first brand direction?"
   });
 
-  assert.equal(model.primaryAction?.id, "run_step");
-  assert.equal(model.hint.includes("다음 stage"), true);
-  assert.equal(model.suggestedCommand, "/tone calmer");
+  assert.equal(model.primaryAction, null);
+  assert.equal(model.hint.includes("one clearer answer"), true);
+  assert.equal(model.suggestedCommand, "/help");
 });
 
 test("start session is disabled when setup input is invalid", () => {
@@ -57,7 +61,9 @@ test("start session is disabled when setup input is invalid", () => {
     runtimeGoalId: null,
     packReady: false,
     shouldQueueIntervention: false,
-    canStartSession: false
+    canStartSession: false,
+    defineReadyForConcepts: false,
+    defineFollowupQuestion: null
   });
 
   assert.equal(model.primaryAction?.id, "start_session");
@@ -77,7 +83,9 @@ test("package scene sets export as primary and disables until pack is ready", ()
     runtimeGoalId: "goal_1",
     packReady: false,
     shouldQueueIntervention: false,
-    canStartSession: true
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
   });
   const ready = resolveGuidedActionViewModel({
     sessionId: "sess_1",
@@ -90,7 +98,9 @@ test("package scene sets export as primary and disables until pack is ready", ()
     runtimeGoalId: "goal_1",
     packReady: true,
     shouldQueueIntervention: false,
-    canStartSession: true
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
   });
 
   assert.equal(pending.primaryAction?.id, "export_zip");

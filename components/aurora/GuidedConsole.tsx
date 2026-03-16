@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createAuroraPageStyle } from "./aurora-assets";
 import { ChatDock } from "./ChatDock";
+import { ImagePreviewModal } from "./ImagePreviewModal";
 import { Progress4 } from "./Progress4";
 import { SceneRouter } from "./SceneRouter";
 import { DecideScene } from "./scenes/DecideScene";
@@ -10,7 +11,7 @@ import { DefineScene } from "./scenes/DefineScene";
 import { ExploreScene } from "./scenes/ExploreScene";
 import { PackageScene } from "./scenes/PackageScene";
 import type { useAuroraController } from "./useAuroraController";
-import type { DirectionRecord } from "./types";
+import type { DirectionRecord, ImagePreviewPayload } from "./types";
 
 type AuroraController = ReturnType<typeof useAuroraController>;
 
@@ -65,6 +66,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     handleConfirmBuild,
     handleRegenerateTop3,
     handleRegenerateOutputs,
+    handleUpdateDefineBrief,
     handleExportZip,
     handleRunGuidedAction,
     handleForceQueued,
@@ -82,22 +84,24 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const narrativeArtifact = useMemo(() => {
     return (sessionPayload?.recent_artifacts ?? []).find((artifact) => artifact.kind === "brand_narrative") ?? null;
   }, [sessionPayload?.recent_artifacts]);
-  const directionSnapshot = useMemo(() => {
+  const directionSnapshot = useMemo<DirectionRecord | null>(() => {
     const artifactContent = narrativeArtifact?.content;
     if (artifactContent && typeof artifactContent.direction === "object" && artifactContent.direction) {
-      return artifactContent.direction as Record<string, unknown>;
+      return artifactContent.direction as DirectionRecord;
     }
-    return (sessionPayload?.session.draft_spec?.direction as Record<string, unknown> | undefined) ?? null;
+    return sessionPayload?.session.draft_spec?.direction ?? null;
   }, [narrativeArtifact?.content, sessionPayload?.session.draft_spec?.direction]);
+  const defineDirectionClarity = directionSnapshot?.clarity ?? null;
+  const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
   const sceneSummary: Record<typeof activeScene, string> = {
-    DEFINE: "Review the synthesized direction, refine it in chat, and hold before concept generation.",
-    EXPLORE: "Compare the three visual routes and decide which concept is worth taking forward.",
-    DECIDE: "Lock the chosen direction, inspect the tradeoffs, and approve the build path.",
+    DEFINE: "Review the synthesized direction, steer the first asset bundle focus, and hold before concept generation.",
+    EXPLORE: "Compare the three story-and-asset bundles and decide which route is worth taking forward.",
+    DECIDE: "Lock the chosen bundle, inspect the tradeoffs, and approve the build path.",
     PACKAGE: "Review the deliverables and export the strategy-plus-assets pack."
   };
   const sceneCanvasTitle: Record<typeof activeScene, string> = {
     DEFINE: "Shape the direction",
-    EXPLORE: "Compare the concepts",
+    EXPLORE: "Compare the bundles",
     DECIDE: "Choose the route",
     PACKAGE: "Export the pack"
   };
@@ -136,6 +140,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const [defineWaitOverride, setDefineWaitOverride] = useState(false);
   const [defineAutoDeadline, setDefineAutoDeadline] = useState<number | null>(null);
   const [defineAutoRemainingSeconds, setDefineAutoRemainingSeconds] = useState<number | null>(null);
+  const [previewImage, setPreviewImage] = useState<ImagePreviewPayload | null>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -221,23 +226,31 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     activeScene === "DEFINE" &&
     activeStage === "brand_narrative" &&
     sessionPayload?.session.status === "wait_user" &&
-    Boolean(directionSnapshot);
+    Boolean(directionSnapshot) &&
+    defineReadyForConcepts;
 
   useEffect(() => {
     if (!defineAutoEligible) {
-      setDefineWaitOverride(false);
-      setDefineAutoDeadline(null);
-      setDefineAutoRemainingSeconds(null);
-      return;
+      const resetTimer = window.setTimeout(() => {
+        setDefineWaitOverride(false);
+        setDefineAutoDeadline(null);
+        setDefineAutoRemainingSeconds(null);
+      }, 0);
+      return () => window.clearTimeout(resetTimer);
     }
 
     if (!autoContinue || defineWaitOverride) {
-      setDefineAutoDeadline(null);
-      setDefineAutoRemainingSeconds(null);
-      return;
+      const pauseTimer = window.setTimeout(() => {
+        setDefineAutoDeadline(null);
+        setDefineAutoRemainingSeconds(null);
+      }, 0);
+      return () => window.clearTimeout(pauseTimer);
     }
 
-    setDefineAutoDeadline((current) => current ?? Date.now() + 60_000);
+    const startTimer = window.setTimeout(() => {
+      setDefineAutoDeadline((current) => current ?? Date.now() + 60_000);
+    }, 0);
+    return () => window.clearTimeout(startTimer);
   }, [activeStage, autoContinue, defineAutoEligible, defineWaitOverride, sessionReady]);
 
   useEffect(() => {
@@ -424,7 +437,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
         ) : null}
 
         <div className={`aurora-workspace-shell ${sessionReady ? "is-session" : "is-setup"}`} style={workspaceStyle}>
-          <div className="min-w-0 space-y-2">
+          <div className={`min-w-0 space-y-2 ${sessionReady ? "min-h-0" : ""}`}>
             {!sessionReady ? (
               <article
                 className={`aurora-panel aurora-onboarding-card aurora-setup-panel rounded-[32px] p-3.5 md:p-4 ${
@@ -568,7 +581,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
             {sessionReady ? errorPanel : null}
 
-            <article className="aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-3.5">
+            <article
+              className={`aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-3.5 ${
+                sessionReady ? "min-h-0 xl:flex xl:h-[calc(100dvh-8rem)] xl:flex-col xl:overflow-hidden" : ""
+              }`}
+            >
               <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
                   <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Workspace</p>
@@ -589,67 +606,74 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
               <div className="aurora-console-divider mt-5" />
 
-              <div className="mt-5">
-                <SceneRouter scene={activeScene} stage={activeStage}>
-                  {activeScene === "DEFINE" ? (
-                    <DefineScene
-                      stage={activeStage}
-                      direction={directionSnapshot as DirectionRecord | null}
-                      brief={{
-                        product: sessionPayload?.session.product ?? "",
-                        audience: sessionPayload?.session.audience ?? "",
-                        styleKeywords: sessionPayload?.session.style_keywords ?? [],
-                        constraint: sessionPayload?.session.constraint ?? null
-                      }}
-                      autoAdvance={
-                        defineAutoEligible
-                          ? {
-                              enabled: autoContinue,
-                              waiting: defineWaitOverride,
-                              secondsRemaining: defineAutoRemainingSeconds,
-                              onGenerate: () => void handleRunGuidedAction("run_step"),
-                              onWait: handlePauseDefineAutoAdvance
-                            }
-                          : null
-                      }
-                    />
-                  ) : null}
+              <div className={`mt-5 ${sessionReady ? "min-h-0 flex-1 overflow-hidden" : ""}`}>
+                <div className={sessionReady ? "h-full overflow-auto pr-1" : ""}>
+                  <SceneRouter scene={activeScene} stage={activeStage}>
+                    {activeScene === "DEFINE" ? (
+                      <DefineScene
+                        stage={activeStage}
+                        direction={directionSnapshot as DirectionRecord | null}
+                        brief={{
+                          product: sessionPayload?.session.product ?? "",
+                          audience: sessionPayload?.session.audience ?? "",
+                          styleKeywords: sessionPayload?.session.style_keywords ?? [],
+                          constraint: sessionPayload?.session.constraint ?? null,
+                          q0IntentConfidence: sessionPayload?.session.intent_confidence ?? null
+                        }}
+                        onUpdateBrief={(input) => void handleUpdateDefineBrief(input)}
+                        busy={busy}
+                        autoAdvance={
+                          defineAutoEligible
+                            ? {
+                                enabled: autoContinue,
+                                waiting: defineWaitOverride,
+                                secondsRemaining: defineAutoRemainingSeconds,
+                                onGenerate: () => void handleRunGuidedAction("run_step"),
+                                onWait: handlePauseDefineAutoAdvance
+                              }
+                            : null
+                        }
+                      />
+                    ) : null}
 
-                  {sessionReady && currentScene === "EXPLORE" ? (
-                    <ExploreScene
-                      candidates={latestTop3}
-                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                      modelSource={top3ModelSource}
-                      busy={busy}
-                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                      onConfirmBuild={() => void handleConfirmBuild()}
-                    />
-                  ) : null}
+                    {sessionReady && currentScene === "EXPLORE" ? (
+                      <ExploreScene
+                        candidates={latestTop3}
+                        selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                        modelSource={top3ModelSource}
+                        busy={busy}
+                        onPreviewImage={setPreviewImage}
+                        onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                        onConfirmBuild={() => void handleConfirmBuild()}
+                      />
+                    ) : null}
 
-                  {sessionReady && currentScene === "DECIDE" ? (
-                    <DecideScene
-                      candidates={latestTop3}
-                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                      modelSource={top3ModelSource}
-                      busy={busy}
-                      buildRequired={buildConfirmRequired}
-                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                      onConfirmBuild={() => void handleConfirmBuild()}
-                    />
-                  ) : null}
+                    {sessionReady && currentScene === "DECIDE" ? (
+                      <DecideScene
+                        candidates={latestTop3}
+                        selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                        modelSource={top3ModelSource}
+                        busy={busy}
+                        buildRequired={buildConfirmRequired}
+                        onPreviewImage={setPreviewImage}
+                        onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                        onConfirmBuild={() => void handleConfirmBuild()}
+                      />
+                    ) : null}
 
-                  {sessionReady && currentScene === "PACKAGE" ? (
-                    <PackageScene
-                      artifacts={sessionPayload?.recent_artifacts ?? []}
-                      currentStep={stage}
-                      finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
-                      busy={busy}
-                      onRegenerateOutputs={() => void handleRegenerateOutputs()}
-                      onRegenerateTop3={() => void handleRegenerateTop3()}
-                      onExportZip={() => void handleExportZip()}
-                    />
-                  ) : null}
-                </SceneRouter>
+                    {sessionReady && currentScene === "PACKAGE" ? (
+                      <PackageScene
+                        artifacts={sessionPayload?.recent_artifacts ?? []}
+                        currentStep={stage}
+                        finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
+                        busy={busy}
+                        onRegenerateOutputs={() => void handleRegenerateOutputs()}
+                        onRegenerateTop3={() => void handleRegenerateTop3()}
+                        onExportZip={() => void handleExportZip()}
+                      />
+                    ) : null}
+                  </SceneRouter>
+                </div>
               </div>
             </article>
           </div>
@@ -691,6 +715,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
       </section>
 
       {signInModal}
+      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </main>
   );
 }

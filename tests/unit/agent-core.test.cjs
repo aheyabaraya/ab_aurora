@@ -146,6 +146,46 @@ test("spec_draft transitions to brand_narrative and persists direction artifact"
   assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
 });
 
+test("brand_narrative stays in define when the brief is still too ambiguous for concepts", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "AI tool",
+    audience: "users",
+    style_keywords: ["modern"],
+    design_direction_note: "Open direction. Explore broadly.",
+    q0_intent_confidence: 4,
+    auto_continue: true,
+    auto_pick_top1: true
+  });
+
+  const firstRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_define_gate_001"
+    }
+  });
+
+  assert.equal(firstRun.current_step, "brand_narrative");
+  assert.equal(firstRun.wait_user, true);
+  assert.match(firstRun.message, /before concept generation/i);
+
+  const blockedProceed = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_define_gate_002"
+    }
+  });
+
+  assert.equal(blockedProceed.current_step, "brand_narrative");
+  assert.equal(blockedProceed.wait_user, true);
+  assert.equal(blockedProceed.latest_top3, null);
+  assert.match(blockedProceed.message, /Reply in chat/i);
+});
+
 test("approve_build requires explicit proceed when auto_pick_top1 is disabled", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
