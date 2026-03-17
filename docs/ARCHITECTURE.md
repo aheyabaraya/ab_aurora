@@ -30,7 +30,15 @@ Onboarding UX contract:
 ### Execution plane (`lib/agent/*` + `lib/storage/*`)
 - Existing stage state machine:
   - `interview_collect -> intent_gate -> spec_draft -> brand_narrative -> candidates_generate -> top3_select -> approve_build -> package -> done`
-- `brand_narrative` is deterministic in v1 and persists a dedicated narrative artifact before candidate generation.
+- `intent_gate` now acts as a lightweight normalization/transition step.
+  - it no longer performs the primary semantic block on short or sparse briefs
+  - AI direction synthesis decides readiness through `direction.clarity.ready_for_concepts`
+- `brand_narrative` synthesizes a structured `BrandDirection` and persists a dedicated direction artifact before candidate generation.
+- After `DEFINE`, `BrandDirection` is the canonical source of truth for:
+  - concept candidate prompts
+  - supporting asset prompts
+  - build/social prompts
+  - follow-up revision renders
 - Artifact persistence (session/job/artifact/pack)
 - Candidate generation/scoring and Top-3 selection
 - Build outputs + packaging + optional mint
@@ -59,9 +67,20 @@ Each runtime step executes this closed loop:
 
 ### Wait-user conditions
 - Policy deny/confirm-required
-- `intent_confidence < INTENT_CLARIFY_THRESHOLD`
+- `direction.clarity.ready_for_concepts == false`
 - Invalid/ambiguous override action
 - Max-iteration safety stop reached
+
+### Direction-led Rendering Contract
+- `brief -> direction` is the semantic decision boundary
+- `direction -> candidate/render prompts` is the execution boundary
+- render prompts should derive from:
+  - `direction.image_intent`
+  - `direction.prompt_seed`
+  - `direction.hero_subject`
+  - `direction.people_directive`
+  - `direction.asset_intent`
+- code may still enforce schema, safety, and job/concurrency limits, but it should not override direction with a separate default art direction
 
 ---
 

@@ -179,7 +179,8 @@ export function DefineScene({
   const assetIntent = direction?.asset_intent;
   const clarity = direction?.clarity;
   const readyForConcepts = clarity?.ready_for_concepts !== false;
-  const briefCards: BriefCard[] = [];
+  const primaryBriefCards: BriefCard[] = [];
+  const supportingBriefCards: BriefCard[] = [];
 
   const formatCountdown = (secondsRemaining: number | null): string => {
     if (secondsRemaining === null) {
@@ -194,37 +195,37 @@ export function DefineScene({
   };
 
   if (brief?.product) {
-    briefCards.push({
+    primaryBriefCards.push({
       label: "Product",
       value: brief.product
     });
   }
   if (brief?.audience) {
-    briefCards.push({
+    primaryBriefCards.push({
       label: "Audience",
       value: brief.audience
     });
   }
   if (brief?.firstDeliverable) {
-    briefCards.push({
+    primaryBriefCards.push({
       label: "First Deliverable",
       value: brief.firstDeliverable
     });
   }
   if (brief?.styleKeywords?.length) {
-    briefCards.push({
+    primaryBriefCards.push({
       label: "Style Keywords",
       value: brief.styleKeywords.join(", ")
     });
   }
   if (brief?.constraint) {
-    briefCards.push({
+    supportingBriefCards.push({
       label: "Design Requirement",
       value: brief.constraint
     });
   }
   if (typeof brief?.q0IntentConfidence === "number") {
-    briefCards.push({
+    supportingBriefCards.push({
       label: "Q0 Confidence",
       value: `${brief.q0IntentConfidence}/5`
     });
@@ -257,6 +258,60 @@ export function DefineScene({
 
   return (
     <div className="space-y-4">
+      {ready && readyForConcepts && autoAdvance ? (
+        <div className="aurora-panel rounded-[26px] border border-indigo-200/24 bg-slate-950/48 px-4 py-4 xl:sticky xl:top-4 xl:z-10">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="aurora-chip px-3 text-[10px]">Define Hold</span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-slate-300">
+                  {autoAdvance.waiting ? "Paused" : autoAdvance.enabled ? "Auto advance armed" : "Manual continue"}
+                </span>
+              </div>
+              <h3 className="aurora-title-primary mt-3 text-[1.18rem] leading-[1.12]">
+                {autoAdvance.waiting
+                  ? "DEFINE is paused until you choose the next move."
+                  : autoAdvance.enabled
+                    ? `Concept generation starts in ${formatCountdown(autoAdvance.secondsRemaining)} unless you interrupt it.`
+                    : "DEFINE stays open until you continue manually."}
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-200">
+                {autoAdvance.waiting
+                  ? "Use chat to steer the first bundle, then continue when the direction feels right."
+                  : autoAdvance.enabled
+                    ? `Aurora will use ${bundleDefault.toLowerCase()} if no further steer arrives before the timer ends.`
+                    : "Auto advance is off. Review the direction, give one more steer in chat if needed, then continue when ready."}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-[20px] border border-white/12 bg-white/[0.05] px-4 py-3 text-center sm:min-w-[124px]">
+                <p className="aurora-title-label text-[10px] tracking-[0.18em]">Countdown</p>
+                <p className="mt-1 text-lg font-semibold text-slate-50">
+                  {autoAdvance.waiting || !autoAdvance.enabled ? "Hold" : formatCountdown(autoAdvance.secondsRemaining)}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
+                  onClick={() => autoAdvance.onGenerate?.()}
+                  type="button"
+                >
+                  Generate Concepts
+                </button>
+                <button
+                  className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
+                  onClick={() => autoAdvance.onWait?.()}
+                  type="button"
+                >
+                  Hold Here
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="aurora-panel aurora-define-hero rounded-[28px]">
         <div
           className="aurora-define-hero-media"
@@ -273,12 +328,12 @@ export function DefineScene({
               <p className="mt-3 max-w-2xl text-sm text-slate-100">{stageSummary(stage)}</p>
             </div>
 
-            {briefCards.length > 0 ? (
+            {primaryBriefCards.length > 0 ? (
               <div className="aurora-define-brief-grid">
-                {briefCards.map((card) => (
+                {primaryBriefCards.map((card) => (
                   <div key={card.label} className="aurora-define-brief-card">
                     <p className="aurora-title-label text-[10px] tracking-[0.2em]">{card.label}</p>
-                    <p className="mt-2 line-clamp-3 text-sm text-slate-100">{card.value}</p>
+                    <p className="mt-2 line-clamp-2 text-sm text-slate-100">{card.value}</p>
                   </div>
                 ))}
               </div>
@@ -287,6 +342,19 @@ export function DefineScene({
         </div>
         <div className="aurora-define-hero-footer">
           <div className="flex flex-col gap-4">
+            {supportingBriefCards.length > 0 ? (
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                {supportingBriefCards.map((card) => (
+                  <div key={card.label} className="aurora-surface-soft rounded-[20px] px-4 py-3">
+                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">{card.label}</p>
+                    <p className={card.label === "Design Requirement" ? "mt-2 line-clamp-2 text-sm leading-6 text-slate-200" : "mt-2 text-sm leading-6 text-slate-200"}>
+                      {card.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="aurora-title-primary mt-3 text-[clamp(1.32rem,2.1vw,1.72rem)] leading-[1.08]">
@@ -324,36 +392,6 @@ export function DefineScene({
               </div>
             ) : null}
 
-            {ready && readyForConcepts && autoAdvance ? (
-              <div className="flex flex-col gap-3 rounded-[22px] border border-indigo-200/18 bg-slate-950/28 px-3.5 py-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Define Hold</p>
-                  <p className="mt-2 text-sm text-slate-100">
-                    {autoAdvance.waiting
-                      ? "DEFINE stays open until you decide to continue."
-                      : autoAdvance.enabled
-                        ? `Auto advance to concept generation in ${formatCountdown(autoAdvance.secondsRemaining)}. If you do nothing, Aurora will use the balanced focal scene + environment + signature detail bundle.`
-                        : "Auto advance is off. Continue manually when you are ready."}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
-                    onClick={() => autoAdvance.onGenerate?.()}
-                    type="button"
-                  >
-                    Generate Concepts
-                  </button>
-                  <button
-                    className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
-                    onClick={() => autoAdvance.onWait?.()}
-                    type="button"
-                  >
-                    Wait
-                  </button>
-                </div>
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

@@ -27,6 +27,7 @@ Goal: define stable schemas for stage outputs and runtime control-plane records.
   - `scoring` (`candidate_count`, `top_k`)
 - Optional during draft:
   - `persona`, `naming`, `moodboard`, `ui_plan`, `tokens`, `social_assets`, `code_plan`
+  - `direction`
 
 ### `BrandSpecFinal`
 - `stage`: `final`
@@ -46,6 +47,43 @@ Goal: define stable schemas for stage outputs and runtime control-plane records.
 - `intent_confidence`, `variation_width`
 - `latest_top3`, `selected_candidate_id`
 - `draft_spec`, `final_spec`, `revision_count`
+
+### `BrandDirection`
+- `brief_summary`
+- `brand_promise`
+- `audience_tension`
+- `narrative_summary`
+- `voice_principles[]`
+- `anti_goals[]`
+- `visual_principles[]`
+- `image_intent`
+- `prompt_seed`
+- `hero_subject`
+- `people_directive`
+- `next_question`
+- `asset_intent`
+  - `focus`
+  - `rationale`
+  - `priority_order[]`
+  - `default_bundle`
+  - `defaults_applied`
+  - `question`
+- `clarity`
+  - `score`
+  - `ready_for_concepts`
+  - `summary`
+  - `missing_inputs[]`
+  - `followup_questions[]`
+
+Contract:
+- `BrandDirection` is synthesized during `brand_narrative`
+- `clarity.ready_for_concepts` is the semantic gate for moving from `DEFINE` to `EXPLORE`
+- later image/render prompts should derive from `BrandDirection`, especially:
+  - `image_intent`
+  - `prompt_seed`
+  - `hero_subject`
+  - `people_directive`
+  - `asset_intent`
 
 ### `Job`
 - `id`, `session_id`, `step`, `status`
@@ -226,12 +264,13 @@ Output:
 ## 6) Brand Narrative Artifact Schema
 
 Artifact `kind = "brand_narrative"`:
-- `brand_promise` (string)
-- `audience_tension` (string)
-- `story_arc` (string[3])
-- `voice_do` (string[3])
-- `voice_dont` (string[3])
-- `tagline_candidates` (string[3])
+- `direction` (`BrandDirection`)
+- `source` (`openai | mock`)
+- optional `revision_note`
+
+Operational note:
+- the artifact is no longer just a short narrative summary
+- it stores the active structured direction that later stages reuse directly
 
 ---
 

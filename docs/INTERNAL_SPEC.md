@@ -49,7 +49,9 @@ Reference quality must raise intent confidence before lock-in.
 - If Q0 is missing (legacy clients), `interview_collect` computes score via heuristic fallback.
 
 Intent gate rule:
-- if `intent_confidence < INTENT_CLARIFY_THRESHOLD` (default `4`), block build progression with `wait_user` and targeted questions.
+- `intent_gate` is no longer the primary semantic block.
+- Q0 / heuristic confidence still sets initial `variation_width`.
+- semantic readiness for concept generation is decided by AI inside `direction.clarity.ready_for_concepts`.
 
 ---
 
@@ -63,9 +65,31 @@ Policies:
 - revisions: max 2
 - self-heal: max 3
 - per-session concurrent active jobs: `CONCURRENT_JOB_LIMIT`
-- `brand_narrative` is deterministic template generation (no additional model call in v1).
+- `brand_narrative` synthesizes a structured `BrandDirection` from the brief.
+- `BrandDirection` becomes the source of truth for all later prompts and bundle generation.
 
 Every step persists at least one artifact for observability and follow-up actions.
+
+### DEFINE semantics
+- `interview_collect`
+  - capture and normalize user brief input
+- `intent_gate`
+  - lightweight transition step
+  - preserves/derives `intent_confidence` and `variation_width`
+  - does not perform the primary semantic veto
+- `spec_draft`
+  - writes the draft spec shell
+- `brand_narrative`
+  - calls direction synthesis
+  - stores:
+    - `image_intent`
+    - `prompt_seed`
+    - `hero_subject`
+    - `people_directive`
+    - `asset_intent`
+    - `clarity`
+  - if `clarity.ready_for_concepts=false`, Aurora asks follow-up questions and waits in `DEFINE`
+  - if `clarity.ready_for_concepts=true`, Aurora can move to `EXPLORE`
 
 ---
 
@@ -117,6 +141,11 @@ Chat is a control input surface, not a separate execution engine.
 
 Flow:
 `user message -> chat action parse -> structured action -> runtime action/tool -> persisted artifact/event`
+
+Direction refinement rule:
+- chat revisions during `DEFINE` rewrite the active `BrandDirection`
+- chat revisions after selection still route through the active `BrandDirection`
+- follow-up image renders must use `selected candidate + active direction`, not a separate fallback house style
 
 Supported control actions:
 - `select_candidate`
