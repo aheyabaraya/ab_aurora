@@ -20,8 +20,8 @@ type GuidedConsoleProps = {
 };
 
 function clampDockWidth(width: number, viewportWidth: number): number {
-  const minimum = 420;
-  const maximum = Math.max(minimum, Math.min(720, viewportWidth - 520));
+  const minimum = viewportWidth >= 1440 ? 500 : 440;
+  const maximum = Math.max(minimum, Math.min(760, viewportWidth - 520));
   return Math.min(Math.max(width, minimum), maximum);
 }
 
@@ -130,11 +130,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
   const [dockWidth, setDockWidth] = useState(() => {
     if (typeof window === "undefined") {
-      return 648;
+      return 700;
     }
     const storedWidth = window.localStorage.getItem("aurora:dock-width");
     const parsed = Number(storedWidth);
-    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(648, window.innerWidth);
+    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(700, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const [defineWaitOverride, setDefineWaitOverride] = useState(false);
@@ -333,10 +333,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     <main className="aurora-page min-h-screen px-2.5 py-2 text-slate-100 md:px-3.5 md:py-2.5" style={pageStyle}>
       <section className="mx-auto max-w-[98rem] space-y-2">
         {sessionReady ? (
-          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3 py-2.5">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3 py-2">
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {summaryPills.map((metric) => (
                     <span key={metric.label} className="aurora-session-pill">
                       <span className="aurora-title-label text-[9px] tracking-[0.2em]">{metric.label}</span>
@@ -344,7 +344,6 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     </span>
                   ))}
                 </div>
-                <p className="mt-2 text-[12px] leading-5 text-slate-300">{sceneSummary[activeScene]}</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -393,6 +392,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                 <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="aurora-surface-soft rounded-[22px] px-4 py-3 sm:col-span-2 xl:col-span-3">
+                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Scene Focus</p>
+                      <p className="mt-2 text-sm text-slate-200">{sceneSummary[activeScene]}</p>
+                    </div>
                     {sessionMetrics.map((metric) => (
                       <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
                         <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
