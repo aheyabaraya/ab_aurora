@@ -50,7 +50,7 @@ test("chat parser maps selection and revise actions", () => {
   assert.equal(proceedAction.type, "proceed");
 });
 
-test("orchestrator pauses when confidence is below threshold", async () => {
+test("orchestrator pauses only when the brief is still placeholder-level", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -71,6 +71,30 @@ test("orchestrator pauses when confidence is below threshold", async () => {
 
   assert.equal(response.wait_user, true);
   assert.equal(response.current_step, "intent_gate");
+});
+
+test("concise but concrete brief can pass intent gate", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "AI landing page builder for solo founders",
+    audience: "solo founders",
+    style_keywords: ["clean"],
+    auto_continue: true,
+    auto_pick_top1: true
+  });
+
+  const response = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_concise_brief_001"
+    }
+  });
+
+  assert.equal(response.current_step, "brand_narrative");
+  assert.equal(response.wait_user, true);
+  assert.match(response.message, /Direction synthesized|generate concept bundles/i);
 });
 
 test("interview_collect keeps pre-seeded q0 intent confidence", async () => {
@@ -146,7 +170,7 @@ test("spec_draft transitions to brand_narrative and persists direction artifact"
   assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
 });
 
-test("brand_narrative stays in define when the brief is still too ambiguous for concepts", async () => {
+test("placeholder brief is stopped before direction synthesis", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -167,9 +191,9 @@ test("brand_narrative stays in define when the brief is still too ambiguous for 
     }
   });
 
-  assert.equal(firstRun.current_step, "brand_narrative");
+  assert.equal(firstRun.current_step, "intent_gate");
   assert.equal(firstRun.wait_user, true);
-  assert.match(firstRun.message, /before concept generation/i);
+  assert.match(firstRun.message, /before concept generation|before the product and the audience/i);
 
   const blockedProceed = await runAgentPipeline({
     storage,
@@ -180,10 +204,10 @@ test("brand_narrative stays in define when the brief is still too ambiguous for 
     }
   });
 
-  assert.equal(blockedProceed.current_step, "brand_narrative");
+  assert.equal(blockedProceed.current_step, "intent_gate");
   assert.equal(blockedProceed.wait_user, true);
   assert.equal(blockedProceed.latest_top3, null);
-  assert.match(blockedProceed.message, /Reply in chat/i);
+  assert.match(blockedProceed.message, /product and the audience|clarity/i);
 });
 
 test("brand_narrative can proceed with sparse tone guidance when product and audience are concrete", async () => {

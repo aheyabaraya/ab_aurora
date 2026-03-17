@@ -14,6 +14,7 @@ import {
   generateSocialAssetsWithFallback,
   type OpenAiTextUsage
 } from "../ai/openai";
+import { assessBriefHardBlock } from "./brief-guard";
 import { toVariationWidth } from "./candidate";
 import type {
   AgentStep,
@@ -77,14 +78,6 @@ function deriveIntentConfidence(session: SessionRecord): number {
   return clampScore(score);
 }
 
-function buildClarifyQuestions(session: SessionRecord): string[] {
-  return [
-    `Who is the highest-priority audience segment for "${session.product}"?`,
-    "Pick 3 vibe keywords and 3 anti-goals so the visual direction is less ambiguous.",
-    "Share one concrete reference or a hard constraint that must not change."
-  ];
-}
-
 function parsePayloadCandidateId(payload: Record<string, unknown> | undefined): string | null {
   const candidateId = payload?.candidate_id;
   return typeof candidateId === "string" ? candidateId : null;
@@ -133,16 +126,11 @@ function buildDirectionClarifyMessage(direction: BrandDirection | null | undefin
     .join("\n");
 }
 
-function needsClarification(session: SessionRecord, score: number): boolean {
-  const hasFullBrief =
-    session.product.trim().length >= 3 &&
-    session.audience.trim().length >= 3 &&
-    session.style_keywords.length > 0 &&
-    Boolean(session.constraint?.trim());
-  if (hasFullBrief) {
-    return false;
-  }
-  return score < env.INTENT_CLARIFY_THRESHOLD;
+function needsClarification(session: SessionRecord): boolean {
+  return assessBriefHardBlock({
+    product: session.product,
+    audience: session.audience
+  }).should_block;
 }
 
 function buildDraftSpec(session: SessionRecord, direction?: BrandDirection | null) {
@@ -750,7 +738,11 @@ async function executeStep(
 
   if (step === "intent_gate") {
     const score = session.intent_confidence ?? deriveIntentConfidence(session);
-    if (needsClarification(session, score)) {
+    const hardBlock = assessBriefHardBlock({
+      product: session.product,
+      audience: session.audience
+    });
+    if (needsClarification(session)) {
       const nextSession = await storage.updateSession(session.id, {
         intent_confidence: score,
         variation_width: toVariationWidth(score),
@@ -765,7 +757,9 @@ async function executeStep(
         content: {
           intent_confidence: score,
           threshold: env.INTENT_CLARIFY_THRESHOLD,
-          questions: buildClarifyQuestions(session)
+          summary: hardBlock.summary,
+          missing_inputs: hardBlock.missing_inputs,
+          questions: hardBlock.followup_questions
         }
       });
       return {
@@ -773,7 +767,7 @@ async function executeStep(
         result: {
           nextStep: "intent_gate",
           waitUser: true,
-          message: "Intent confidence is below threshold; clarification required.",
+          message: hardBlock.summary,
           jobId: null
         }
       };

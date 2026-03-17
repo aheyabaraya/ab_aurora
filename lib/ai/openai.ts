@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { env } from "../env";
+import { assessBriefHardBlock } from "../agent/brief-guard";
 import {
   generateDeterministicCandidates,
   selectTopCandidates,
@@ -22,16 +23,6 @@ function createDefaultDirectionAssetIntent() {
 
 const DIRECTION_ASSET_INTENT_DEFAULT = createDefaultDirectionAssetIntent();
 
-const GENERIC_PRODUCT_PATTERNS = [
-  /^(untitled concept|concept|app|ai app|tool|ai tool|service|platform|website|brand)$/i,
-  /^(product|startup|project)$/i
-] as const;
-
-const GENERIC_AUDIENCE_PATTERNS = [
-  /^(general audience|everyone|all users|users|people|customers)$/i,
-  /^(b2c|b2b)$/i
-] as const;
-
 const GENERIC_CONSTRAINT_PATTERNS = [/^open direction/i, /^none provided$/i, /^explore broadly$/i] as const;
 
 function buildDirectionClarityHeuristic(input: {
@@ -44,46 +35,29 @@ function buildDirectionClarityHeuristic(input: {
   const audience = input.audience.trim();
   const styleKeywords = uniqueStrings(input.styleKeywords.map((keyword) => keyword.trim()).filter(Boolean));
   const constraint = input.constraint?.trim() ?? "";
-  const missingInputs: string[] = [];
-  const followupQuestions: string[] = [];
-  const productWordCount = product.split(/\s+/).filter(Boolean).length;
-  const audienceWordCount = audience.split(/\s+/).filter(Boolean).length;
-
-  const productTooGeneric =
-    (product.length < 6 && productWordCount < 2) ||
-    GENERIC_PRODUCT_PATTERNS.some((pattern) => pattern.test(product.toLowerCase()));
-  if (productTooGeneric) {
-    missingInputs.push("product clarity");
-    followupQuestions.push("What exactly are you building or launching, in one concrete sentence?");
-  }
-
-  const audienceTooGeneric =
-    (audience.length < 6 && audienceWordCount < 1) ||
-    GENERIC_AUDIENCE_PATTERNS.some((pattern) => pattern.test(audience.toLowerCase()));
-  if (audienceTooGeneric) {
-    missingInputs.push("primary audience");
-    followupQuestions.push("Who is the highest-priority audience for this first brand direction?");
-  }
-
+  const hardBlock = assessBriefHardBlock({
+    product,
+    audience
+  });
   const constraintIsGeneric =
     constraint.length === 0 || GENERIC_CONSTRAINT_PATTERNS.some((pattern) => pattern.test(constraint.toLowerCase()));
   const softPenalty = (styleKeywords.length <= 1 ? 1 : 0) + (constraintIsGeneric ? 1 : 0);
 
-  const readyForConcepts = missingInputs.length === 0;
+  const readyForConcepts = !hardBlock.should_block;
   const score = readyForConcepts
-    ? Math.max(4, Math.min(5, 5 - softPenalty))
-    : Math.max(1, Math.min(5, 5 - missingInputs.length));
+    ? Math.max(3, Math.min(5, 5 - softPenalty))
+    : Math.max(1, Math.min(3, 3 - hardBlock.missing_inputs.length + 1));
 
   return {
     score,
     ready_for_concepts: readyForConcepts,
     summary: readyForConcepts
       ? softPenalty > 0
-        ? "Direction is specific enough to generate concept bundles, with room to refine the tone in chat."
-        : "Direction is specific enough to generate concept bundles."
-      : `Aurora still needs ${missingInputs.length === 1 ? "one clearer answer" : `${missingInputs.length} clearer answers`} before concept generation.`,
-    missing_inputs: missingInputs,
-    followup_questions: uniqueStrings(followupQuestions).slice(0, 3)
+        ? "The brief is concrete enough to explore. Aurora can refine tone and constraints further in chat."
+        : "The brief is concrete enough to generate concept bundles."
+      : hardBlock.summary,
+    missing_inputs: readyForConcepts ? [] : hardBlock.missing_inputs,
+    followup_questions: readyForConcepts ? [] : hardBlock.followup_questions.slice(0, 3)
   };
 }
 
@@ -345,8 +319,8 @@ function buildDirectionPrompt(input: {
     "asset_intent must be an object with: focus, rationale, priority_order, default_bundle, defaults_applied, question.",
     "clarity must be an object with: score, ready_for_concepts, summary, missing_inputs, followup_questions.",
     "focus should answer whether the first concept set should lean toward portrait, background, prop, or stay balanced.",
-    "ready_for_concepts must stay false if product or audience is still ambiguous.",
-    "A brief can still be ready for concepts when style guidance is sparse or non-negotiables are loose, as long as the direction is coherent enough to explore with broader variation.",
+    "Only keep ready_for_concepts false when the brief is genuinely too underspecified or placeholder-heavy to produce useful concepts.",
+    "A compressed but concrete one-sentence brief can still be ready for concepts when the product and audience anchors are clear, even if tone guidance is sparse.",
     "If ready_for_concepts is false, next_question must be the highest-priority clarification question and clarity.followup_questions must contain 1 to 3 targeted questions.",
     "If ready_for_concepts is true, next_question should ask whether Aurora should emphasize portrait, background, or prop first.",
     "Write like a creative strategist with execution discipline.",
