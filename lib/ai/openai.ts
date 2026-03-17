@@ -65,26 +65,22 @@ function buildDirectionClarityHeuristic(input: {
     followupQuestions.push("Who is the highest-priority audience for this first brand direction?");
   }
 
-  if (styleKeywords.length < 3) {
-    missingInputs.push("visual tone");
-    followupQuestions.push("Give Aurora 3 to 5 style keywords so the visual tone is less ambiguous.");
-  }
-
   const constraintIsGeneric =
     constraint.length === 0 || GENERIC_CONSTRAINT_PATTERNS.some((pattern) => pattern.test(constraint.toLowerCase()));
-  if (constraintIsGeneric && missingInputs.length > 0) {
-    missingInputs.push("non-negotiable note");
-    followupQuestions.push("What is one non-negotiable design requirement Aurora must preserve?");
-  }
+  const softPenalty = (styleKeywords.length <= 1 ? 1 : 0) + (constraintIsGeneric ? 1 : 0);
 
   const readyForConcepts = missingInputs.length === 0;
-  const score = Math.max(1, Math.min(5, 5 - missingInputs.length));
+  const score = readyForConcepts
+    ? Math.max(4, Math.min(5, 5 - softPenalty))
+    : Math.max(1, Math.min(5, 5 - missingInputs.length));
 
   return {
     score,
     ready_for_concepts: readyForConcepts,
     summary: readyForConcepts
-      ? "Direction is specific enough to generate concept bundles."
+      ? softPenalty > 0
+        ? "Direction is specific enough to generate concept bundles, with room to refine the tone in chat."
+        : "Direction is specific enough to generate concept bundles."
       : `Aurora still needs ${missingInputs.length === 1 ? "one clearer answer" : `${missingInputs.length} clearer answers`} before concept generation.`,
     missing_inputs: missingInputs,
     followup_questions: uniqueStrings(followupQuestions).slice(0, 3)
@@ -349,7 +345,8 @@ function buildDirectionPrompt(input: {
     "asset_intent must be an object with: focus, rationale, priority_order, default_bundle, defaults_applied, question.",
     "clarity must be an object with: score, ready_for_concepts, summary, missing_inputs, followup_questions.",
     "focus should answer whether the first concept set should lean toward portrait, background, prop, or stay balanced.",
-    "ready_for_concepts must stay false if product, audience, visual tone, or non-negotiables are still ambiguous.",
+    "ready_for_concepts must stay false if product or audience is still ambiguous.",
+    "A brief can still be ready for concepts when style guidance is sparse or non-negotiables are loose, as long as the direction is coherent enough to explore with broader variation.",
     "If ready_for_concepts is false, next_question must be the highest-priority clarification question and clarity.followup_questions must contain 1 to 3 targeted questions.",
     "If ready_for_concepts is true, next_question should ask whether Aurora should emphasize portrait, background, or prop first.",
     "Write like a creative strategist with execution discipline.",

@@ -186,6 +186,45 @@ test("brand_narrative stays in define when the brief is still too ambiguous for 
   assert.match(blockedProceed.message, /Reply in chat/i);
 });
 
+test("brand_narrative can proceed with sparse tone guidance when product and audience are concrete", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "AI landing page builder for solo founders shipping their first SaaS launch",
+    audience: "solo founders shipping early-stage SaaS products",
+    style_keywords: ["premium"],
+    design_direction_note: "Open direction. Explore broadly.",
+    q0_intent_confidence: 4,
+    auto_continue: true,
+    auto_pick_top1: true
+  });
+
+  const firstRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_define_gate_sparse_001"
+    }
+  });
+
+  assert.equal(firstRun.current_step, "brand_narrative");
+  assert.equal(firstRun.wait_user, true);
+  assert.match(firstRun.message, /generate concept bundles/i);
+
+  const proceedRun = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_define_gate_sparse_002"
+    }
+  });
+
+  assert.equal(proceedRun.current_step, "top3_select");
+  assert.equal(proceedRun.wait_user, true);
+  assert.equal(proceedRun.latest_top3.length, 3);
+});
+
 test("approve_build requires explicit proceed when auto_pick_top1 is disabled", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
