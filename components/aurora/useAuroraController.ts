@@ -23,6 +23,10 @@ import {
   parseSlashCommand,
   validateSlashCommandContext
 } from "./slash-commands";
+import {
+  composeStructuredBriefConstraint,
+  parseStructuredBriefConstraint
+} from "../../lib/brief-structure";
 import { getSupabaseBrowserClient } from "../../lib/auth/supabase-client";
 import type { DirectionClarity } from "./types";
 
@@ -170,7 +174,7 @@ export function getCommandExecutionMeta(response: ChatApiResponse | null | undef
   };
 }
 
-type SetupField = "product" | "audience" | "style" | "q0" | "note";
+type SetupField = "product" | "audience" | "deliverable" | "style" | "q0" | "note";
 
 type ParsedSetupCommand = {
   field: SetupField;
@@ -179,7 +183,7 @@ type ParsedSetupCommand = {
 
 function parseSetupCommand(raw: string): ParsedSetupCommand | null {
   const trimmed = raw.trim();
-  const match = /^\/setup\s+(product|audience|style|q0|note)\s+(.+)$/i.exec(trimmed);
+  const match = /^\/setup\s+(product|audience|deliverable|style|q0|note)\s+(.+)$/i.exec(trimmed);
   if (!match) {
     return null;
   }
@@ -233,7 +237,7 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   }
 
   if (stage === "candidates_generate") {
-    return "EXPLORE 단계입니다. Direction을 기준으로 hero + supporting asset bundle 3개를 생성하고 있습니다.";
+    return "EXPLORE 단계입니다. Direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성하고 있습니다.";
   }
 
   return "다음 단계 진행은 /run 을 사용하고, 방향 수정은 채팅에 자연어로 바로 적어주세요.";
@@ -246,6 +250,14 @@ function summarizeFailureForTimeline(stage: string, errorMessage: string): strin
 
   if (stage === "candidates_generate") {
     return "EXPLORE 후보 생성이 실패했습니다. /run 으로 다시 시도하거나 direction을 조금 더 구체적으로 정리하세요.";
+  }
+
+  if (stage === "approve_build" && /OpenAI image call failed/i.test(errorMessage)) {
+    return "Build 미리보기 이미지 생성이 실패했습니다. 다시 시도하면 fallback asset으로 계속 진행할 수 있습니다.";
+  }
+
+  if (stage === "approve_build") {
+    return "Build 출력 조합에 실패했습니다. 다시 시도하거나 최신 failure details를 확인하세요.";
   }
 
   return "이 단계에서 오류가 발생했습니다. 다시 시도하거나 입력을 조금 더 구체적으로 바꿔보세요.";
@@ -285,6 +297,10 @@ function normalizeActionErrorMessage(
 
   if (/OpenAI image call failed/i.test(normalized) && context.currentStep === "candidates_generate") {
     return "Concept rendering failed while generating images. Retry once, then inspect the latest failure details.";
+  }
+
+  if (/OpenAI image call failed/i.test(normalized) && context.currentStep === "approve_build") {
+    return "Build preview rendering failed. Retry once and Aurora will continue with fallback assets if needed.";
   }
 
   if (/OPENAI_API_KEY is required/i.test(normalized)) {
@@ -442,6 +458,7 @@ export function useAuroraController() {
   const [mode, setMode] = useState<"mode_a" | "mode_b">("mode_b");
   const [product, setProduct] = useState("");
   const [audience, setAudience] = useState("");
+  const [firstDeliverable, setFirstDeliverable] = useState("");
   const [styleKeywords, setStyleKeywords] = useState("");
   const [designDirectionNote, setDesignDirectionNote] = useState("");
   const [q0IntentConfidence, setQ0IntentConfidence] = useState<number | null>(null);
@@ -874,7 +891,11 @@ export function useAuroraController() {
       const productForStart = product.trim() || "Untitled concept";
       const audienceForStart = audience.trim() || "General audience";
       const styleKeywordsForStart = styleKeywordList.length > 0 ? styleKeywordList : ["exploratory"];
-      const designDirectionForStart = designDirectionNote.trim() || "Open direction. Explore broadly.";
+      const designDirectionForStart =
+        composeStructuredBriefConstraint({
+          firstDeliverable,
+          designRequirement: designDirectionNote
+        }) || "Open direction. Explore broadly.";
       const q0ForStart = q0IntentConfidence ?? 3;
 
       const response = await requestJson<{
@@ -936,6 +957,7 @@ export function useAuroraController() {
     };
   }, [
     audience,
+    firstDeliverable,
     autoContinue,
     autoPickTop1,
     designDirectionNote,
@@ -1267,6 +1289,7 @@ export function useAuroraController() {
     async (input: {
       product: string;
       audience: string;
+      firstDeliverable: string;
       styleKeywords: string[];
       constraint: string;
       q0IntentConfidence: number | null;
@@ -1282,7 +1305,10 @@ export function useAuroraController() {
             product: input.product.trim(),
             audience: input.audience.trim(),
             style_keywords: input.styleKeywords,
-            constraint: input.constraint.trim(),
+            constraint: composeStructuredBriefConstraint({
+              firstDeliverable: input.firstDeliverable,
+              designRequirement: input.constraint
+            }),
             q0_intent_confidence: input.q0IntentConfidence ?? 3
           })
         });
@@ -1350,8 +1376,9 @@ export function useAuroraController() {
           {
             product: sessionPayload.session.product,
             audience: sessionPayload.session.audience,
+            first_deliverable: parseStructuredBriefConstraint(sessionPayload.session.constraint).firstDeliverable,
             style_keywords: sessionPayload.session.style_keywords,
-            design_requirement: sessionPayload.session.constraint ?? null,
+            design_requirement: parseStructuredBriefConstraint(sessionPayload.session.constraint).designRequirement,
             q0_intent_confidence: sessionPayload.session.intent_confidence,
             variation_width: sessionPayload.session.variation_width
           },
@@ -1470,6 +1497,7 @@ export function useAuroraController() {
             "Setup command format:",
             "/setup product <text>",
             "/setup audience <text>",
+            "/setup deliverable <text>",
             "/setup style <comma-separated keywords>",
             "/setup q0 <1-5>",
             "/setup note <design direction note>"
@@ -1503,6 +1531,18 @@ export function useAuroraController() {
             kind: "slash",
             commandId: "setup_brief",
             message: `Setup updated: audience = ${parsedSetup.value}`
+          };
+        }
+
+        if (parsedSetup.field === "deliverable") {
+          setFirstDeliverable(parsedSetup.value);
+          setError(null);
+          setErrorStatus(null);
+          return {
+            accepted: true,
+            kind: "slash",
+            commandId: "setup_brief",
+            message: `Setup updated: first deliverable = ${parsedSetup.value}`
           };
         }
 
@@ -1944,6 +1984,8 @@ export function useAuroraController() {
     setProduct,
     audience,
     setAudience,
+    firstDeliverable,
+    setFirstDeliverable,
     styleKeywords,
     setStyleKeywords,
     designDirectionNote,

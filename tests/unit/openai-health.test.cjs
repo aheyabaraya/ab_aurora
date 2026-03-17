@@ -56,7 +56,8 @@ test("runOpenAiHealthCheck returns ok=true when text and image probes both pass"
   });
 
   const calls = [];
-  const fetchImpl = async (url) => {
+  const imageBodies = [];
+  const fetchImpl = async (url, init) => {
     const targetUrl = String(url);
     calls.push(targetUrl);
     if (targetUrl.includes("/chat/completions")) {
@@ -74,6 +75,7 @@ test("runOpenAiHealthCheck returns ok=true when text and image probes both pass"
       );
     }
     if (targetUrl.includes("/images/generations")) {
+      imageBodies.push(JSON.parse(init.body));
       return new Response(
         JSON.stringify({
           data: [{ url: "https://example.com/health-image.png" }]
@@ -91,6 +93,7 @@ test("runOpenAiHealthCheck returns ok=true when text and image probes both pass"
   });
 
   assert.equal(calls.length, 2);
+  assert.equal("response_format" in imageBodies[0], false);
   assert.equal(result.ok, true);
   assert.equal(result.text.ok, true);
   assert.equal(result.image.ok, true);
@@ -139,6 +142,46 @@ test("runOpenAiHealthCheck marks http probe failures with parsed reason", async 
   assert.equal(result.image.ok, false);
   assert.equal(result.image.error_reason, "http_500");
   assert.equal(result.error_reason, "image:http_500");
+});
+
+test("runOpenAiHealthCheck omits response_format for gpt-image models", async () => {
+  const runOpenAiHealthCheck = loadHealthModuleWithEnv({
+    OPENAI_API_KEY: "test-openai-key",
+    OPENAI_MODEL_TEXT: "gpt-4o",
+    OPENAI_MODEL_IMAGE: "gpt-image-1"
+  });
+
+  const imageBodies = [];
+  const fetchImpl = async (url, init) => {
+    const targetUrl = String(url);
+    if (targetUrl.includes("/chat/completions")) {
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "ok" } }]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    if (targetUrl.includes("/images/generations")) {
+      imageBodies.push(JSON.parse(init.body));
+      return new Response(
+        JSON.stringify({
+          data: [{ b64_json: "ZmFrZQ==" }]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return new Response("unhandled", { status: 404 });
+  };
+
+  const result = await runOpenAiHealthCheck({
+    fetchImpl,
+    timeoutMs: 2000
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(imageBodies.length, 1);
+  assert.equal("response_format" in imageBodies[0], false);
 });
 
 test("runOpenAiHealthCheck marks timeout errors as timeout", async () => {

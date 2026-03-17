@@ -1,5 +1,10 @@
 import { env } from "../env";
+import type { BrandDirection } from "../brand-spec.schema";
 import { sha256 } from "../utils/hash";
+import {
+  buildDirectionLedHeroPrompt,
+  buildDirectionLedSupportingPrompt
+} from "./render-prompts";
 import type { Candidate, CandidateStory, SupportingAsset, VariationWidth } from "./types";
 
 const COLOR_PRESETS = [
@@ -133,9 +138,9 @@ function toMockSupportingAssetImageUrl(input: {
 
 function resolveSupportingAssetKinds(): Array<{ kind: string; label: string }> {
   return [
-    { kind: "portrait", label: "Character study" },
     { kind: "background", label: "Atmosphere background" },
-    { kind: "prop", label: "Signature prop" }
+    { kind: "prop", label: "Signature prop" },
+    { kind: "portrait", label: "Character study" }
   ];
 }
 
@@ -145,15 +150,33 @@ function buildSupportingAssets(input: {
   audience: string;
   keywordHint: string;
   colors: string[];
+  direction?: BrandDirection;
+  narrativeSummary: string;
 }): SupportingAsset[] {
   return resolveSupportingAssetKinds().map((asset, index) => {
-    const prompt = [
-      `Create a ${asset.kind} asset for ${input.candidateName}.`,
-      `Product: ${input.product}.`,
-      `Audience: ${input.audience}.`,
-      `Mood: ${input.keywordHint}.`,
-      `Palette: ${input.colors.join(", ")}.`
-    ].join(" ");
+    const prompt = input.direction
+      ? buildDirectionLedSupportingPrompt({
+          direction: input.direction,
+          product: input.product,
+          audience: input.audience,
+          candidateName: input.candidateName,
+          candidateNarrative: input.narrativeSummary,
+          assetKind: asset.kind,
+          assetTitle: asset.label,
+          candidateAngle: `Candidate angle: ${input.keywordHint}. Palette: ${input.colors.join(", ")}.`
+        })
+      : [
+          `Create a ${asset.kind} asset for ${input.candidateName}.`,
+          `Product: ${input.product}.`,
+          `Audience: ${input.audience}.`,
+          `Mood: ${input.keywordHint}.`,
+          `Palette: ${input.colors.join(", ")}.`,
+          asset.kind === "portrait"
+            ? "Show one visible person with expression, posture, and premium styling. Avoid abstract moodboard treatment."
+            : asset.kind === "background"
+              ? "Render a grounded environment with depth and atmosphere. Avoid flat gradient-only backdrops."
+              : "Render one tangible signature object with premium material detail. Avoid symbol-only abstraction."
+        ].join(" ");
     return {
       id: `asset_${index + 1}`,
       kind: asset.kind,
@@ -177,8 +200,8 @@ function buildStory(input: {
 }): CandidateStory {
   return {
     premise: `${input.candidateName} frames ${input.product} as a brand world for ${input.audience}.`,
-    narrative: `${input.product} moves through a ${input.keywordHint} hero moment, a supporting environment, and a signature object so the brand reads as a full narrative instead of a single moodboard still.`,
-    asset_rationale: "The bundle pairs one primary hero with supporting environment and prop images so story, interface direction, and brand texture can be reviewed together."
+    narrative: `${input.product} moves through a ${input.keywordHint} focal scene, a supporting environment, and a signature object so the brand reads as a full narrative instead of a single moodboard still.`,
+    asset_rationale: "The bundle pairs one primary focal scene with supporting environment and prop images so story, interface direction, and brand texture can be reviewed together."
   };
 }
 
@@ -228,6 +251,7 @@ export function generateDeterministicCandidates(input: {
   styleKeywords: string[];
   variationWidth: VariationWidth;
   candidateCount?: number;
+  direction?: BrandDirection;
 }): Candidate[] {
   const candidateCount = input.candidateCount ?? env.CANDIDATE_COUNT;
   const safeKeywords = input.styleKeywords.length > 0 ? input.styleKeywords : ["focused"];
@@ -245,20 +269,34 @@ export function generateDeterministicCandidates(input: {
     const keywordHint = safeKeywords[index % safeKeywords.length];
     const headline = `${input.product} for ${input.audience}`;
     const narrativeSummary = `${input.product} frames ${input.audience} through a ${keywordHint} direction that feels decisive and ready to ship.`;
-    const imagePrompt = [
-      "Create a premium brand concept hero image.",
-      `Product: ${input.product}.`,
-      `Audience: ${input.audience}.`,
-      `Direction: ${keywordHint}.`,
-      `Moodboard: ${input.product} brand mood, ${keywordHint}, tailored for ${input.audience}.`,
-      `Palette: ${colors.join(", ")}.`
-    ].join("\n");
+    const imagePrompt = input.direction
+      ? buildDirectionLedHeroPrompt({
+          direction: input.direction,
+          product: input.product,
+          audience: input.audience,
+          candidateName: namingCandidates[0],
+          candidateNarrative: narrativeSummary,
+          candidateAngle: `Candidate angle: ${keywordHint}. Palette: ${colors.join(", ")}.`
+        })
+      : [
+          "Create a premium brand concept primary image.",
+          `Product: ${input.product}.`,
+          `Audience: ${input.audience}.`,
+          `Direction: ${keywordHint}.`,
+          `Moodboard: ${input.product} brand mood, ${keywordHint}, tailored for ${input.audience}.`,
+          `Palette: ${colors.join(", ")}.`,
+          "Render a concrete cinematic focal scene with one clear subject.",
+          "The subject may be a person, environment, or product detail depending on what fits the brief.",
+          "Avoid pure abstract moodboard boards, empty gradients, symbol-only layouts, and UI-only compositions."
+        ].join("\n");
     const supportingAssets = buildSupportingAssets({
       candidateName: namingCandidates[0],
       product: input.product,
       audience: input.audience,
       keywordHint,
-      colors
+      colors,
+      direction: input.direction,
+      narrativeSummary
     });
     const story = buildStory({
       product: input.product,

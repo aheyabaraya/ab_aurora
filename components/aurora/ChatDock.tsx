@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AURORA_ASSETS } from "./aurora-assets";
 import { filterSlashCommands } from "./slash-commands";
 import type {
@@ -185,6 +185,7 @@ export function ChatDock({
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const currentTab = activeTab === "artifacts" && !showArtifactsTab ? "chat" : activeTab;
   const slashMatches = useMemo(() => {
     return filterSlashCommands(input, { sessionReady }).slice(0, 10);
@@ -205,6 +206,26 @@ export function ChatDock({
     `${imageGenerations.toLocaleString()} images`
   ];
 
+  const syncAutoScrollState = useCallback(() => {
+    const viewport = chatScrollRef.current;
+    if (!viewport) {
+      return;
+    }
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 72;
+  }, []);
+
+  useEffect(() => {
+    if (currentTab !== "chat") {
+      return;
+    }
+    const viewport = chatScrollRef.current;
+    if (!viewport || !shouldAutoScrollRef.current) {
+      return;
+    }
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [commandNotice, currentTab, entries]);
+
   useEffect(() => {
     if (currentTab !== "chat") {
       return;
@@ -213,8 +234,9 @@ export function ChatDock({
     if (!viewport) {
       return;
     }
+    shouldAutoScrollRef.current = true;
     viewport.scrollTop = viewport.scrollHeight;
-  }, [commandNotice, currentTab, entries]);
+  }, [currentTab]);
 
   const execute = async (raw: string) => {
     const trimmed = raw.trim();
@@ -226,6 +248,7 @@ export function ChatDock({
     setInput("");
     setHighlightIndex(0);
     setCommandNotice("");
+    shouldAutoScrollRef.current = true;
 
     if (!onExecuteSlash) {
       if (isSlash) {
@@ -258,15 +281,15 @@ export function ChatDock({
 
   return (
     <article
-      className={`aurora-panel aurora-dock flex min-h-[30rem] min-w-0 flex-col rounded-[32px] p-3 md:p-3.5 ${
+      className={`aurora-panel aurora-dock flex min-h-[30rem] min-w-0 flex-col rounded-[32px] p-2.5 md:p-3 ${
         sessionReady
-          ? "aurora-dock-live xl:h-[calc(100dvh-8rem)] xl:max-h-[calc(100dvh-8rem)] xl:min-h-0"
+          ? "aurora-dock-live xl:h-[calc(100dvh-1.5rem)] xl:max-h-[calc(100dvh-1.5rem)] xl:min-h-0"
           : "xl:max-h-[calc(100dvh-1rem)]"
       }`}
     >
       {sessionReady ? (
-        <div className="aurora-status-pill rounded-[24px] px-3 py-2.5">
-          <div className="flex items-center gap-3">
+        <div className="aurora-status-pill shrink-0 rounded-[22px] px-2.5 py-2">
+          <div className="flex items-center gap-2">
             <div className="aurora-avatar-shell is-compact shrink-0">
               <div className="aurora-avatar-image">
                 <Image
@@ -297,14 +320,14 @@ export function ChatDock({
                   <span className="aurora-chip px-2.5 text-[9px]">{queuedCommands.length} queued</span>
                 ) : null}
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {dockMetrics.map((metric) => (
                   <span key={metric} className="aurora-chip-soft px-2.5 text-[9px]">
                     {metric}
                   </span>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] leading-4 text-slate-300">
+              <p className="mt-1.5 text-[11px] leading-4 text-slate-300">
                 {dockHeadline(sessionReady, status)}
               </p>
             </div>
@@ -521,9 +544,9 @@ export function ChatDock({
       ) : null}
 
       {currentTab === "chat" && sessionReady ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1">
-          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[20px] p-2">
-            <div ref={chatScrollRef} className="h-full space-y-2 overflow-auto pr-0.5">
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5">
+          <div className="aurora-chat-track min-h-0 flex-1 overflow-hidden rounded-[20px] p-1.5">
+            <div ref={chatScrollRef} className="h-full space-y-2 overflow-auto pr-0.5" onScroll={syncAutoScrollState}>
               {sessionReady ? (
                 <div
                   className={`aurora-safety-banner rounded-[16px] border px-2.5 py-1.5 text-[10px] ${
@@ -562,10 +585,10 @@ export function ChatDock({
             </div>
           </div>
 
-          <div className="aurora-composer-shell shrink-0 space-y-1 rounded-[20px] p-2">
+          <div className="aurora-composer-shell shrink-0 space-y-1.5 rounded-[20px] p-2">
             <div className="flex items-center justify-between gap-2">
               <p className="aurora-title-label text-[9px] tracking-[0.18em]">Message Aurora</p>
-              <p className="text-[10px] text-slate-400">Enter to send</p>
+              <p className="text-[10px] text-slate-400">Shift+Enter for newline</p>
             </div>
             {commandNotice ? (
               <div className="aurora-surface-soft rounded-[18px] px-3 py-2 text-[11px] text-slate-300">
@@ -575,13 +598,14 @@ export function ChatDock({
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[60px] w-full resize-none rounded-[20px] px-3 py-2.5 text-sm leading-5"
+                className="aurora-input min-h-[84px] max-h-[36vh] w-full resize-y rounded-[20px] px-3 py-2.5 text-sm leading-5"
                 placeholder='Type a short note or use "/?" for commands.'
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
                   setHighlightIndex(0);
                 }}
+                rows={4}
                 onCompositionStart={() => setIsComposing(true)}
                 onCompositionEnd={() => setIsComposing(false)}
                 onKeyDown={(event) => {

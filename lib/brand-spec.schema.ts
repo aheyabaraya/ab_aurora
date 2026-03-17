@@ -79,14 +79,16 @@ export const brandDirectionSchema = z.object({
   visual_principles: z.array(z.string()).min(3),
   image_intent: z.string(),
   prompt_seed: z.string(),
+  hero_subject: z.string().default("Use one clear focal subject with readable scale, depth, and composition."),
+  people_directive: z.string().default("People are optional. Follow the brief and direction rather than a default portrait bias."),
   next_question: z.string(),
   asset_intent: directionAssetIntentSchema.default({
     focus: "balanced",
-    rationale: "Balance a clear hero subject with environmental context and one signature prop.",
-    priority_order: ["portrait", "background", "prop"],
-    default_bundle: "balanced hero + background + prop",
+    rationale: "Start with one clear focal scene, then support it with environmental context and one signature detail.",
+    priority_order: ["background", "prop", "portrait"],
+    default_bundle: "balanced focal scene + environment + signature detail",
     defaults_applied: true,
-    question: "For the first concept set, should Aurora emphasize portrait, background, or signature prop?"
+    question: "What are you trying to make first: a landing hero, social post, poster, product visual, or something else?"
   }),
   clarity: directionClaritySchema.default({
     score: 3,

@@ -84,7 +84,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
         id: "run_step",
         label: "Generate Concepts"
       };
-      model.hint = "현재 direction을 기준으로 hero + supporting asset bundle 3개를 생성합니다.";
+      model.hint = "현재 direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성합니다.";
       model.suggestedCommand = "/run";
       model.suggestedReason = "후보 3개가 아직 생성되지 않았습니다.";
       return model;

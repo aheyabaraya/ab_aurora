@@ -56,7 +56,7 @@ export function ExploreScene({
         <div>
           <h2 className="aurora-title-primary text-[1.28rem]">Compare the three story-and-asset bundles Aurora generated.</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-300">
-            Each concept combines one hero image, three supporting assets, and a short narrative so you can judge the
+            Each concept combines one primary image, three supporting assets, and a short narrative so you can judge the
             brand direction as a complete bundle.
           </p>
         </div>

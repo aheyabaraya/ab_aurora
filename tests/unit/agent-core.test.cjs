@@ -50,7 +50,7 @@ test("chat parser maps selection and revise actions", () => {
   assert.equal(proceedAction.type, "proceed");
 });
 
-test("orchestrator pauses only when the brief is still placeholder-level", async () => {
+test("orchestrator lets AI judge placeholder briefs at brand_narrative", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -70,7 +70,8 @@ test("orchestrator pauses only when the brief is still placeholder-level", async
   });
 
   assert.equal(response.wait_user, true);
-  assert.equal(response.current_step, "intent_gate");
+  assert.equal(response.current_step, "brand_narrative");
+  assert.match(response.message, /reply in chat|before concept generation|clearer brief/i);
 });
 
 test("concise but concrete brief can pass intent gate", async () => {
@@ -170,7 +171,7 @@ test("spec_draft transitions to brand_narrative and persists direction artifact"
   assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
 });
 
-test("placeholder brief is stopped before direction synthesis", async () => {
+test("placeholder brief is clarified after direction synthesis instead of blocking intent_gate", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -191,9 +192,9 @@ test("placeholder brief is stopped before direction synthesis", async () => {
     }
   });
 
-  assert.equal(firstRun.current_step, "intent_gate");
+  assert.equal(firstRun.current_step, "brand_narrative");
   assert.equal(firstRun.wait_user, true);
-  assert.match(firstRun.message, /before concept generation|before the product and the audience/i);
+  assert.match(firstRun.message, /reply in chat|before concept generation|clearer brief/i);
 
   const blockedProceed = await runAgentPipeline({
     storage,
@@ -204,10 +205,10 @@ test("placeholder brief is stopped before direction synthesis", async () => {
     }
   });
 
-  assert.equal(blockedProceed.current_step, "intent_gate");
+  assert.equal(blockedProceed.current_step, "brand_narrative");
   assert.equal(blockedProceed.wait_user, true);
   assert.equal(blockedProceed.latest_top3, null);
-  assert.match(blockedProceed.message, /product and the audience|clarity/i);
+  assert.match(blockedProceed.message, /reply in chat|clarity|before concept generation/i);
 });
 
 test("brand_narrative can proceed with sparse tone guidance when product and audience are concrete", async () => {

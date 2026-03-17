@@ -498,10 +498,11 @@ body::after {
 }
 
 .aurora-workspace-shell.is-session {
-  align-items: stretch;
+  align-items: start;
 }
 
 .aurora-dock-aside {
+  align-self: start;
   min-width: 0;
   min-height: 0;
 }
@@ -898,8 +899,8 @@ body::after {
 }
 
 .aurora-avatar-shell.is-compact {
-  width: min(5rem, 18vw);
-  padding: 0.3rem;
+  width: min(4.25rem, 16vw);
+  padding: 0.24rem;
 }
 
 .aurora-avatar-shell::before {
@@ -1099,15 +1100,15 @@ body::after {
   }
 
   .aurora-workspace-shell.is-session {
-    grid-template-columns: minmax(0, 1fr) 0.75rem minmax(24rem, var(--aurora-dock-width, 40.5rem));
+    grid-template-columns: minmax(0, 1fr) 0.75rem minmax(22rem, var(--aurora-dock-width, 36rem));
   }
 
   .aurora-canvas-panel {
-    min-height: calc(100dvh - 8rem);
+    min-height: 0;
   }
 
   .aurora-dock-aside {
-    min-height: calc(100dvh - 8rem);
+    min-height: 0;
   }
 }
 
@@ -1124,11 +1125,13 @@ body::after {
 
   .aurora-dock-resizer {
     display: flex;
-    position: relative;
+    position: sticky;
+    top: 0.5rem;
+    align-self: start;
     align-items: center;
     justify-content: center;
     width: 0.75rem;
-    min-height: calc(100dvh - 8rem);
+    min-height: calc(100dvh - 1.5rem);
     margin-block: 0.125rem;
     border: 0;
     padding: 0;

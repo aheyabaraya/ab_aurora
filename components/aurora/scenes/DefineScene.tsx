@@ -10,6 +10,7 @@ type DefineSceneProps = {
   brief?: {
     product: string;
     audience: string;
+    firstDeliverable?: string | null;
     styleKeywords: string[];
     constraint?: string | null;
     q0IntentConfidence?: number | null;
@@ -17,6 +18,7 @@ type DefineSceneProps = {
   onUpdateBrief?: (input: {
     product: string;
     audience: string;
+    firstDeliverable: string;
     styleKeywords: string[];
     constraint: string;
     q0IntentConfidence: number | null;
@@ -70,6 +72,7 @@ type DefineBriefEditorProps = {
 function DefineBriefEditor({ brief, busy, onUpdateBrief }: DefineBriefEditorProps) {
   const [productDraft, setProductDraft] = useState(brief?.product ?? "");
   const [audienceDraft, setAudienceDraft] = useState(brief?.audience ?? "");
+  const [firstDeliverableDraft, setFirstDeliverableDraft] = useState(brief?.firstDeliverable ?? "");
   const [styleDraft, setStyleDraft] = useState(brief?.styleKeywords.join(", ") ?? "");
   const [constraintDraft, setConstraintDraft] = useState(brief?.constraint ?? "");
   const [q0Draft, setQ0Draft] = useState<string>(brief?.q0IntentConfidence ? String(brief.q0IntentConfidence) : "3");
@@ -92,6 +95,15 @@ function DefineBriefEditor({ brief, busy, onUpdateBrief }: DefineBriefEditorProp
           value={audienceDraft}
           onChange={(event) => setAudienceDraft(event.target.value)}
           placeholder="Who is this for first?"
+        />
+      </label>
+      <label className="space-y-2">
+        <span className="aurora-title-label text-[10px] tracking-[0.18em]">First Deliverable</span>
+        <input
+          className="w-full rounded-[18px] border border-white/14 bg-slate-950/45 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-200/45"
+          value={firstDeliverableDraft}
+          onChange={(event) => setFirstDeliverableDraft(event.target.value)}
+          placeholder="landing hero, social post, poster, product visual"
         />
       </label>
       <label className="space-y-2">
@@ -138,6 +150,7 @@ function DefineBriefEditor({ brief, busy, onUpdateBrief }: DefineBriefEditorProp
             onUpdateBrief?.({
               product: productDraft,
               audience: audienceDraft,
+              firstDeliverable: firstDeliverableDraft,
               styleKeywords: styleDraft
                 .split(",")
                 .map((item) => item.trim())
@@ -192,6 +205,12 @@ export function DefineScene({
       value: brief.audience
     });
   }
+  if (brief?.firstDeliverable) {
+    briefCards.push({
+      label: "First Deliverable",
+      value: brief.firstDeliverable
+    });
+  }
   if (brief?.styleKeywords?.length) {
     briefCards.push({
       label: "Style Keywords",
@@ -219,7 +238,7 @@ export function DefineScene({
         { label: "Image Intent", value: direction.image_intent },
         {
           label: "Bundle Focus",
-          value: assetIntent?.focus ? `${assetIntent.focus} focus` : "Balanced hero + background + prop"
+          value: assetIntent?.focus ? `${assetIntent.focus} focus` : "Balanced focal scene + environment + signature detail"
         }
       ]
     : [];
@@ -231,10 +250,10 @@ export function DefineScene({
       ].filter((section) => section.items.length > 0)
     : [];
   const nextQuestion = readyForConcepts ? assetIntent?.question ?? direction?.next_question ?? "" : followupQuestions[0] ?? "";
-  const bundleDefault = assetIntent?.default_bundle ?? "Balanced hero + background + prop";
-  const briefEditorKey = `${brief?.product ?? ""}::${brief?.audience ?? ""}::${brief?.styleKeywords.join("|") ?? ""}::${
-    brief?.constraint ?? ""
-  }::${brief?.q0IntentConfidence ?? ""}`;
+  const bundleDefault = assetIntent?.default_bundle ?? "Balanced focal scene + environment + signature detail";
+  const briefEditorKey = `${brief?.product ?? ""}::${brief?.audience ?? ""}::${brief?.firstDeliverable ?? ""}::${
+    brief?.styleKeywords.join("|") ?? ""
+  }::${brief?.constraint ?? ""}::${brief?.q0IntentConfidence ?? ""}`;
 
   return (
     <div className="space-y-4">
@@ -313,7 +332,7 @@ export function DefineScene({
                     {autoAdvance.waiting
                       ? "DEFINE stays open until you decide to continue."
                       : autoAdvance.enabled
-                        ? `Auto advance to concept generation in ${formatCountdown(autoAdvance.secondsRemaining)}. If you do nothing, Aurora will use the balanced hero + background + prop bundle.`
+                        ? `Auto advance to concept generation in ${formatCountdown(autoAdvance.secondsRemaining)}. If you do nothing, Aurora will use the balanced focal scene + environment + signature detail bundle.`
                         : "Auto advance is off. Continue manually when you are ready."}
                   </p>
                 </div>

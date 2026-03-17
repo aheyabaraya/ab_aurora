@@ -10,6 +10,7 @@ import { DecideScene } from "./scenes/DecideScene";
 import { DefineScene } from "./scenes/DefineScene";
 import { ExploreScene } from "./scenes/ExploreScene";
 import { PackageScene } from "./scenes/PackageScene";
+import { parseStructuredBriefConstraint } from "../../lib/brief-structure";
 import type { useAuroraController } from "./useAuroraController";
 import type { DirectionRecord, ImagePreviewPayload } from "./types";
 
@@ -20,8 +21,8 @@ type GuidedConsoleProps = {
 };
 
 function clampDockWidth(width: number, viewportWidth: number): number {
-  const minimum = viewportWidth >= 1440 ? 500 : 440;
-  const maximum = Math.max(minimum, Math.min(760, viewportWidth - 520));
+  const minimum = viewportWidth >= 1440 ? 420 : 380;
+  const maximum = Math.max(minimum, Math.min(680, viewportWidth - 620));
   return Math.min(Math.max(width, minimum), maximum);
 }
 
@@ -31,6 +32,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     setProduct,
     audience,
     setAudience,
+    firstDeliverable,
+    setFirstDeliverable,
     styleKeywords,
     setStyleKeywords,
     designDirectionNote,
@@ -91,6 +94,9 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     }
     return sessionPayload?.session.draft_spec?.direction ?? null;
   }, [narrativeArtifact?.content, sessionPayload?.session.draft_spec?.direction]);
+  const structuredBrief = useMemo(() => {
+    return parseStructuredBriefConstraint(sessionPayload?.session.constraint ?? null);
+  }, [sessionPayload?.session.constraint]);
   const defineDirectionClarity = directionSnapshot?.clarity ?? null;
   const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
   const sceneSummary: Record<typeof activeScene, string> = {
@@ -130,11 +136,11 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
   const [dockWidth, setDockWidth] = useState(() => {
     if (typeof window === "undefined") {
-      return 700;
+      return 580;
     }
     const storedWidth = window.localStorage.getItem("aurora:dock-width");
     const parsed = Number(storedWidth);
-    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(700, window.innerWidth);
+    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(580, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const [defineWaitOverride, setDefineWaitOverride] = useState(false);
@@ -499,6 +505,18 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                   </label>
 
                   <label className="aurora-surface-soft aurora-field-shell block text-sm">
+                    <span className="text-slate-200">First Deliverable</span>
+                    <p className="text-xs text-slate-400">What are you trying to make first?</p>
+                    <input
+                      className="aurora-input mt-1.5 w-full rounded-[18px] px-3 py-2.5 text-sm"
+                      value={firstDeliverable}
+                      onChange={(event) => setFirstDeliverable(event.target.value)}
+                      placeholder="e.g. landing hero, social post, product visual"
+                      disabled={onboardingPhase === "flipping"}
+                    />
+                  </label>
+
+                  <label className="aurora-surface-soft aurora-field-shell block text-sm">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-200">Design Confidence (1-5)</span>
                       <span className="aurora-inline-help group" tabIndex={0} role="button" aria-label="Design confidence definition">
@@ -586,7 +604,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
             <article
               className={`aurora-panel aurora-card-shift aurora-canvas-panel rounded-[32px] p-3.5 ${
-                sessionReady ? "min-h-0 xl:flex xl:h-[calc(100dvh-8rem)] xl:flex-col xl:overflow-hidden" : ""
+                sessionReady ? "xl:flex xl:flex-col" : ""
               }`}
             >
               <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -609,74 +627,73 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
               <div className="aurora-console-divider mt-5" />
 
-              <div className={`mt-5 ${sessionReady ? "min-h-0 flex-1 overflow-hidden" : ""}`}>
-                <div className={sessionReady ? "h-full overflow-auto pr-1" : ""}>
-                  <SceneRouter scene={activeScene} stage={activeStage}>
-                    {activeScene === "DEFINE" ? (
+              <div className="mt-5">
+                <SceneRouter scene={activeScene} stage={activeStage}>
+                  {activeScene === "DEFINE" ? (
                       <DefineScene
                         stage={activeStage}
                         direction={directionSnapshot as DirectionRecord | null}
                         brief={{
                           product: sessionPayload?.session.product ?? "",
                           audience: sessionPayload?.session.audience ?? "",
+                          firstDeliverable: structuredBrief.firstDeliverable ?? "",
                           styleKeywords: sessionPayload?.session.style_keywords ?? [],
-                          constraint: sessionPayload?.session.constraint ?? null,
+                          constraint: structuredBrief.designRequirement ?? null,
                           q0IntentConfidence: sessionPayload?.session.intent_confidence ?? null
                         }}
                         onUpdateBrief={(input) => void handleUpdateDefineBrief(input)}
-                        busy={busy}
-                        autoAdvance={
-                          defineAutoEligible
-                            ? {
-                                enabled: autoContinue,
-                                waiting: defineWaitOverride,
-                                secondsRemaining: defineAutoRemainingSeconds,
-                                onGenerate: () => void handleRunGuidedAction("run_step"),
-                                onWait: handlePauseDefineAutoAdvance
-                              }
-                            : null
-                        }
-                      />
-                    ) : null}
+                      busy={busy}
+                      autoAdvance={
+                        defineAutoEligible
+                          ? {
+                              enabled: autoContinue,
+                              waiting: defineWaitOverride,
+                              secondsRemaining: defineAutoRemainingSeconds,
+                              onGenerate: () => void handleRunGuidedAction("run_step"),
+                              onWait: handlePauseDefineAutoAdvance
+                            }
+                          : null
+                      }
+                    />
+                  ) : null}
 
-                    {sessionReady && currentScene === "EXPLORE" ? (
-                      <ExploreScene
-                        candidates={latestTop3}
-                        selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                        modelSource={top3ModelSource}
-                        busy={busy}
-                        onPreviewImage={setPreviewImage}
-                        onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                        onConfirmBuild={() => void handleConfirmBuild()}
-                      />
-                    ) : null}
+                  {sessionReady && currentScene === "EXPLORE" ? (
+                    <ExploreScene
+                      candidates={latestTop3}
+                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                      modelSource={top3ModelSource}
+                      busy={busy}
+                      onPreviewImage={setPreviewImage}
+                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                      onConfirmBuild={() => void handleConfirmBuild()}
+                    />
+                  ) : null}
 
-                    {sessionReady && currentScene === "DECIDE" ? (
-                      <DecideScene
-                        candidates={latestTop3}
-                        selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
-                        modelSource={top3ModelSource}
-                        busy={busy}
-                        buildRequired={buildConfirmRequired}
-                        onPreviewImage={setPreviewImage}
-                        onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
-                        onConfirmBuild={() => void handleConfirmBuild()}
-                      />
-                    ) : null}
+                  {sessionReady && currentScene === "DECIDE" ? (
+                    <DecideScene
+                      candidates={latestTop3}
+                      selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
+                      modelSource={top3ModelSource}
+                      busy={busy}
+                      buildRequired={buildConfirmRequired}
+                      onPreviewImage={setPreviewImage}
+                      onSelect={(candidateId) => void handleSelectCandidate(candidateId)}
+                      onConfirmBuild={() => void handleConfirmBuild()}
+                    />
+                  ) : null}
 
-                    {sessionReady && currentScene === "PACKAGE" ? (
-                      <PackageScene
-                        artifacts={sessionPayload?.recent_artifacts ?? []}
-                        currentStep={stage}
-                        finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
-                        busy={busy}
-                        onRegenerateOutputs={() => void handleRegenerateOutputs()}
-                        onRegenerateTop3={() => void handleRegenerateTop3()}
-                        onExportZip={() => void handleExportZip()}
-                      />
-                    ) : null}
-                  </SceneRouter>
-                </div>
+                  {sessionReady && currentScene === "PACKAGE" ? (
+                    <PackageScene
+                      artifacts={sessionPayload?.recent_artifacts ?? []}
+                      currentStep={stage}
+                      finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
+                      busy={busy}
+                      onRegenerateOutputs={() => void handleRegenerateOutputs()}
+                      onRegenerateTop3={() => void handleRegenerateTop3()}
+                      onExportZip={() => void handleExportZip()}
+                    />
+                  ) : null}
+                </SceneRouter>
               </div>
             </article>
           </div>
@@ -692,7 +709,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
             </button>
           ) : null}
 
-          <aside className={sessionReady ? "aurora-dock-aside h-fit xl:sticky xl:top-2" : "aurora-dock-aside h-fit"}>
+          <aside className={sessionReady ? "aurora-dock-aside h-fit xl:self-start xl:sticky xl:top-2" : "aurora-dock-aside h-fit"}>
             <ChatDock
               entries={chatEntries}
               artifacts={sessionPayload?.recent_artifacts ?? []}

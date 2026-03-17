@@ -7,14 +7,13 @@ import { env } from "../env";
 import type { StorageRepository } from "../storage/types";
 import { sha256 } from "../utils/hash";
 import {
+  generateBuildSocialAssets,
   generateCandidatesWithFallback,
   generateConversationFollowupAsset,
   generateDirectionWithFallback,
   generateFollowupSocialAsset,
-  generateSocialAssetsWithFallback,
   type OpenAiTextUsage
 } from "../ai/openai";
-import { assessBriefHardBlock } from "./brief-guard";
 import { toVariationWidth } from "./candidate";
 import type {
   AgentStep,
@@ -124,13 +123,6 @@ function buildDirectionClarifyMessage(direction: BrandDirection | null | undefin
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-function needsClarification(session: SessionRecord): boolean {
-  return assessBriefHardBlock({
-    product: session.product,
-    audience: session.audience
-  }).should_block;
 }
 
 function buildDraftSpec(session: SessionRecord, direction?: BrandDirection | null) {
@@ -360,12 +352,14 @@ async function createSelectedRevision(
   if (!selectedCandidate) {
     return "Select a direction before requesting a revision render.";
   }
+  const direction = getDirection(session);
 
   const generatedImage = await generateConversationFollowupAsset({
     product: session.product,
     audience: session.audience,
     styleKeywords: session.style_keywords,
     userMessage,
+    direction,
     selectedCandidate,
     assetType
   });
@@ -738,42 +732,9 @@ async function executeStep(
 
   if (step === "intent_gate") {
     const score = session.intent_confidence ?? deriveIntentConfidence(session);
-    const hardBlock = assessBriefHardBlock({
-      product: session.product,
-      audience: session.audience
-    });
-    if (needsClarification(session)) {
-      const nextSession = await storage.updateSession(session.id, {
-        intent_confidence: score,
-        variation_width: toVariationWidth(score),
-        status: "wait_user",
-        current_step: "intent_gate"
-      });
-      await recordArtifact(storage, artifacts, {
-        sessionId: session.id,
-        step,
-        kind: "clarify_questions",
-        title: "Need more clarity before direction synthesis",
-        content: {
-          intent_confidence: score,
-          threshold: env.INTENT_CLARIFY_THRESHOLD,
-          summary: hardBlock.summary,
-          missing_inputs: hardBlock.missing_inputs,
-          questions: hardBlock.followup_questions
-        }
-      });
-      return {
-        session: nextSession,
-        result: {
-          nextStep: "intent_gate",
-          waitUser: true,
-          message: hardBlock.summary,
-          jobId: null
-        }
-      };
-    }
-
     const nextSession = await storage.updateSession(session.id, {
+      intent_confidence: score,
+      variation_width: toVariationWidth(score),
       status: "running",
       current_step: "spec_draft"
     });
@@ -1204,9 +1165,12 @@ async function executeStep(
         spacing: { base: 8, scale: [8, 12, 16, 24, 32] },
         radius: { card: 16, button: 999 }
       };
-      const socialAssets = await generateSocialAssetsWithFallback({
+      const socialAssets = await generateBuildSocialAssets({
         sessionId: session.id,
-        candidate: selectedCandidate
+        candidate: selectedCandidate,
+        product: session.product,
+        audience: session.audience,
+        direction
       });
       if (socialAssets.source === "openai") {
         await safeTrackUsage(storage, {

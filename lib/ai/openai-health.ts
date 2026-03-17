@@ -148,17 +148,18 @@ async function probeImage(input: {
   timeoutMs: number;
 }): Promise<OpenAiHealthProbeResult> {
   try {
+    const imageRequestBody = {
+      model: env.OPENAI_MODEL_IMAGE,
+      prompt: "AB Aurora health check image; minimal abstract gradient.",
+      size: "1024x1024",
+      n: 1
+    };
+
     const result = await fetchWithTimeout({
       url: OPENAI_IMAGE_URL,
       timeoutMs: input.timeoutMs,
       fetchImpl: input.fetchImpl,
-      body: {
-        model: env.OPENAI_MODEL_IMAGE,
-        prompt: "AB Aurora health check image; minimal abstract gradient.",
-        size: "1024x1024",
-        n: 1,
-        response_format: "url"
-      }
+      body: imageRequestBody
     });
 
     if (!result.response.ok) {
