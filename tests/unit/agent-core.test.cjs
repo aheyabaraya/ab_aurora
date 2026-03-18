@@ -71,7 +71,7 @@ test("orchestrator lets AI judge placeholder briefs at brand_narrative", async (
 
   assert.equal(response.wait_user, true);
   assert.equal(response.current_step, "brand_narrative");
-  assert.match(response.message, /reply in chat|before concept generation|clearer brief/i);
+  assert.match(response.message, /generate concept bundles|refine it in chat/i);
 });
 
 test("concise but concrete brief can pass intent gate", async () => {
@@ -171,7 +171,7 @@ test("spec_draft transitions to brand_narrative and persists direction artifact"
   assert.ok(narrativeRun.artifacts.some((artifact) => artifact.kind === "brand_narrative"));
 });
 
-test("placeholder brief is clarified after direction synthesis instead of blocking intent_gate", async () => {
+test("placeholder brief can still proceed into concept generation", async () => {
   const storage = new MemoryStorageRepository();
   const session = await storage.createSession({
     mode: "mode_b",
@@ -194,9 +194,9 @@ test("placeholder brief is clarified after direction synthesis instead of blocki
 
   assert.equal(firstRun.current_step, "brand_narrative");
   assert.equal(firstRun.wait_user, true);
-  assert.match(firstRun.message, /reply in chat|before concept generation|clearer brief/i);
+  assert.match(firstRun.message, /generate concept bundles|refine it in chat/i);
 
-  const blockedProceed = await runAgentPipeline({
+  const proceedRun = await runAgentPipeline({
     storage,
     request: {
       session_id: session.id,
@@ -205,10 +205,10 @@ test("placeholder brief is clarified after direction synthesis instead of blocki
     }
   });
 
-  assert.equal(blockedProceed.current_step, "brand_narrative");
-  assert.equal(blockedProceed.wait_user, true);
-  assert.equal(blockedProceed.latest_top3, null);
-  assert.match(blockedProceed.message, /reply in chat|clarity|before concept generation/i);
+  assert.equal(proceedRun.current_step, "top3_select");
+  assert.equal(proceedRun.wait_user, true);
+  assert.equal(proceedRun.latest_top3.length, 3);
+  assert.match(proceedRun.message, /Three concept bundles are ready|Choose one to continue/i);
 });
 
 test("brand_narrative can proceed with sparse tone guidance when product and audience are concrete", async () => {

@@ -117,9 +117,9 @@ function buildDirectionClarifyMessage(direction: BrandDirection | null | undefin
   const clarity = getDirectionClarity(direction);
   const questions = clarity.followup_questions.length > 0 ? clarity.followup_questions : [direction?.next_question ?? ""];
   return [
-    clarity.summary,
+    clarity.summary || "The direction is still broad, but Aurora can generate a first pass now.",
     ...questions.slice(0, 3).map((question, index) => `${index + 1}. ${question}`),
-    "Reply in chat and Aurora will tighten the direction before concept generation."
+    "These are optional steer questions. You can still continue to concept generation now."
   ]
     .filter(Boolean)
     .join("\n");
@@ -565,17 +565,6 @@ async function applyAction(
         message: "Direction is not ready yet. Refine the brief first."
       };
     }
-    if (directionNeedsMoreDefinition(direction)) {
-      const next = await storage.updateSession(session.id, {
-        current_step: "brand_narrative",
-        status: "wait_user"
-      });
-      return {
-        session: next,
-        consumed: true,
-        message: buildDirectionClarifyMessage(direction)
-      };
-    }
 
     const next = await storage.updateSession(session.id, {
       current_step: "candidates_generate",
@@ -695,18 +684,6 @@ async function applyAction(
     }
 
     if (session.current_step === "brand_narrative" && getDirection(session)) {
-      const direction = getDirection(session);
-      if (directionNeedsMoreDefinition(direction)) {
-        const next = await storage.updateSession(session.id, {
-          current_step: "brand_narrative",
-          status: "wait_user"
-        });
-        return {
-          session: next,
-          consumed: true,
-          message: buildDirectionClarifyMessage(direction)
-        };
-      }
       const next = await storage.updateSession(session.id, {
         current_step: "candidates_generate",
         status: "running",
@@ -850,9 +827,7 @@ async function executeStep(
         result: {
           nextStep: "brand_narrative",
           waitUser: true,
-          message: directionNeedsMoreDefinition(existingDirection)
-            ? buildDirectionClarifyMessage(existingDirection)
-            : "Direction ready. Generate concept bundles when you are ready.",
+          message: "Direction ready. Refine it in chat or generate concept bundles when you are ready.",
           jobId: null
         }
       };
@@ -890,9 +865,7 @@ async function executeStep(
       result: {
           nextStep: "brand_narrative",
           waitUser: true,
-          message: directionNeedsMoreDefinition(synthesized.direction)
-            ? buildDirectionClarifyMessage(synthesized.direction)
-            : "Direction synthesized. Refine it in chat or generate concept bundles.",
+          message: "Direction synthesized. Refine it in chat or generate concept bundles.",
           jobId: null
         }
       };
@@ -911,21 +884,6 @@ async function executeStep(
           nextStep: "brand_narrative",
           waitUser: true,
           message: "Direction is missing. Refine direction before generating concepts.",
-          jobId: null
-        }
-      };
-    }
-    if (directionNeedsMoreDefinition(direction)) {
-      const waitingSession = await storage.updateSession(session.id, {
-        status: "wait_user",
-        current_step: "brand_narrative"
-      });
-      return {
-        session: waitingSession,
-        result: {
-          nextStep: "brand_narrative",
-          waitUser: true,
-          message: buildDirectionClarifyMessage(direction),
           jobId: null
         }
       };
@@ -1044,15 +1002,15 @@ async function executeStep(
         logs: [`error:${message}`]
       });
       const failedSession = await storage.updateSession(session.id, {
-        status: "failed",
-        current_step: "candidates_generate"
+        status: "wait_user",
+        current_step: "brand_narrative"
       });
       return {
         session: failedSession,
         result: {
-          nextStep: "candidates_generate",
+          nextStep: "brand_narrative",
           waitUser: true,
-          message,
+          message: "Concept generation did not complete. The direction is still open in DEFINE, so you can retry immediately.",
           jobId: job.id
         }
       };

@@ -213,16 +213,11 @@ function buildDefineClarifyMessage(payload: SessionPayload | null): string {
 
   const firstQuestion = clarity.followup_questions[0];
   return firstQuestion
-    ? `DEFINE 단계입니다. 아직 후보 생성으로 넘어가기엔 brief가 부족합니다. 먼저 이 질문에 답하세요: ${firstQuestion}`
-    : "DEFINE 단계입니다. Aurora가 방향을 더 명확히 하기 위해 추가 답변을 기다리고 있습니다.";
+    ? `DEFINE 단계입니다. 바로 Generate 3 Concepts로 넘어갈 수 있습니다. 필요하면 먼저 이 질문으로 방향을 조금 더 다듬으세요: ${firstQuestion}`
+    : "DEFINE 단계입니다. 방향이 아직 열려 있지만, 지금 바로 후보 생성을 진행할 수 있습니다.";
 }
 
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
-  const status = payload?.session.status;
-  if (status === "failed" && stage === "candidates_generate") {
-    return "EXPLORE 후보 생성이 실패했습니다. Generate 3 Concepts를 다시 눌러 재시도하고, 상세 오류는 Latest failure details에서 확인하세요.";
-  }
-
   if (stage === "brand_narrative") {
     return buildDefineClarifyMessage(payload);
   }
@@ -613,13 +608,6 @@ export function resolveRunStepDecision(
   }
 
   if (currentStep === "brand_narrative") {
-    if (directionClarity?.ready_for_concepts === false) {
-      return {
-        kind: "blocked",
-        message: buildDefineClarifyMessage(payload),
-        subtitle: "clarification required"
-      };
-    }
     return {
       kind: "ready",
       body: {
@@ -1130,6 +1118,10 @@ export function useAuroraController() {
 
   useEffect(() => {
     if (!latestFailedJob || !latestFailedJob.error) {
+      return;
+    }
+
+    if (latestFailedJob.step === "candidates_generate") {
       return;
     }
 
@@ -2313,7 +2305,7 @@ export function useAuroraController() {
   }, [sessionPayload]);
 
   const defineDirectionClarity = useMemo(() => getDirectionClarityFromPayload(sessionPayload), [sessionPayload]);
-  const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
+  const defineReadyForConcepts = Boolean(sessionPayload?.session.draft_spec?.direction);
   const defineFollowupQuestion = defineDirectionClarity?.followup_questions?.[0] ?? null;
   const uiScene = sceneTransition?.scene ?? currentScene;
   const uiStep = sceneTransition?.stage ?? sessionPayload?.session.current_step ?? "interview_collect";

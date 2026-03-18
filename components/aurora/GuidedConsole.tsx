@@ -99,10 +99,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const structuredBrief = useMemo(() => {
     return parseStructuredBriefConstraint(sessionPayload?.session.constraint ?? null);
   }, [sessionPayload?.session.constraint]);
-  const defineDirectionClarity = directionSnapshot?.clarity ?? null;
-  const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
   const sceneSummary: Record<typeof activeScene, string> = {
-    DEFINE: "Review the synthesized direction, steer the first asset bundle focus, and hold before concept generation.",
+    DEFINE: "Review the synthesized direction, steer the first asset bundle focus if needed, and generate concepts when ready.",
     EXPLORE: "Compare the three story-and-asset bundles and decide which route is worth taking forward.",
     DECIDE: "Lock the chosen bundle, inspect the tradeoffs, and approve the build path.",
     PACKAGE: "Review the deliverables and export the strategy-plus-assets pack."
@@ -140,12 +138,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(defaultWidth, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
-  const [defineWaitOverride, setDefineWaitOverride] = useState(false);
-  const [defineAutoDeadline, setDefineAutoDeadline] = useState<number | null>(null);
-  const [defineAutoRemainingSeconds, setDefineAutoRemainingSeconds] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<ImagePreviewPayload | null>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const lastDefineUserEntryIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -230,95 +224,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     activeScene === "DEFINE" &&
     activeStage === "brand_narrative" &&
     sessionPayload?.session.status === "wait_user" &&
-    Boolean(directionSnapshot) &&
-    defineReadyForConcepts;
-
-  useEffect(() => {
-    if (!defineAutoEligible) {
-      const resetTimer = window.setTimeout(() => {
-        setDefineWaitOverride(false);
-        setDefineAutoDeadline(null);
-        setDefineAutoRemainingSeconds(null);
-      }, 0);
-      return () => window.clearTimeout(resetTimer);
-    }
-
-    if (!autoContinue || defineWaitOverride) {
-      const pauseTimer = window.setTimeout(() => {
-        setDefineAutoDeadline(null);
-        setDefineAutoRemainingSeconds(null);
-      }, 0);
-      return () => window.clearTimeout(pauseTimer);
-    }
-
-    const startTimer = window.setTimeout(() => {
-      setDefineAutoDeadline((current) => current ?? Date.now() + 60_000);
-    }, 0);
-    return () => window.clearTimeout(startTimer);
-  }, [activeStage, autoContinue, defineAutoEligible, defineWaitOverride, sessionReady]);
-
-  useEffect(() => {
-    if (!defineAutoEligible || !autoContinue || defineWaitOverride || defineAutoDeadline === null) {
-      return;
-    }
-
-    const syncCountdown = () => {
-      const remainingMs = defineAutoDeadline - Date.now();
-      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-      setDefineAutoRemainingSeconds(remainingSeconds);
-
-      if (remainingMs <= 0) {
-        setDefineAutoDeadline(null);
-        if (!busy) {
-          void handleRunGuidedAction("run_step");
-        }
-      }
-    };
-
-    syncCountdown();
-    const timer = window.setInterval(syncCountdown, 1000);
-    return () => window.clearInterval(timer);
-  }, [autoContinue, busy, defineAutoDeadline, defineAutoEligible, defineWaitOverride, handleRunGuidedAction]);
-
-  const handlePauseDefineAutoAdvance = useCallback(() => {
-    setDefineWaitOverride(true);
-    setDefineAutoDeadline(null);
-    setDefineAutoRemainingSeconds(null);
-  }, []);
-
-  const handleResumeDefineAutoAdvance = useCallback(() => {
-    setDefineWaitOverride(false);
-    setDefineAutoDeadline(Date.now() + 60_000);
-    setDefineAutoRemainingSeconds(60);
-  }, []);
-
-  useEffect(() => {
-    const latestUserEntry = [...chatEntries].reverse().find((entry) => entry.type === "user");
-    const latestUserEntryId = latestUserEntry?.id ?? null;
-
-    if (!latestUserEntryId) {
-      lastDefineUserEntryIdRef.current = null;
-      return;
-    }
-
-    if (lastDefineUserEntryIdRef.current === null) {
-      lastDefineUserEntryIdRef.current = latestUserEntryId;
-      return;
-    }
-
-    if (lastDefineUserEntryIdRef.current === latestUserEntryId) {
-      return;
-    }
-
-    lastDefineUserEntryIdRef.current = latestUserEntryId;
-
-    if (!defineAutoEligible || !autoContinue || defineWaitOverride) {
-      return;
-    }
-
-    setDefineAutoDeadline(Date.now() + 60_000);
-    setDefineAutoRemainingSeconds(60);
-  }, [autoContinue, chatEntries, defineAutoEligible, defineWaitOverride]);
+    Boolean(directionSnapshot);
 
   const errorPanel = error ? (
     <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 aurora-text-meta text-rose-100">
@@ -657,12 +563,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                       autoAdvance={
                         defineAutoEligible
                           ? {
-                              enabled: autoContinue,
-                              waiting: defineWaitOverride,
-                              secondsRemaining: defineAutoRemainingSeconds,
-                              onGenerate: () => void handleRunGuidedAction("run_step"),
-                              onWait: handlePauseDefineAutoAdvance,
-                              onResume: handleResumeDefineAutoAdvance
+                              enabled: false,
+                              waiting: false,
+                              secondsRemaining: null,
+                              onGenerate: () => void handleRunGuidedAction("run_step")
                             }
                           : null
                       }
