@@ -621,31 +621,9 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                   <p className="aurora-text-body mt-2 max-w-2xl">{sceneSummary[activeScene]}</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
-                    {sessionReady ? activeStage.replaceAll("_", " ") : "Awaiting session"}
-                  </span>
-                  {sessionReady && rightPanelViewModel.primaryAction ? (
-                    <button
-                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                      onClick={() => void handleRunGuidedAction(rightPanelViewModel.primaryAction!.id)}
-                      disabled={busy || rightPanelViewModel.primaryAction.disabled || !rightPanelViewModel.primaryAction}
-                      title={rightPanelViewModel.primaryAction.disabledReason}
-                    >
-                      {rightPanelViewModel.primaryAction.label}
-                    </button>
-                  ) : null}
-                  {sessionReady && rightPanelViewModel.secondaryAction ? (
-                    <button
-                      className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                      onClick={() => void handleRunGuidedAction(rightPanelViewModel.secondaryAction!.id)}
-                      disabled={busy || rightPanelViewModel.secondaryAction.disabled || !rightPanelViewModel.secondaryAction}
-                      title={rightPanelViewModel.secondaryAction.disabledReason}
-                    >
-                      {rightPanelViewModel.secondaryAction.label}
-                    </button>
-                  ) : null}
-                </div>
+                <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
+                  {sessionReady ? activeStage.replaceAll("_", " ") : "Awaiting session"}
+                </span>
               </header>
 
               <div className="mt-5">
@@ -757,6 +735,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               showArtifactsTab={sessionReady && activeScene === "PACKAGE"}
               status={sessionReady ? rightPanelViewModel.status : "idle"}
               modelSource={rightPanelViewModel.modelSource}
+              currentScene={activeScene}
+              currentStage={activeStage}
               usageSummary={sessionPayload?.usage_summary ?? null}
               actionHub={sessionReady ? null : rightPanelViewModel}
               onRunGuidedAction={(actionId) => void handleRunGuidedAction(actionId)}

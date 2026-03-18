@@ -24,7 +24,7 @@ test("build confirmation state pins Build as primary action", () => {
 
   assert.equal(model.primaryAction?.id, "confirm_build");
   assert.equal(model.secondaryAction?.id, "regenerate_top3");
-  assert.equal(model.suggestedCommand, "/build");
+  assert.equal(model.suggestedCommand, "Build final outputs");
 });
 
 test("running define with active job shows queue hint", () => {
@@ -46,7 +46,7 @@ test("running define with active job shows queue hint", () => {
 
   assert.equal(model.primaryAction, null);
   assert.equal(model.hint.includes("one clearer answer"), true);
-  assert.equal(model.suggestedCommand, "/help");
+  assert.equal(model.suggestedCommand, "Answer the current brief question");
 });
 
 test("start session is disabled when setup input is invalid", () => {
@@ -68,7 +68,7 @@ test("start session is disabled when setup input is invalid", () => {
 
   assert.equal(model.primaryAction?.id, "start_session");
   assert.equal(model.primaryAction?.disabled, true);
-  assert.equal(model.suggestedCommand, "/setup note keep serif headline hierarchy");
+  assert.equal(model.suggestedCommand, "Complete the setup checklist");
 });
 
 test("package scene sets export as primary and disables until pack is ready", () => {
@@ -105,7 +105,7 @@ test("package scene sets export as primary and disables until pack is ready", ()
 
   assert.equal(pending.primaryAction?.id, "export_zip");
   assert.equal(pending.primaryAction?.disabled, true);
-  assert.equal(pending.suggestedCommand, "/export");
+  assert.equal(pending.suggestedCommand, "Export the pack");
   assert.equal(ready.primaryAction?.disabled, false);
 });
 
@@ -128,7 +128,7 @@ test("explore selection state points user to pick instead of continuing run", ()
 
   assert.equal(model.primaryAction, null);
   assert.equal(model.secondaryAction?.id, "regenerate_top3");
-  assert.equal(model.suggestedCommand, "/pick 1");
+  assert.equal(model.suggestedCommand, "Choose one concept");
 });
 
 test("decide scene without locked selection does not expose Build prematurely", () => {
@@ -150,6 +150,6 @@ test("decide scene without locked selection does not expose Build prematurely", 
 
   assert.equal(model.primaryAction, null);
   assert.equal(model.secondaryAction, null);
-  assert.equal(model.suggestedCommand, "/pick 1");
+  assert.equal(model.suggestedCommand, "Choose one concept");
   assert.equal(model.hint.includes("Build"), true);
 });

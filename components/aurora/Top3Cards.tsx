@@ -174,7 +174,7 @@ export function Top3Cards({
 
                 <div className="flex items-center justify-between gap-3">
                   <p className="aurora-text-meta line-clamp-2 text-slate-400">
-                    {preferChatCommands ? `You can also use /pick ${candidate.rank}.` : candidate.rationale}
+                    {preferChatCommands ? `Choose this route here, or type "pick ${candidate.rank}" in chat if you prefer.` : candidate.rationale}
                   </p>
                   <button
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -264,15 +264,15 @@ export function Top3Cards({
           <p className="aurora-title-label">Build Confirmation</p>
           <p className="aurora-text-body mt-2 text-amber-50/90">
             {preferChatCommands
-              ? "Auto pick is off. Use /build in chat to confirm approve_build once."
-              : "Auto pick is off. Confirm once to run approve_build and move to package."}
+              ? "Auto pick is off. Build Final Outputs here, or type \"build\" in chat to confirm once."
+              : "Auto pick is off. Confirm once to build final outputs and move to PACKAGE."}
           </p>
           <button
             className="aurora-btn-cta mt-4 rounded-full px-5 py-2 text-sm font-semibold disabled:opacity-60"
             onClick={onConfirmBuild}
             disabled={busy}
           >
-            Build
+            Build Final Outputs
           </button>
         </div>
       ) : null}

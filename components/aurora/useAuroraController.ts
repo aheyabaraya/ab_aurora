@@ -76,7 +76,7 @@ function summarizeMessageForTimeline(input: { role: "user" | "assistant" | "syst
   if (input.role !== "user" && containsSchemaValidationNoise(raw)) {
     return [
       "후보 생성 단계에서 스키마 검증 실패가 발생했습니다.",
-      "추천: /run 으로 재시도하세요.",
+      "추천: Generate 3 Concepts를 다시 눌러 재시도하세요.",
       "상세 오류는 좌측 Setup/Runtime의 Latest failure details에서 확인할 수 있습니다."
     ].join("\n");
   }
@@ -201,7 +201,7 @@ function getDirectionClarityFromPayload(payload: SessionPayload | null): Directi
 function buildDefineClarifyMessage(payload: SessionPayload | null): string {
   const clarity = getDirectionClarityFromPayload(payload);
   if (!clarity || clarity.ready_for_concepts) {
-    return "DEFINE 단계입니다. 좌측 direction과 asset bundle focus를 정리하고, 준비되면 /run 으로 3개 concept bundle을 생성합니다.";
+    return "DEFINE 단계입니다. 방향을 점검한 뒤 Generate 3 Concepts로 EXPLORE로 넘어가세요.";
   }
 
   const firstQuestion = clarity.followup_questions[0];
@@ -213,7 +213,7 @@ function buildDefineClarifyMessage(payload: SessionPayload | null): string {
 function buildStageGuideMessage(stage: string, payload: SessionPayload | null): string {
   const status = payload?.session.status;
   if (status === "failed" && stage === "candidates_generate") {
-    return "EXPLORE 후보 생성이 실패했습니다. /run 으로 재시도하고, 상세 오류는 좌측 Latest failure details에서 확인하세요.";
+    return "EXPLORE 후보 생성이 실패했습니다. Generate 3 Concepts를 다시 눌러 재시도하고, 상세 오류는 Latest failure details에서 확인하세요.";
   }
 
   if (stage === "brand_narrative") {
@@ -223,36 +223,37 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   if (stage === "top3_select") {
     const candidates = (payload?.latest_top3 ?? []).slice(0, 3);
     const optionLines = candidates.map((candidate, index) => {
-      return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.narrative_summary.slice(0, 52)})`;
+      return `- 후보 ${index + 1}: ${candidate.naming.recommended} (${candidate.narrative_summary.slice(0, 52)})`;
     });
-    optionLines.push("- 자연어로 수정 지시: 선택 전에는 3개 concept bundle이 함께 다시 정리됩니다.");
+    optionLines.push("- 카드에서 하나를 고르거나 채팅에 'pick 1'처럼 입력하면 다음 단계로 넘어갑니다.");
+    optionLines.push("- 수정 지시는 자연어로 보내면 Aurora가 후보 필드를 다시 정리합니다.");
     return `EXPLORE 선택 단계입니다.\n${optionLines.join("\n")}`;
   }
 
   if (stage === "approve_build") {
-    return "Build 승인 단계입니다. /build 로 확정하거나 채팅에서 선택안을 더 정제할 수 있습니다.";
+    return "DECIDE 단계입니다. 선택한 방향이 맞다면 Build Final Outputs를 누르고, 더 다듬고 싶다면 채팅으로 수정 지시를 보내세요.";
   }
 
   if (stage === "package" || stage === "done") {
-    return "PACKAGE 단계입니다. /export 로 내보내거나 우측 액션에서 산출물을 다시 생성할 수 있습니다.";
+    return "PACKAGE 단계입니다. 산출물을 확인한 뒤 Export Pack으로 내보내거나, 필요하면 outputs를 다시 생성할 수 있습니다.";
   }
 
   if (stage === "candidates_generate") {
     return "EXPLORE 단계입니다. Direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성하고 있습니다.";
   }
 
-  return "다음 단계 진행은 /run 을 사용하고, 방향 수정은 채팅에 자연어로 바로 적어주세요.";
+  return "다음 단계는 화면의 Next Action 카드에서 진행하고, 방향 수정은 채팅에 자연어로 바로 적어주세요.";
 }
 
 function buildPostCommandGuide(commandId: string, stage: string | null | undefined): string {
   if (commandId === "run_step" && stage === "brand_narrative") {
-    return "Next: wait for EXPLORE to finish rendering 3 bundles, then use /pick 1, /pick 2, or /pick 3.";
+    return "Next: Aurora is rendering 3 concept bundles. Compare them when they appear, then choose one route.";
   }
   if (commandId === "run_step" && stage === "top3_select") {
     return "Next: Aurora is moving into build. Review the locked route, then wait for PACKAGE outputs.";
   }
   if (commandId === "confirm_build") {
-    return "Next: wait for PACKAGE outputs to finish, then use /export when the pack is ready.";
+    return "Next: wait for PACKAGE outputs to finish, then export the pack when it is ready.";
   }
   if (commandId === "regenerate_top3") {
     return "Next: compare the refreshed bundles in EXPLORE and pick the strongest route.";
@@ -261,7 +262,7 @@ function buildPostCommandGuide(commandId: string, stage: string | null | undefin
     return "Next: review the refreshed PACKAGE outputs and export when the pack is ready.";
   }
   if (commandId === "pick_1" || commandId === "pick_2" || commandId === "pick_3") {
-    return "Next: review the locked direction in DECIDE, then use /build when you are ready.";
+    return "Next: review the locked direction in DECIDE, then build final outputs when you are ready.";
   }
   if (commandId === "export_zip") {
     return "Next: check the exported pack and return to PACKAGE only if another regeneration is needed.";
@@ -269,20 +270,8 @@ function buildPostCommandGuide(commandId: string, stage: string | null | undefin
   return "Next: watch the updated scene state on the left canvas and follow the primary action when it appears.";
 }
 
-function buildPostChatGuide(stage: string | null | undefined): string {
-  if (stage === "brand_narrative") {
-    return "Steer sent. Next: Aurora will respond here, and the DEFINE timer resets so you can decide to resume or generate.";
-  }
-  if (stage === "top3_select" || stage === "approve_build") {
-    return "Steer sent. Next: review the updated direction on the left, then continue with the next primary action.";
-  }
-  if (stage === "package" || stage === "done") {
-    return "Request sent. Next: review PACKAGE updates here and export when the pack is ready.";
-  }
-  return "Request sent. Next: watch the scene update on the left canvas.";
-}
-
 type StructuredChatCommandId = "pick_1" | "pick_2" | "pick_3" | "regenerate_top3";
+type ChatGuidanceIntent = "question" | "blocked" | "approval" | "revision" | "general";
 
 function normalizeStructuredChatCommand(input: string): string {
   return input.trim().toLowerCase().replace(/\s+/g, " ");
@@ -303,6 +292,118 @@ export function resolveStructuredChatCommandId(message: string): StructuredChatC
     return "regenerate_top3";
   }
   return null;
+}
+
+export function classifyChatGuidanceIntent(message: string): ChatGuidanceIntent {
+  const normalized = normalizeStructuredChatCommand(message);
+
+  if (
+    /\b(stuck|confused|blocked|not working|what now|next step|help)\b/.test(normalized) ||
+    /(안돼|안 되|막혔|헷갈|모르겠|다음 뭐|뭘 해야|왜 안|안 넘어|안넘어)/.test(normalized)
+  ) {
+    return "blocked";
+  }
+
+  if (
+    normalized.endsWith("?") ||
+    /^(why|how|what|which|can|could|should|is|are|do we|does this)\b/.test(normalized) ||
+    /^(왜|어떻게|뭐가|무엇|어디|가능|맞아|맞나요|될까)/.test(normalized)
+  ) {
+    return "question";
+  }
+
+  if (
+    /^(ok|okay|looks good|good to go|go ahead|continue|proceed|ship it|approved|yes)\b/.test(normalized) ||
+    /^(좋아|좋습니다|좋네|오케이|진행|넘어가|가자|해봐|확정|승인|응)/.test(normalized)
+  ) {
+    return "approval";
+  }
+
+  if (
+    /\b(make|change|keep|reduce|increase|shift|revise|tweak|focus|emphasize|tone|color)\b/.test(normalized) ||
+    /(수정|바꿔|바꿔줘|줄여|늘려|강조|톤|색|무드|정리|더|덜|유지)/.test(normalized)
+  ) {
+    return "revision";
+  }
+
+  return "general";
+}
+
+export function buildPostChatGuide(stage: string | null | undefined, message: string): string {
+  const structuredCommandId = resolveStructuredChatCommandId(message);
+  if (structuredCommandId) {
+    return buildPostCommandGuide(structuredCommandId, stage);
+  }
+
+  const intent = classifyChatGuidanceIntent(message);
+
+  if (stage === "brand_narrative") {
+    if (intent === "approval") {
+      return "Approval noted. Next: click Generate 3 Concepts when you are ready to move into EXPLORE.";
+    }
+    if (intent === "question") {
+      return "Question sent. Next: Aurora will answer here, then you can decide whether to keep steering or generate concepts.";
+    }
+    if (intent === "blocked") {
+      return "Block noted. Next: check the single Next Action card, then say exactly what still feels missing in one sentence.";
+    }
+    if (intent === "revision") {
+      return "Direction steer sent. Next: Aurora will revise DEFINE. Review the updated snapshot, then generate concepts when it feels right.";
+    }
+    return "Note sent. Next: Aurora will update DEFINE. Review the direction, then move into EXPLORE when ready.";
+  }
+
+  if (stage === "candidates_generate" || stage === "top3_select") {
+    if (intent === "question") {
+      return "Question sent. Next: Aurora will answer here. Once the bundles settle, choose the route that best fits the brief.";
+    }
+    if (intent === "blocked") {
+      return "Block noted. Next: wait for the concept field to finish, or refresh the set if the spread still feels off.";
+    }
+    if (intent === "approval") {
+      return "Preference noted. Next: choose the strongest concept so Aurora can lock the route.";
+    }
+    if (intent === "revision") {
+      return "Revision steer sent. Next: Aurora will adjust the concept field. Compare the updated bundles, then choose one route.";
+    }
+    return "Note sent. Next: review the concept bundles and choose the route worth taking forward.";
+  }
+
+  if (stage === "approve_build") {
+    if (intent === "question") {
+      return "Question sent. Next: Aurora will answer here. If the route still holds, build final outputs when you are ready.";
+    }
+    if (intent === "blocked") {
+      return "Block noted. Next: either switch routes or send one more refinement before building final outputs.";
+    }
+    if (intent === "approval") {
+      return "Approval noted. Next: click Build Final Outputs to move into PACKAGE.";
+    }
+    if (intent === "revision") {
+      return "Revision steer sent. Next: Aurora will tighten the locked route. Review it once more before building.";
+    }
+    return "Note sent. Next: review the locked route and build final outputs when it is ready.";
+  }
+
+  if (stage === "package" || stage === "done") {
+    if (intent === "question") {
+      return "Question sent. Next: Aurora will answer here. Export once the outputs look ready.";
+    }
+    if (intent === "blocked") {
+      return "Block noted. Next: say what still feels off, or refresh outputs before exporting.";
+    }
+    if (intent === "approval") {
+      return "Approval noted. Next: export the pack when you are ready.";
+    }
+    if (intent === "revision") {
+      return "Refresh note sent. Next: review the updated outputs, then export the pack.";
+    }
+    return "Request sent. Next: review PACKAGE updates here and export when the pack is ready.";
+  }
+
+  return intent === "blocked"
+    ? "Block noted. Next: check the Next Action card on the left and follow the single recommended step."
+    : "Request sent. Next: watch the scene update on the left canvas.";
 }
 
 export function inferChatSceneTransition(message: string): { scene: Scene; stage: string; message: string } | null {
@@ -326,11 +427,11 @@ export function inferChatSceneTransition(message: string): { scene: Scene; stage
 
 function summarizeFailureForTimeline(stage: string, errorMessage: string): string {
   if (stage === "candidates_generate" && containsSchemaValidationNoise(errorMessage)) {
-    return "EXPLORE 후보 구조가 올바르지 않아 생성이 중단되었습니다. /run 으로 다시 시도하세요.";
+    return "EXPLORE 후보 구조가 올바르지 않아 생성이 중단되었습니다. Generate 3 Concepts를 다시 눌러 재시도하세요.";
   }
 
   if (stage === "candidates_generate") {
-    return "EXPLORE 후보 생성이 실패했습니다. /run 으로 다시 시도하거나 direction을 조금 더 구체적으로 정리하세요.";
+    return "EXPLORE 후보 생성이 실패했습니다. Generate 3 Concepts를 다시 시도하거나 direction을 조금 더 구체적으로 정리하세요.";
   }
 
   if (stage === "approve_build" && /OpenAI image call failed/i.test(errorMessage)) {
@@ -519,7 +620,7 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
 
   return {
     kind: "blocked",
-    message: "This stage is not ready for /run yet. Wait for Aurora to finish the current transition.",
+    message: "This stage is not ready yet. Wait for Aurora to finish the current transition, then use the Next Action card.",
     subtitle: "stage not ready"
   };
 }
@@ -1611,7 +1712,7 @@ export function useAuroraController() {
           kind: "chat",
           message: structuredChatCommandId
             ? buildPostCommandGuide(structuredChatCommandId, sessionPayload?.session.current_step)
-            : buildPostChatGuide(sessionPayload?.session.current_step),
+            : buildPostChatGuide(sessionPayload?.session.current_step, trimmed),
           ...getCommandExecutionMeta(response)
         };
       }
@@ -1653,7 +1754,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: product = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
+            message: `Setup updated: product = ${parsedSetup.value}\nNext: continue filling the brief or click Start Session when ready.`
           };
         }
 
@@ -1665,7 +1766,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: audience = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
+            message: `Setup updated: audience = ${parsedSetup.value}\nNext: continue filling the brief or click Start Session when ready.`
           };
         }
 
@@ -1677,7 +1778,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: first deliverable = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
+            message: `Setup updated: first deliverable = ${parsedSetup.value}\nNext: continue filling the brief or click Start Session when ready.`
           };
         }
 
@@ -1689,7 +1790,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: style keywords = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
+            message: `Setup updated: style keywords = ${parsedSetup.value}\nNext: continue filling the brief or click Start Session when ready.`
           };
         }
 
@@ -1710,7 +1811,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: "Setup updated: design direction note saved.\nNext: continue filling the brief or use /start when ready."
+            message: "Setup updated: design direction note saved.\nNext: continue filling the brief or click Start Session when ready."
           };
         }
 
@@ -1731,7 +1832,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: "setup_brief",
-          message: `Setup updated: q0 = ${q0Score}\nNext: continue filling the brief or use /start when ready.`
+          message: `Setup updated: q0 = ${q0Score}\nNext: continue filling the brief or click Start Session when ready.`
         };
       }
 
@@ -1881,7 +1982,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
-          message: buildPostChatGuide(sessionPayload?.session.current_step)
+          message: buildPostChatGuide(sessionPayload?.session.current_step, "make it more editorial while keeping current brand premise")
         };
       } else if (parsed.id === "tone_less_futuristic") {
         await handleSendRevise("Reduce futuristic accents and keep a calmer premium tone.");
@@ -1889,7 +1990,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
-          message: buildPostChatGuide(sessionPayload?.session.current_step)
+          message: buildPostChatGuide(sessionPayload?.session.current_step, "reduce futuristic accents and keep a calmer premium tone")
         };
       } else if (parsed.id === "tone_calmer") {
         await handleSendRevise("Make the direction calmer and quieter.");
@@ -1897,7 +1998,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
-          message: buildPostChatGuide(sessionPayload?.session.current_step)
+          message: buildPostChatGuide(sessionPayload?.session.current_step, "make the direction calmer and quieter")
         };
       } else if (parsed.id === "tone_ritual") {
         await handleSendRevise("Increase ritual mood while preserving readability and restraint.");
@@ -1905,7 +2006,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
-          message: buildPostChatGuide(sessionPayload?.session.current_step)
+          message: buildPostChatGuide(sessionPayload?.session.current_step, "increase ritual mood while preserving readability and restraint")
         };
       } else if (parsed.id === "start_runtime_goal") {
         await handleStartRuntimeGoal();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AURORA_ASSETS } from "../aurora-assets";
 import type { DirectionRecord } from "../types";
 
@@ -179,6 +179,7 @@ export function DefineScene({
   autoAdvance = null
 }: DefineSceneProps) {
   const [openPanel, setOpenPanel] = useState<DefineFocusPanelId | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const ready = Boolean(direction);
   const assetIntent = direction?.asset_intent;
   const clarity = direction?.clarity;
@@ -294,131 +295,198 @@ export function DefineScene({
             ? "Prompt Seed"
             : null;
 
+  useEffect(() => {
+    if (!openPanel) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenPanel(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openPanel]);
+
+  useEffect(() => {
+    if (!readyForConcepts) {
+      setGuideOpen(true);
+    }
+  }, [readyForConcepts]);
+
+  const nextActionTitle = readyForConcepts ? "Generate 3 Concepts" : "Answer the missing brief question";
+  const nextActionSummary = readyForConcepts
+    ? autoAdvance?.waiting
+      ? "DEFINE is paused. Send one more steer if needed, then resume the timer or generate now."
+      : "The direction is clear enough. Generate the first 3 concept bundles when the brief feels aligned."
+    : "Aurora still needs a clearer brief signal before moving into EXPLORE.";
+  const timingLabel = !readyForConcepts
+    ? "Blocked until brief is clearer"
+    : autoAdvance?.waiting
+      ? "Paused on hold"
+      : autoAdvance?.enabled
+        ? "Auto timer is active"
+        : "Manual continue";
+  const actionStatusBadge = !readyForConcepts
+    ? "Blocked"
+    : autoAdvance?.waiting
+      ? "Hold"
+      : autoAdvance?.enabled
+        ? formatCountdown(autoAdvance.secondsRemaining)
+        : "Ready";
+  const primaryCtaLabel = readyForConcepts && autoAdvance?.onGenerate ? "Generate 3 Concepts" : null;
+  const secondaryCtaLabel = readyForConcepts
+    ? autoAdvance?.waiting
+      ? "Resume Timer"
+      : autoAdvance?.enabled
+        ? "Hold"
+        : null
+    : null;
+  const guideSections = readyForConcepts
+    ? [
+        {
+          label: "Why this step",
+          body: clarity?.summary ?? "Aurora has enough signal to create the first comparison set."
+        },
+        {
+          label: "What to check",
+          body: "Make sure the working direction, image intent, and audience tension still match what you want to generate first."
+        },
+        {
+          label: "What happens next",
+          body: "Aurora generates 3 concept bundles in EXPLORE. You will compare them and choose one route to lock."
+        },
+        {
+          label: "If stuck",
+          body: "Send one plain sentence like 'keep the heroine regal, less horror-heavy, more ceremonial lighting' and Aurora will fold it into DEFINE first."
+        }
+      ]
+    : [
+        {
+          label: "Why this step",
+          body: clarity?.summary ?? "Aurora still needs a clearer brief before concept generation."
+        },
+        {
+          label: "What to answer",
+          body: followupQuestions[0] ?? "Clarify the brief before continuing."
+        },
+        {
+          label: "What happens next",
+          body: "Once the missing brief input is saved, Aurora re-checks clarity and unlocks concept generation."
+        },
+        {
+          label: "If stuck",
+          body: "State the product, audience, and must-keep design requirement in one direct sentence. Aurora only needs the first strong signal."
+        }
+      ];
+
   return (
     <div className="space-y-4">
-      {ready && readyForConcepts && autoAdvance ? (
-        <div className="aurora-panel rounded-[26px] border border-indigo-200/24 bg-slate-950/48 px-4 py-4 xl:sticky xl:top-4 xl:z-10">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] xl:items-center">
-            <div className="min-w-0 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="aurora-chip px-3 aurora-text-label">Define Hold</span>
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 aurora-text-meta text-slate-300">
-                  {autoAdvance.waiting ? "Paused" : autoAdvance.enabled ? "Auto timer active" : "Manual continue"}
-                </span>
-              </div>
-              <h3 className="aurora-title-primary text-[1.08rem] leading-[1.12]">Concept generation control</h3>
-              <p className="aurora-text-body max-w-3xl text-slate-200">
-                {autoAdvance.waiting
-                  ? "Hold is active. Send one more steer in chat, then choose whether to resume the timer or generate immediately."
-                  : autoAdvance.enabled
-                    ? `Aurora will use ${bundleDefault.toLowerCase()} unless you add another steer before the timer ends.`
-                    : "Auto advance is off. Review the direction, steer in chat if needed, then generate manually."}
-              </p>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="aurora-surface-soft rounded-[20px] p-3">
-                  <p className="aurora-title-label">What To Do Now</p>
-                  <p className="aurora-text-meta mt-2 text-slate-300">
-                    {autoAdvance.waiting
-                      ? "1. Send a steer in chat. 2. Resume timer or Generate Now."
-                      : "Review the working direction, then either Hold or let the timer continue."}
-                  </p>
-                </div>
-                <div className="aurora-surface-soft rounded-[20px] p-3">
-                  <p className="aurora-title-label">Chat Behavior</p>
-                  <p className="aurora-text-meta mt-2 text-slate-300">
-                    Sending a chat steer resets the DEFINE countdown to 01:00 so you have time to react.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-col gap-3">
-              <div className="rounded-[20px] border border-white/12 bg-white/[0.05] px-4 py-3 text-center">
-                <p className="aurora-title-label">Countdown</p>
-                <p className="mt-1 text-[1.35rem] font-semibold leading-none text-slate-50">
-                  {autoAdvance.waiting || !autoAdvance.enabled ? "Hold" : formatCountdown(autoAdvance.secondsRemaining)}
-                </p>
-                <p className="aurora-text-meta mt-2 text-slate-400">
-                  {autoAdvance.waiting ? "Paused until resume" : "Only the timer value updates."}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {autoAdvance.waiting ? (
-                  <>
-                    <button
-                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
-                      onClick={() => autoAdvance.onResume?.()}
-                      type="button"
-                    >
-                      Resume Timer
-                    </button>
-                    <button
-                      className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold"
-                      onClick={() => autoAdvance.onGenerate?.()}
-                      type="button"
-                    >
-                      Generate Now
-                    </button>
-                  </>
-                ) : autoAdvance.enabled ? (
-                  <>
-                    <button
-                      className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
-                      onClick={() => autoAdvance.onWait?.()}
-                      type="button"
-                    >
-                      Hold
-                    </button>
-                    <button
-                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
-                      onClick={() => autoAdvance.onGenerate?.()}
-                      type="button"
-                    >
-                      Generate Now
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
-                    onClick={() => autoAdvance.onGenerate?.()}
-                    type="button"
-                  >
-                    Generate Now
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {ready && direction ? (
-        <div className="aurora-panel rounded-[26px] border border-indigo-200/22 bg-slate-950/45 px-4 py-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="max-w-3xl">
-              <p className="aurora-title-label">Next Action</p>
-              <h3 className="aurora-title-primary mt-2 text-[1.18rem]">
-                {readyForConcepts ? "Steer concept generation before EXPLORE starts." : "Fill missing inputs before concept generation."}
-              </h3>
-              <p className="aurora-text-body mt-2 text-slate-200">
-                {readyForConcepts
-                  ? "Give one concise chat steer on what to emphasize first, then move into concept generation."
-                  : "Aurora still needs a clearer brief signal. Answer the current question first, then regenerate direction."}
-              </p>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.02fr)_minmax(22rem,0.98fr)]">
+          <div className="aurora-panel rounded-[26px] border border-indigo-200/22 bg-slate-950/45 px-4 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-3xl">
+                <p className="aurora-title-label">Next Action</p>
+                <h3 className="aurora-title-primary mt-2 text-[1.18rem]">{nextActionTitle}</h3>
+                <p className="aurora-text-body mt-2 text-slate-200">{nextActionSummary}</p>
+              </div>
+              <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>
+                {readyForConcepts ? "Ready for EXPLORE" : "Brief update required"}
+              </span>
             </div>
-            <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>
-              {readyForConcepts ? "Chat steer required" : "Brief update required"}
-            </span>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.14fr)_minmax(0,0.86fr)]">
+              <div className="aurora-surface-soft rounded-[22px] p-4">
+                <p className="aurora-title-label">{readyForConcepts ? "What Aurora Will Use" : "What Aurora Still Needs"}</p>
+                <p className="aurora-text-body mt-2 text-slate-100">
+                  {readyForConcepts ? bundleDefault : (clarity?.missing_inputs ?? []).join(", ") || "A clearer brief signal"}
+                </p>
+                <p className="aurora-text-meta mt-3 text-slate-300">{nextQuestion}</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="aurora-surface-soft rounded-[22px] p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="aurora-title-label">Action Status</p>
+                    <span className="aurora-chip-soft px-3">{actionStatusBadge}</span>
+                  </div>
+                  <p className="aurora-text-meta mt-2 text-slate-300">{timingLabel}</p>
+                  {readyForConcepts ? (
+                    <div className="mt-4 space-y-2">
+                      {primaryCtaLabel ? (
+                        <button
+                          className="aurora-btn-cta w-full rounded-full px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                          onClick={() => autoAdvance?.onGenerate?.()}
+                          type="button"
+                          disabled={!autoAdvance?.onGenerate}
+                        >
+                          {primaryCtaLabel}
+                        </button>
+                      ) : null}
+                      {secondaryCtaLabel ? (
+                        <button
+                          className="aurora-btn-ghost w-full rounded-full px-4 py-2 text-sm"
+                          onClick={() => (autoAdvance?.waiting ? autoAdvance.onResume?.() : autoAdvance?.onWait?.())}
+                          type="button"
+                        >
+                          {secondaryCtaLabel}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="aurora-text-meta mt-4 text-slate-300">
+                      Update the brief below, then Aurora will re-check clarity automatically.
+                    </p>
+                  )}
+                </div>
+
+                <div className="aurora-surface-soft rounded-[22px] p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {focusPanels.map((panel) => (
+                      <button
+                        key={panel.id}
+                        className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                        type="button"
+                        onClick={() => setOpenPanel(panel.id)}
+                      >
+                        {panel.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <details
+              className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3"
+              open={guideOpen}
+              onToggle={(event) => setGuideOpen(event.currentTarget.open)}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <div>
+                  <p className="aurora-title-label">Guide</p>
+                  <p className="aurora-text-meta mt-1 text-slate-400">Open when you need context, checks, or recovery help.</p>
+                </div>
+                <span className="aurora-chip-soft px-3">Toggle</span>
+              </summary>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {guideSections.map((section) => (
+                  <div key={section.label} className="aurora-surface-soft rounded-[20px] p-3.5">
+                    <p className="aurora-title-label">{section.label}</p>
+                    <p className="aurora-text-meta mt-2 text-slate-300">{section.body}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
           </div>
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div className="aurora-surface-soft rounded-[22px] p-4">
-              <p className="aurora-title-label">Ask Next</p>
-              <p className="aurora-text-body mt-2 text-slate-100">{nextQuestion}</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="aurora-panel rounded-[26px] p-4">
+            <p className="aurora-title-label">Quick Read</p>
+            <div className="mt-3 space-y-3">
               <div className="aurora-surface-soft rounded-[22px] p-4">
                 <p className="aurora-title-label">Direction Clarity</p>
                 <p className="aurora-text-meta mt-2 text-slate-300">
@@ -426,31 +494,17 @@ export function DefineScene({
                 </p>
               </div>
               <div className="aurora-surface-soft rounded-[22px] p-4">
-                <p className="aurora-title-label">{readyForConcepts ? "Default Bundle" : "Missing Inputs"}</p>
-                <p className="aurora-text-meta mt-2 text-slate-300">
-                  {readyForConcepts ? bundleDefault : (clarity?.missing_inputs ?? []).join(", ") || "None"}
-                </p>
+                <p className="aurora-title-label">Default Bundle</p>
+                <p className="aurora-text-meta mt-2 text-slate-300">{bundleDefault}</p>
               </div>
+              {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
+                <div className="aurora-surface-soft rounded-[22px] p-4">
+                  <p className="aurora-title-label">Still Missing</p>
+                  <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
+                </div>
+              ) : null}
             </div>
           </div>
-        </div>
-      ) : null}
-
-      {ready && focusPanels.length > 0 ? (
-        <div className="grid gap-3 xl:grid-cols-4">
-          {focusPanels.map((panel) => (
-            <div key={panel.id} className="aurora-panel rounded-[24px] p-4">
-              <p className="aurora-title-label">{panel.label}</p>
-              <p className="aurora-text-meta mt-2 line-clamp-3 text-slate-300">{panel.summary}</p>
-              <button
-                className="aurora-btn-secondary mt-3 rounded-full px-4 py-2 text-sm font-semibold"
-                type="button"
-                onClick={() => setOpenPanel(panel.id)}
-              >
-                Open Panel
-              </button>
-            </div>
-          ))}
         </div>
       ) : null}
 
@@ -553,7 +607,16 @@ export function DefineScene({
                 <h3 className="aurora-title-primary mt-2 text-[1.12rem]">Working direction</h3>
                 <p className="aurora-text-body mt-3 text-slate-100">{direction.brief_summary}</p>
               </div>
-              <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>{clarity?.score ?? 3}/5 clarity</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>{clarity?.score ?? 3}/5 clarity</span>
+                <button
+                  className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                  type="button"
+                  onClick={() => setOpenPanel("snapshot")}
+                >
+                  Open Snapshot
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -568,22 +631,42 @@ export function DefineScene({
 
           <div className="space-y-4">
             <div className="aurora-panel rounded-[28px] p-4 md:p-5">
-              <p className="aurora-title-label">Readiness</p>
+              <p className="aurora-title-label">Current Focus</p>
               <h3 className="aurora-title-primary mt-2 text-[1.12rem]">
-                {readyForConcepts ? "Ready to move into EXPLORE." : "More input is still required."}
+                {readyForConcepts ? "Direction is ready for concept generation." : "More input is still required."}
               </h3>
 
               <div className="mt-3 space-y-3">
                 <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Direction Clarity</p>
-                  <p className="aurora-text-meta mt-2 text-slate-300">
-                    {clarity?.summary ?? "Aurora will decide if the brief is specific enough before moving into concept generation."}
-                  </p>
+                  <p className="aurora-title-label">Chat Steer</p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">{nextQuestion}</p>
                 </div>
 
                 <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Default Bundle</p>
-                  <p className="aurora-text-meta mt-2 text-slate-300">{bundleDefault}</p>
+                  <p className="aurora-title-label">Open Detail</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                      type="button"
+                      onClick={() => setOpenPanel("mechanics")}
+                    >
+                      Mechanism
+                    </button>
+                    <button
+                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                      type="button"
+                      onClick={() => setOpenPanel("supporting")}
+                    >
+                      Supporting Detail
+                    </button>
+                    <button
+                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                      type="button"
+                      onClick={() => setOpenPanel("prompt")}
+                    >
+                      Prompt Seed
+                    </button>
+                  </div>
                 </div>
 
                 {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
@@ -593,14 +676,6 @@ export function DefineScene({
                   </div>
                 ) : null}
               </div>
-            </div>
-
-            <div className="aurora-surface-soft rounded-[24px] p-4">
-              <p className="aurora-title-label">Detailed Panels</p>
-              <p className="aurora-text-meta mt-2 text-slate-300">
-                Open the panels above to inspect Direction Snapshot, Mechanism, Supporting Detail, and Prompt Seed without
-                losing your place in DEFINE.
-              </p>
             </div>
           </div>
         </div>
@@ -612,23 +687,30 @@ export function DefineScene({
       )}
 
       {ready && openPanel && openPanelTitle ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/78 px-4 py-6">
-          <div className="aurora-panel max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[30px]">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-              <div className="min-w-0">
-                <p className="aurora-title-label">Define Detail</p>
-                <h3 className="aurora-title-primary mt-2 text-[1.2rem]">{openPanelTitle}</h3>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/78 px-4 py-6"
+          onClick={() => setOpenPanel(null)}
+        >
+          <div className="flex min-h-full items-center justify-center">
+            <div
+              className="aurora-panel my-auto max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[30px]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div className="min-w-0">
+                  <p className="aurora-title-label">Define Detail</p>
+                  <h3 className="aurora-title-primary mt-2 text-[1.2rem]">{openPanelTitle}</h3>
+                </div>
+                <button
+                  className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
+                  type="button"
+                  onClick={() => setOpenPanel(null)}
+                >
+                  Close
+                </button>
               </div>
-              <button
-                className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
-                type="button"
-                onClick={() => setOpenPanel(null)}
-              >
-                Close
-              </button>
-            </div>
 
-            <div className="max-h-[calc(88vh-5.5rem)] overflow-auto px-5 py-5">
+              <div className="max-h-[calc(88vh-5.5rem)] overflow-auto px-5 py-5">
               {openPanel === "snapshot" ? (
                 <div className="space-y-4">
                   <div className="aurora-surface-soft rounded-[22px] p-4">
@@ -717,6 +799,7 @@ export function DefineScene({
                   </div>
                 </div>
               ) : null}
+              </div>
             </div>
           </div>
         </div>

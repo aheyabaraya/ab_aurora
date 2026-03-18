@@ -4,6 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  buildPostChatGuide,
+  classifyChatGuidanceIntent,
   inferChatSceneTransition,
   getCommandExecutionMeta,
   resolveStructuredChatCommandId,
@@ -134,4 +136,26 @@ test("inferChatSceneTransition mirrors structured chat flow transitions", () => 
     message: "Generating 3 concept bundles from the current direction."
   });
   assert.equal(inferChatSceneTransition("freeform feedback"), null);
+});
+
+test("classifyChatGuidanceIntent separates question, approval, blocked, and revision inputs", () => {
+  assert.equal(classifyChatGuidanceIntent("Why is this still in DEFINE?"), "question");
+  assert.equal(classifyChatGuidanceIntent("좋아, 넘어가자"), "approval");
+  assert.equal(classifyChatGuidanceIntent("왜 안 넘어가? 막혔어"), "blocked");
+  assert.equal(classifyChatGuidanceIntent("톤을 더 차분하게 바꿔줘"), "revision");
+});
+
+test("buildPostChatGuide adapts next-step copy to the user's message intent", () => {
+  assert.equal(
+    buildPostChatGuide("brand_narrative", "좋아, 넘어가자"),
+    "Approval noted. Next: click Generate 3 Concepts when you are ready to move into EXPLORE."
+  );
+  assert.equal(
+    buildPostChatGuide("approve_build", "왜 아직 안 넘어가?"),
+    "Block noted. Next: either switch routes or send one more refinement before building final outputs."
+  );
+  assert.equal(
+    buildPostChatGuide("top3_select", "tone을 더 차분하게 바꿔줘"),
+    "Revision steer sent. Next: Aurora will adjust the concept field. Compare the updated bundles, then choose one route."
+  );
 });

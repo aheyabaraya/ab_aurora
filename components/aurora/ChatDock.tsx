@@ -14,6 +14,7 @@ import type {
   QueuedCommand,
   QuickActionId,
   RightPanelViewModel,
+  Scene,
   SessionUsageSummary
 } from "./types";
 
@@ -32,6 +33,8 @@ type ChatDockProps = {
   showArtifactsTab?: boolean;
   status?: string;
   modelSource?: ModelSource;
+  currentScene?: Scene;
+  currentStage?: string;
   usageSummary?: SessionUsageSummary | null;
   actionHub?: RightPanelViewModel | null;
   onSendChat?: (message: string) => void;
@@ -159,6 +162,25 @@ function presenceLabel(sessionReady: boolean, status: string): string {
   return "Guided";
 }
 
+function composerPlaceholder(sessionReady: boolean, currentScene?: Scene, currentStage?: string): string {
+  if (!sessionReady) {
+    return 'Start the session first. You can still type "/" for advanced commands.';
+  }
+  if (currentStage === "brand_narrative" || currentScene === "DEFINE") {
+    return "Describe what to emphasize before concept generation, ask a question, or type / for advanced commands.";
+  }
+  if (currentStage === "candidates_generate" || currentStage === "top3_select" || currentScene === "EXPLORE") {
+    return "Ask what to change across the concept set, choose a route, or type / for advanced commands.";
+  }
+  if (currentStage === "approve_build" || currentScene === "DECIDE") {
+    return "Ask for a tighter revision, question the route, or type / for advanced commands.";
+  }
+  if (currentStage === "package" || currentStage === "done" || currentScene === "PACKAGE") {
+    return "Ask for final tweaks, export checks, or type / for advanced commands.";
+  }
+  return "Tell Aurora what to change, ask a question, or type / for advanced commands.";
+}
+
 export function ChatDock({
   entries,
   artifacts,
@@ -170,6 +192,8 @@ export function ChatDock({
   showArtifactsTab = false,
   status = "idle",
   modelSource = "UNKNOWN",
+  currentScene,
+  currentStage,
   usageSummary = null,
   actionHub,
   onSendChat,
@@ -595,7 +619,7 @@ export function ChatDock({
             <div className="relative">
               <textarea
                 className="aurora-input min-h-[108px] max-h-[42vh] w-full resize-y rounded-[20px] px-3 py-2.5 text-sm leading-6"
-                placeholder='Type a short note or use "/?" for commands.'
+                placeholder={composerPlaceholder(sessionReady, currentScene, currentStage)}
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
@@ -640,7 +664,7 @@ export function ChatDock({
 
               {showSlashPopover ? (
                 <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-[20px] border border-cyan-100/34 bg-[linear-gradient(180deg,rgba(44,63,154,0.96)_0%,rgba(12,18,58,0.98)_44%,rgba(5,9,28,0.99)_100%)] p-1.5 shadow-[0_28px_70px_-28px_rgba(102,157,255,0.92),0_18px_36px_-22px_rgba(255,191,122,0.48)] backdrop-blur-xl">
-                  <div className="px-2.5 pb-1.5 pt-1 aurora-text-label text-cyan-50/78">Slash commands</div>
+                  <div className="px-2.5 pb-1.5 pt-1 aurora-text-label text-cyan-50/78">Advanced commands</div>
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}

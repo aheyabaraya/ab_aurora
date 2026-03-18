@@ -23,7 +23,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     primaryAction: null,
     secondaryAction: null,
     hint: "",
-    suggestedCommand: "/help",
+    suggestedCommand: "Review the next action",
     suggestedReason: "",
     showRuntimeGroup: input.status === "wait_user" || Boolean(input.runtimeGoalId),
     hasRuntimeGoal: Boolean(input.runtimeGoalId)
@@ -39,7 +39,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
         : "Product, Audience, Style keywords, Design requirement, Q0를 먼저 입력하세요. (/setup ... 가능)"
     };
     model.hint = "브리프 입력 후 세션을 시작하세요. 시작 직후 Aurora가 direction을 정리합니다.";
-    model.suggestedCommand = input.canStartSession ? "/start" : "/setup note keep serif headline hierarchy";
+    model.suggestedCommand = input.canStartSession ? "Start the session" : "Complete the setup checklist";
     model.suggestedReason = input.canStartSession
       ? "세션을 시작하면 direction synthesis가 바로 실행됩니다."
       : "세션 시작 전에 note를 포함한 setup 값을 먼저 채우세요.";
@@ -49,14 +49,14 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
   if (input.buildConfirmRequired) {
     model.primaryAction = {
       id: "confirm_build",
-      label: "Build"
+      label: "Build Final Outputs"
     };
     model.secondaryAction = {
       id: "regenerate_top3",
-      label: "Regenerate 3 Concepts"
+      label: "Refresh Concepts"
     };
     model.hint = "선택된 direction을 확정하고 build-ready outputs를 생성하세요.";
-    model.suggestedCommand = "/build";
+    model.suggestedCommand = "Build final outputs";
     model.suggestedReason = "approve_build 대기 상태입니다.";
     return model;
   }
@@ -70,10 +70,10 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     };
     model.secondaryAction = {
       id: "regenerate_outputs",
-      label: "Regenerate Outputs"
+      label: "Refresh Outputs"
     };
     model.hint = "전략과 산출물을 확인하고 패키지로 내보내세요.";
-    model.suggestedCommand = "/export";
+    model.suggestedCommand = "Export the pack";
     model.suggestedReason = input.packReady ? "패키지 내보내기가 가능합니다." : "패키지 준비가 완료되면 내보낼 수 있습니다.";
     return model;
   }
@@ -82,20 +82,20 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     if (input.top3Count === 0) {
       model.primaryAction = {
         id: "run_step",
-        label: "Generate Concepts"
+        label: "Generate 3 Concepts"
       };
       model.hint = "현재 direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성합니다.";
-      model.suggestedCommand = "/run";
+      model.suggestedCommand = "Generate 3 concepts";
       model.suggestedReason = "후보 3개가 아직 생성되지 않았습니다.";
       return model;
     }
 
     model.secondaryAction = {
       id: "regenerate_top3",
-      label: "Regenerate 3 Concepts"
+      label: "Refresh Concepts"
     };
     model.hint = "후보가 준비되었습니다. 좌측 카드에서 하나를 선택해 direction을 잠그세요.";
-    model.suggestedCommand = "/pick 1";
+    model.suggestedCommand = "Choose one concept";
     model.suggestedReason = "EXPLORE에서 후보 하나를 선택하면 DECIDE로 넘어갑니다.";
     return model;
   }
@@ -104,10 +104,10 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     if (input.top3Count === 0) {
       model.primaryAction = {
         id: "run_step",
-        label: "Generate Concepts"
+        label: "Generate 3 Concepts"
       };
       model.hint = "Top-3가 아직 없어 먼저 후보 생성이 필요합니다.";
-      model.suggestedCommand = "/run";
+      model.suggestedCommand = "Generate 3 concepts";
       model.suggestedReason = "후보 생성이 먼저 필요합니다.";
       return model;
     }
@@ -119,7 +119,7 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
         input.currentStep === "approve_build"
           ? "선택한 direction을 잠그는 중입니다. 잠시 후 Build가 열립니다. 오래 유지되면 좌측에서 다시 선택하세요."
           : "후보를 먼저 하나 선택해 direction을 잠그세요.";
-      model.suggestedCommand = "/pick 1";
+      model.suggestedCommand = "Choose one concept";
       model.suggestedReason =
         input.currentStep === "approve_build"
           ? "선택 반영이 지연될 때만 다시 선택하면 됩니다."
@@ -129,14 +129,14 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
 
     model.primaryAction = {
       id: "confirm_build",
-      label: "Build"
+      label: "Build Final Outputs"
     };
     model.secondaryAction = {
       id: "regenerate_top3",
-      label: "Regenerate 3 Concepts"
+      label: "Refresh Concepts"
     };
     model.hint = "선택을 확정했다면 바로 Build로 넘기고 PACKAGE 씬으로 진행하세요.";
-    model.suggestedCommand = "/build";
+    model.suggestedCommand = "Build final outputs";
     model.suggestedReason = "선택안이 있으면 첫 Build 클릭에서 approve_build를 직접 실행합니다.";
     return model;
   }
@@ -145,24 +145,24 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
     model.primaryAction = null;
     model.secondaryAction = null;
     model.hint = "Aurora still needs one clearer answer before concept generation.";
-    model.suggestedCommand = "/help";
+    model.suggestedCommand = "Answer the current brief question";
     model.suggestedReason = input.defineFollowupQuestion ?? "Reply in chat to clarify what you are building and who it is for.";
     return model;
   }
 
   model.primaryAction = {
     id: "run_step",
-    label: "Generate Concepts"
+    label: "Generate 3 Concepts"
   };
   model.secondaryAction = null;
 
   if (input.shouldQueueIntervention) {
     model.hint = "현재 작업 중입니다. Chat 입력은 다음 stage에서 반영됩니다.";
-    model.suggestedCommand = "Reply in chat";
+    model.suggestedCommand = "Send one short steer in chat";
     model.suggestedReason = "수정 지시는 자연어로 보내면 queued로 안전하게 적재됩니다.";
   } else {
     model.hint = "Direction을 정리한 뒤 concept generation으로 넘어가세요.";
-    model.suggestedCommand = "/run";
+    model.suggestedCommand = "Generate 3 concepts";
     model.suggestedReason = "현재 direction으로 3개 후보를 생성할 수 있습니다.";
   }
   return model;
