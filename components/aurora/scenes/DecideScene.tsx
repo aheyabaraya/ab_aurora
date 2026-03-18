@@ -85,12 +85,10 @@ export function DecideScene({
       <div className="aurora-panel rounded-[28px] p-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="aurora-title-label text-[10px] tracking-[0.22em]">Decide</p>
-            <p className="mt-2 text-sm text-slate-200">Choose a concept in EXPLORE before locking the direction.</p>
+            <p className="aurora-title-label">Decide</p>
+            <p className="aurora-text-body mt-2 text-slate-200">Choose a concept in EXPLORE before locking the direction.</p>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass(modelSource)}`}>
-            {modelSource}
-          </span>
+          <span className={`rounded-full border px-3 py-1 aurora-text-label ${modelBadgeClass(modelSource)}`}>{modelSource}</span>
         </div>
       </div>
     );
@@ -109,20 +107,23 @@ export function DecideScene({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="aurora-title-primary text-[1.28rem]">Lock one direction and move it toward build approval.</h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-300">
-            Focus on one complete bundle, compare the remaining routes quickly, then approve the build when the story,
-            hero, and supporting assets feel stable together.
-          </p>
+      <div className="aurora-panel rounded-[24px] px-4 py-3.5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <p className="aurora-title-label">Next Action</p>
+            <h2 className="aurora-title-primary mt-1 text-[1.24rem] leading-tight">
+              Keep one direction locked, then approve build.
+            </h2>
+            <p className="aurora-text-body mt-2 max-w-3xl text-slate-300">
+              Validate the selected bundle as a complete story. If it still fits the brief, run Build; otherwise switch to an
+              alternative on the right.
+            </p>
+          </div>
+          <span className={`rounded-full border px-3 py-1 aurora-text-label ${modelBadgeClass(modelSource)}`}>{modelSource}</span>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass(modelSource)}`}>
-          {modelSource}
-        </span>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.24fr)_minmax(18rem,0.76fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(21rem,0.94fr)]">
         <article className="aurora-panel overflow-hidden rounded-[28px]">
           <button
             className="aurora-candidate-media relative block aspect-[16/10] w-full cursor-zoom-in border-0 bg-transparent p-0 text-left"
@@ -160,49 +161,31 @@ export function DecideScene({
           <div className="space-y-4 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="aurora-title-label text-[10px] tracking-[0.22em]">Selected Direction</p>
-                <h3 className="aurora-title-primary mt-2 text-[1.4rem] leading-tight">
-                  {focusCandidate.naming.recommended}
-                </h3>
-                <p className="mt-2 text-sm text-slate-300">{focusCandidate.moodboard.title}</p>
+                <p className="aurora-title-label">Selected Direction</p>
+                <h3 className="aurora-title-primary mt-2 text-[1.35rem] leading-tight">{focusCandidate.naming.recommended}</h3>
+                <p className="aurora-text-meta mt-2 text-slate-300">{focusCandidate.moodboard.title}</p>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="aurora-btn-secondary rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-60"
-                  onClick={() => onSelect(focusCandidate.id)}
-                  disabled={busy}
-                >
-                  {selectedCandidateId === focusCandidate.id ? "Selected" : "Select This Direction"}
-                </button>
-                {buildRequired ? (
-                  <button
-                    className="aurora-btn-cta rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-60"
-                    onClick={onConfirmBuild}
-                    disabled={busy}
-                  >
-                    Build
-                  </button>
-                ) : null}
-              </div>
+              <span className={selectedCandidateId === focusCandidate.id ? "aurora-chip" : "aurora-chip-soft"}>
+                {selectedCandidateId === focusCandidate.id ? "Selected" : "Open"}
+              </span>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
               <div className="aurora-surface-soft rounded-[22px] p-4">
-                <p className="aurora-title-label text-[10px] tracking-[0.2em]">Story</p>
-                <p className="mt-3 text-sm text-slate-100">{focusStory.premise || focusCandidate.narrative_summary}</p>
-                <p className="mt-3 text-sm text-slate-200">{focusStory.narrative || focusCandidate.narrative_summary}</p>
-                <p className="mt-3 text-sm text-slate-300">{focusStory.asset_rationale || focusCandidate.rationale}</p>
+                <p className="aurora-title-label">Story</p>
+                <p className="aurora-text-body mt-3 text-slate-100">{focusStory.premise || focusCandidate.narrative_summary}</p>
+                <p className="aurora-text-body mt-3 text-slate-200">{focusStory.narrative || focusCandidate.narrative_summary}</p>
+                <p className="aurora-text-meta mt-3 text-slate-300">{focusStory.asset_rationale || focusCandidate.rationale}</p>
               </div>
 
               <div className="space-y-4">
                 <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Palette</p>
+                  <p className="aurora-title-label">Palette</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {focusColors.map((color) => (
                       <span
                         key={color}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-200"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-sm text-slate-200"
                       >
                         <span className="aurora-color-dot" style={{ backgroundColor: color, color }} />
                         {color}
@@ -212,22 +195,18 @@ export function DecideScene({
                 </div>
 
                 <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">UI Plan</p>
-                  <p className="mt-2 text-sm text-slate-200">{focusCandidate.ui_plan.headline}</p>
-                  <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                    {focusCandidate.ui_plan.layout.join(" / ")}
-                  </p>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                    CTA {focusCandidate.ui_plan.cta}
-                  </p>
+                  <p className="aurora-title-label">UI Plan</p>
+                  <p className="aurora-text-body mt-2 text-slate-200">{focusCandidate.ui_plan.headline}</p>
+                  <p className="aurora-text-meta mt-3 text-slate-400">{focusCandidate.ui_plan.layout.join(" / ")}</p>
+                  <p className="aurora-text-meta mt-2 text-slate-400">CTA {focusCandidate.ui_plan.cta}</p>
                 </div>
               </div>
             </div>
 
             <div className="aurora-surface-soft rounded-[22px] p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="aurora-title-label text-[10px] tracking-[0.2em]">Supporting Assets</p>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">3-up bundle</p>
+                <p className="aurora-title-label">Supporting Assets</p>
+                <p className="aurora-text-meta">3-up bundle</p>
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-3">
                 {focusSupportingAssets.map((supportingAsset) => {
@@ -253,103 +232,129 @@ export function DecideScene({
                       />
                       <div className="space-y-1 px-3 py-3">
                         <p className="text-sm font-semibold text-slate-100">{supportingAsset.title}</p>
-                        <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{supportingAsset.kind}</p>
-                        <p className="line-clamp-2 text-xs text-slate-300">{supportingAsset.prompt}</p>
+                        <p className="aurora-text-label text-slate-400">{supportingAsset.kind}</p>
+                        <p className="aurora-text-meta line-clamp-2 text-slate-300">{supportingAsset.prompt}</p>
                       </div>
                     </button>
                   );
                 })}
               </div>
             </div>
-
-            {busy && buildRequired ? (
-              <div className="rounded-[22px] border border-indigo-200/24 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-50">
-                Aurora is building the selected bundle and preparing PACKAGE outputs.
-              </div>
-            ) : buildRequired ? (
-              <div className="rounded-[22px] border border-amber-200/30 bg-amber-300/8 px-4 py-3 text-sm text-amber-50">
-                This direction is selected. Approve build when you are ready to generate the final outputs.
-              </div>
-            ) : (
-              <div className="rounded-[22px] border border-indigo-200/18 bg-slate-950/24 px-4 py-3 text-sm text-slate-200">
-                Select any alternative on the right if you want to change the locked route before build.
-              </div>
-            )}
           </div>
         </article>
 
-        <div className="space-y-4">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <div className="aurora-panel rounded-[24px] p-4">
+            <p className="aurora-title-label">Decision Control</p>
+            <h3 className="aurora-title-primary mt-2 text-[1.12rem]">{focusCandidate.naming.recommended}</h3>
+            <p className="aurora-text-meta mt-2 line-clamp-3 text-slate-300">{focusStory.premise || focusCandidate.narrative_summary}</p>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                onClick={() => onSelect(focusCandidate.id)}
+                disabled={busy}
+              >
+                {selectedCandidateId === focusCandidate.id ? "Selected" : "Select This"}
+              </button>
+              <button
+                className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                onClick={onConfirmBuild}
+                disabled={busy || !buildRequired}
+              >
+                Build
+              </button>
+            </div>
+
+            {busy && buildRequired ? (
+              <p className="aurora-text-meta mt-3 text-indigo-100">
+                Aurora is building the selected bundle and preparing PACKAGE outputs.
+              </p>
+            ) : buildRequired ? (
+              <p className="aurora-text-meta mt-3 text-amber-100">
+                Build is ready. Confirm once to generate final outputs.
+              </p>
+            ) : (
+              <p className="aurora-text-meta mt-3 text-slate-300">Build already confirmed. You can still review alternatives below.</p>
+            )}
+          </div>
+
           <div className="aurora-surface-soft rounded-[24px] p-4">
-            <p className="aurora-title-label text-[10px] tracking-[0.2em]">Compare Alternatives</p>
-            <p className="mt-2 text-sm text-slate-300">
-              Keep the chosen route, or switch focus if one of these alternatives resolves the brief better.
+            <p className="aurora-title-label">Compare Alternatives</p>
+            <p className="aurora-text-body mt-2 text-slate-300">
+              Keep this route, or switch if another candidate resolves the brief better.
             </p>
           </div>
 
-          {comparisonCandidates.map((candidate) => {
-            const asset = getTop3CardAsset(candidate.rank);
-            const selected = candidate.id === selectedCandidateId;
-            const story = getCandidateStory(candidate);
-            const previewImage = {
-              src: candidate.image_url || asset.image,
-              alt: `${candidate.naming.recommended} comparison concept`,
-              title: candidate.naming.recommended,
-              subtitle: story.premise || candidate.narrative_summary
-            } satisfies ImagePreviewPayload;
+          <div className="space-y-3 xl:max-h-[calc(100dvh-22.5rem)] xl:overflow-auto xl:pr-1">
+            {comparisonCandidates.map((candidate) => {
+              const asset = getTop3CardAsset(candidate.rank);
+              const selected = candidate.id === selectedCandidateId;
+              const story = getCandidateStory(candidate);
+              const previewImage = {
+                src: candidate.image_url || asset.image,
+                alt: `${candidate.naming.recommended} comparison concept`,
+                title: candidate.naming.recommended,
+                subtitle: story.premise || candidate.narrative_summary
+              } satisfies ImagePreviewPayload;
 
-            return (
-              <article key={candidate.id} className={`aurora-panel overflow-hidden rounded-[24px] ${selected ? "aurora-candidate-card is-selected" : ""}`}>
-                <div className="grid gap-0 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
-                  <button
-                    className="aurora-candidate-media relative aspect-square cursor-zoom-in border-0 bg-transparent p-0 text-left sm:aspect-auto sm:h-full"
-                    onClick={() => onPreviewImage(previewImage)}
-                    type="button"
-                  >
-                    {candidate.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={candidate.image_url}
-                        alt={`${candidate.naming.recommended} comparison concept`}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={asset.image}
-                        alt={`${asset.name} concept card`}
-                        width={512}
-                        height={512}
-                        className="h-full w-full object-cover"
-                        sizes="(min-width: 1280px) 18rem, 40vw"
-                      />
-                    )}
-                  </button>
-
-                  <div className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="aurora-title-label text-[10px] tracking-[0.2em]">Option #{candidate.rank}</p>
-                        <h4 className="aurora-title-primary mt-2 text-[1.08rem]">{candidate.naming.recommended}</h4>
-                      </div>
-                      <span className={selected ? "aurora-chip" : "aurora-chip-soft"}>{selected ? "Selected" : "Open"}</span>
-                    </div>
-
-                    <p className="line-clamp-3 text-sm text-slate-300">{story.premise || candidate.narrative_summary}</p>
-
+              return (
+                <article
+                  key={candidate.id}
+                  className={`aurora-panel overflow-hidden rounded-[24px] ${selected ? "aurora-candidate-card is-selected" : ""}`}
+                >
+                  <div className="grid gap-0 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
                     <button
-                      className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                        selected ? "aurora-btn-command text-amber-50" : "aurora-btn-secondary"
-                      }`}
-                      onClick={() => onSelect(candidate.id)}
-                      disabled={busy}
+                      className="aurora-candidate-media relative aspect-square cursor-zoom-in border-0 bg-transparent p-0 text-left sm:aspect-auto sm:h-full"
+                      onClick={() => onPreviewImage(previewImage)}
+                      type="button"
                     >
-                      {selected ? "Selected Direction" : "Switch to This"}
+                      {candidate.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={candidate.image_url}
+                          alt={`${candidate.naming.recommended} comparison concept`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Image
+                          src={asset.image}
+                          alt={`${asset.name} concept card`}
+                          width={512}
+                          height={512}
+                          className="h-full w-full object-cover"
+                          sizes="(min-width: 1280px) 18rem, 40vw"
+                        />
+                      )}
                     </button>
+
+                    <div className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="aurora-title-label">Option #{candidate.rank}</p>
+                          <h4 className="aurora-title-primary mt-2 text-[1.08rem]">{candidate.naming.recommended}</h4>
+                        </div>
+                        <span className={selected ? "aurora-chip" : "aurora-chip-soft"}>{selected ? "Selected" : "Open"}</span>
+                      </div>
+
+                      <p className="aurora-text-meta line-clamp-3 text-slate-300">{story.premise || candidate.narrative_summary}</p>
+
+                      <button
+                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                          selected ? "aurora-btn-command text-amber-50" : "aurora-btn-secondary"
+                        }`}
+                        onClick={() => onSelect(candidate.id)}
+                        disabled={busy}
+                      >
+                        {selected ? "Selected Direction" : "Switch to This"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                </article>
+              );
+            })}
+          </div>
+        </aside>
       </div>
     </div>
   );

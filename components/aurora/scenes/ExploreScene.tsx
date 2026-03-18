@@ -34,10 +34,10 @@ export function ExploreScene({
       <div className="aurora-panel rounded-[28px] p-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="aurora-title-label text-[10px] tracking-[0.22em]">Explore</p>
-            <p className="mt-2 text-sm text-slate-200">Generating the top-three concept field.</p>
+            <p className="aurora-title-label">Explore</p>
+            <p className="aurora-text-body mt-2">Generating the top-three concept field.</p>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
+          <span className={`rounded-full border px-3 py-1 aurora-text-label ${modelBadgeClass}`}>
             {modelSource}
           </span>
         </div>
@@ -52,15 +52,25 @@ export function ExploreScene({
 
   return (
     <div className="space-y-4">
+      <div className="aurora-panel rounded-[24px] px-4 py-3.5">
+        <p className="aurora-title-label">Next Action</p>
+        <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <p className="aurora-text-body max-w-3xl">
+            Compare premise, palette, and fit for the brief, then lock one bundle to move into DECIDE.
+          </p>
+          <span className="aurora-chip">Select One Direction</span>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="aurora-title-primary text-[1.28rem]">Compare the three story-and-asset bundles Aurora generated.</h2>
-          <p className="mt-2 max-w-3xl text-sm text-slate-300">
+          <p className="aurora-text-body mt-2 max-w-3xl text-slate-300">
             Each concept combines one primary image, three supporting assets, and a short narrative so you can judge the
             brand direction as a complete bundle.
           </p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${modelBadgeClass}`}>
+        <span className={`rounded-full border px-3 py-1 aurora-text-label ${modelBadgeClass}`}>
           {modelSource}
         </span>
       </div>

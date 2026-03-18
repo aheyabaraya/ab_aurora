@@ -305,29 +305,25 @@ export function ChatDock({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="aurora-title-label text-[8px] tracking-[0.18em]">Live Conversation</p>
+                  <p className="aurora-title-label">Live Conversation</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <h2 className="aurora-title-primary text-[clamp(1.08rem,1.25vw,1.28rem)] leading-[1.02]">
                       {dockTitle(sessionReady)}
                     </h2>
-                    <span className="aurora-presence-chip px-2.5 text-[9px]">{presenceLabel(sessionReady, status)}</span>
-                    <span className={`rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] ${modelClass(modelSource)}`}>
+                    <span className="aurora-presence-chip px-2.5">{presenceLabel(sessionReady, status)}</span>
+                    <span className={`rounded-full border px-2.5 py-1 aurora-text-label ${modelClass(modelSource)}`}>
                       {modelSource}
                     </span>
                   </div>
                 </div>
                 {queuedCommands.length > 0 ? (
-                  <span className="aurora-chip px-2.5 text-[9px]">{queuedCommands.length} queued</span>
+                  <span className="aurora-chip px-2.5">{queuedCommands.length} queued</span>
                 ) : null}
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {dockMetrics.map((metric) => (
-                  <span key={metric} className="aurora-chip-soft px-2.5 text-[9px]">
-                    {metric}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[11px] leading-4 text-slate-300">
+              <p className="aurora-text-meta mt-1.5">
+                {dockMetrics.join(" · ")}
+              </p>
+              <p className="aurora-text-meta mt-1.5">
                 {dockHeadline(sessionReady, status)}
               </p>
             </div>
@@ -340,7 +336,7 @@ export function ChatDock({
               <h2 className="aurora-title-primary mt-1 text-[clamp(1.38rem,1.75vw,1.72rem)] leading-[1.04]">
                 {dockTitle(sessionReady)}
               </h2>
-              <p className="mt-1.5 max-w-[17rem] text-[11px] leading-5 text-slate-300">
+              <p className="aurora-text-body mt-1.5 max-w-[17rem]">
                 {dockHeadline(sessionReady, status)}
               </p>
             </div>
@@ -366,9 +362,9 @@ export function ChatDock({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <h3 className="aurora-title-primary text-[1.2rem] leading-[1.02]">Aurora</h3>
-                <span className="aurora-presence-chip px-3 text-[10px]">{presenceLabel(sessionReady, status)}</span>
+                <span className="aurora-presence-chip px-3">{presenceLabel(sessionReady, status)}</span>
               </div>
-              <p className="mt-2 text-[12px] leading-5 text-slate-300">
+              <p className="aurora-text-body mt-2">
                 Start the session and Aurora&apos;s replies will appear here.
               </p>
             </div>
@@ -379,7 +375,7 @@ export function ChatDock({
       {showArtifactsTab ? (
         <div className="mt-2 flex flex-wrap gap-2">
           <button
-            className={`aurora-pill rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] ${
+            className={`aurora-pill rounded-full px-3 py-1.5 aurora-text-label ${
               currentTab === "chat" ? "aurora-pill-active" : ""
             }`}
             onClick={() => setActiveTab("chat")}
@@ -390,7 +386,7 @@ export function ChatDock({
             </span>
           </button>
           <button
-            className={`aurora-pill rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] ${
+            className={`aurora-pill rounded-full px-3 py-1.5 aurora-text-label ${
               currentTab === "artifacts" ? "aurora-pill-active" : ""
             }`}
             onClick={() => setActiveTab("artifacts")}
@@ -408,13 +404,13 @@ export function ChatDock({
           <div className="aurora-action-hub aurora-surface-soft mt-2 shrink-0 rounded-[22px] px-3 py-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
+                <p className="aurora-title-label flex items-center gap-1.5">
                   <IconCommand className="h-3 w-3" />
                   Next Action
                 </p>
-                <p className="mt-1 text-[12px] leading-5 text-slate-200">{actionHub.hint}</p>
+                <p className="aurora-text-body mt-1">{actionHub.hint}</p>
               </div>
-              <p className="aurora-command-chip rounded-full px-3 py-1.5 text-[11px] font-semibold text-indigo-50">
+              <p className="aurora-command-chip rounded-full px-3 py-1.5 text-sm font-semibold text-indigo-50">
                 {actionHub.suggestedCommand || "/help"}
               </p>
             </div>
@@ -453,21 +449,21 @@ export function ChatDock({
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">
-              <div className="rounded-full border border-indigo-200/22 bg-slate-950/45 px-3 py-1.5 text-[11px] text-slate-100">
+              <div className="rounded-full border border-indigo-200/22 bg-slate-950/45 px-3 py-1.5 aurora-text-meta text-slate-100">
                 {tokenTotal.toLocaleString()} tokens · {textRequests.toLocaleString()} text calls · {imageGenerations.toLocaleString()} images
               </div>
-              <div className="rounded-full border border-indigo-200/18 bg-slate-950/36 px-3 py-1.5 text-[11px] text-slate-300">
+              <div className="rounded-full border border-indigo-200/18 bg-slate-950/36 px-3 py-1.5 aurora-text-meta">
                 {actionHub.suggestedReason}
               </div>
             </div>
           </div>
         ) : (
           <div className="aurora-action-hub mt-2 rounded-[22px] px-3.5 py-3">
-            <p className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.2em]">
+            <p className="aurora-title-label flex items-center gap-1.5">
               <IconCommand className="h-3 w-3" />
               Start Here
             </p>
-            <p className="mt-1.5 text-[12px] leading-5 text-slate-200">{preSessionHint}</p>
+            <p className="aurora-text-body mt-1.5">{preSessionHint}</p>
 
             <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
               {primaryAction ? (
@@ -488,7 +484,7 @@ export function ChatDock({
             </div>
 
             <div className="aurora-command-shell mt-2 rounded-[20px] px-3 py-2.5">
-              <p className="aurora-title-label text-[9px] tracking-[0.18em]">Try This First</p>
+              <p className="aurora-title-label">Try This First</p>
               <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
                 {actionHub.suggestedCommand || "/help"}
               </p>
@@ -503,11 +499,11 @@ export function ChatDock({
           open={shouldQueueIntervention}
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span className="aurora-title-label flex items-center gap-1.5 text-[9px] tracking-[0.22em]">
+            <span className="aurora-title-label flex items-center gap-1.5">
               <IconClock className="h-3 w-3" />
               Queued Commands
             </span>
-            <span className="aurora-chip-soft px-3 text-[10px]">{queuedCommands.length}</span>
+            <span className="aurora-chip-soft px-3">{queuedCommands.length}</span>
           </summary>
 
           <div className="mt-3 max-h-40 space-y-2 overflow-auto">
@@ -516,13 +512,13 @@ export function ChatDock({
                 <p className="text-sm text-cyan-50">{queueItem.label}</p>
                 <div className="mt-3 flex gap-2">
                   <button
-                    className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px] font-semibold"
+                    className="aurora-btn-primary rounded-full px-3 py-1.5 text-sm font-semibold"
                     onClick={() => onForceQueued(queueItem.id)}
                   >
                     Force Replan
                   </button>
                   <button
-                    className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
+                    className="aurora-btn-ghost rounded-full px-3 py-1.5 text-sm"
                     onClick={() => onDiscardQueued(queueItem.id)}
                   >
                     Dismiss
@@ -536,8 +532,8 @@ export function ChatDock({
 
       {currentTab === "chat" && !sessionReady ? (
         <div className="aurora-chat-track mt-2 rounded-[22px] p-3">
-          <p className="aurora-title-label text-[9px] tracking-[0.18em]">Conversation</p>
-          <p className="mt-2 text-[13px] leading-6 text-slate-200">
+          <p className="aurora-title-label">Conversation</p>
+          <p className="aurora-text-body mt-2">
             Once the session starts, Aurora&apos;s replies, queued notes, and next steps will appear here.
           </p>
         </div>
@@ -549,7 +545,7 @@ export function ChatDock({
             <div ref={chatScrollRef} className="h-full space-y-2 overflow-auto pr-0.5" onScroll={syncAutoScrollState}>
               {sessionReady ? (
                 <div
-                  className={`aurora-safety-banner rounded-[16px] border px-2.5 py-1.5 text-[10px] ${
+                  className={`aurora-safety-banner rounded-[16px] border px-2.5 py-1.5 aurora-text-label ${
                     shouldQueueIntervention
                       ? "border-cyan-200/34 bg-cyan-500/10 text-cyan-50"
                       : "border-indigo-200/28 bg-indigo-400/10 text-indigo-50"
@@ -563,12 +559,12 @@ export function ChatDock({
                   key={entry.id}
                   className={`flex ${entry.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[90%] p-2.5 text-[12px] ${roleClass(entry.type)}`}>
+                  <div className={`max-w-[90%] p-2.5 text-sm ${roleClass(entry.type)}`}>
                     <div className="mb-1 flex items-center justify-between gap-3">
                       <p className="aurora-copy-soft uppercase tracking-wide">
                         {entry.type === "user" ? "You" : entry.type === "assistant" ? "Aurora" : entry.type}
                       </p>
-                      <p className="text-[10px] text-slate-400/90">{formatTime(entry.createdAt)}</p>
+                      <p className="aurora-text-meta text-slate-400/90">{formatTime(entry.createdAt)}</p>
                     </div>
                     {entry.imageUrl ? (
                       <div className="mb-2 overflow-hidden rounded-[16px] border border-indigo-200/20 bg-slate-950/40">
@@ -576,7 +572,7 @@ export function ChatDock({
                         <img src={entry.imageUrl} alt={entry.content} className="block h-auto w-full object-cover" />
                       </div>
                     ) : null}
-                    {entry.subtitle ? <p className="aurora-copy-soft mb-1 text-[10px]">{entry.subtitle}</p> : null}
+                    {entry.subtitle ? <p className="aurora-copy-soft mb-1">{entry.subtitle}</p> : null}
                     <p className="aurora-copy whitespace-pre-wrap">{entry.content}</p>
                   </div>
                 </div>
@@ -587,18 +583,18 @@ export function ChatDock({
 
           <div className="aurora-composer-shell shrink-0 space-y-1.5 rounded-[20px] p-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="aurora-title-label text-[9px] tracking-[0.18em]">Message Aurora</p>
-              <p className="text-[10px] text-slate-400">Shift+Enter for newline</p>
+              <p className="aurora-title-label">Message Aurora</p>
+              <p className="aurora-text-meta text-slate-400">Shift+Enter for newline</p>
             </div>
             {commandNotice ? (
-              <div className="aurora-surface-soft rounded-[18px] px-3 py-2 text-[11px] text-slate-300">
+              <div className="aurora-surface-soft rounded-[18px] px-3 py-2 aurora-text-meta text-slate-300">
                 <pre className="whitespace-pre-wrap font-sans">{commandNotice}</pre>
               </div>
             ) : null}
 
             <div className="relative">
               <textarea
-                className="aurora-input min-h-[84px] max-h-[36vh] w-full resize-y rounded-[20px] px-3 py-2.5 text-sm leading-5"
+                className="aurora-input min-h-[108px] max-h-[42vh] w-full resize-y rounded-[20px] px-3 py-2.5 text-sm leading-6"
                 placeholder='Type a short note or use "/?" for commands.'
                 value={input}
                 onChange={(event) => {
@@ -644,11 +640,11 @@ export function ChatDock({
 
               {showSlashPopover ? (
                 <div className="absolute bottom-[calc(100%+0.45rem)] left-0 right-0 z-20 max-h-56 overflow-auto rounded-[20px] border border-cyan-100/34 bg-[linear-gradient(180deg,rgba(44,63,154,0.96)_0%,rgba(12,18,58,0.98)_44%,rgba(5,9,28,0.99)_100%)] p-1.5 shadow-[0_28px_70px_-28px_rgba(102,157,255,0.92),0_18px_36px_-22px_rgba(255,191,122,0.48)] backdrop-blur-xl">
-                  <div className="px-2.5 pb-1.5 pt-1 text-[10px] uppercase tracking-[0.2em] text-cyan-50/78">Slash commands</div>
+                  <div className="px-2.5 pb-1.5 pt-1 aurora-text-label text-cyan-50/78">Slash commands</div>
                   {slashMatches.map((command, index) => (
                     <button
                       key={`${command.id}_${command.canonical}`}
-                      className={`w-full rounded-[14px] px-2.5 py-2 text-left text-xs ${
+                      className={`w-full rounded-[14px] px-2.5 py-2 text-left text-sm ${
                         index === highlightIndex
                           ? "border border-cyan-100/38 bg-[linear-gradient(100deg,rgba(92,178,255,0.24)_0%,rgba(112,118,255,0.22)_52%,rgba(211,149,255,0.18)_100%)] text-indigo-50"
                           : "border border-transparent bg-slate-950/18 text-slate-100 hover:bg-slate-900/58"
@@ -657,7 +653,7 @@ export function ChatDock({
                       onClick={() => void execute(command.canonical)}
                     >
                       <p className="font-semibold">{command.canonical}</p>
-                      <p className="mt-1 text-[11px] text-slate-300">{command.help}</p>
+                      <p className="aurora-text-meta mt-1 text-slate-300">{command.help}</p>
                     </button>
                   ))}
                 </div>
@@ -679,13 +675,13 @@ export function ChatDock({
         <div className="aurora-surface mt-3 min-h-0 flex-1 overflow-auto rounded-[24px] p-3">
           <div className="space-y-2">
             {artifacts.map((artifact) => (
-              <div key={artifact.id} className="aurora-surface-soft rounded-[18px] p-3 text-xs">
+              <div key={artifact.id} className="aurora-surface-soft rounded-[18px] p-3">
                 <p className="font-semibold text-indigo-100">{artifact.title}</p>
-                <p className="mt-1 text-slate-400">{artifact.kind}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{formatTime(artifact.created_at)}</p>
+                <p className="aurora-text-meta mt-1 text-slate-400">{artifact.kind}</p>
+                <p className="aurora-text-meta mt-1 text-slate-400">{formatTime(artifact.created_at)}</p>
               </div>
             ))}
-            {artifacts.length === 0 ? <p className="text-xs text-slate-400">Package outputs are not ready yet.</p> : null}
+            {artifacts.length === 0 ? <p className="aurora-text-meta text-slate-400">Package outputs are not ready yet.</p> : null}
           </div>
         </div>
       ) : null}

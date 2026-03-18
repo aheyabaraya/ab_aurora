@@ -21,8 +21,9 @@ type GuidedConsoleProps = {
 };
 
 function clampDockWidth(width: number, viewportWidth: number): number {
-  const minimum = viewportWidth >= 1440 ? 420 : 380;
-  const maximum = Math.max(minimum, Math.min(680, viewportWidth - 620));
+  const targetRatio = viewportWidth >= 1440 ? 0.36 : 0.34;
+  const minimum = viewportWidth >= 1440 ? 448 : 416;
+  const maximum = Math.max(minimum, Math.floor(viewportWidth * targetRatio));
   return Math.min(Math.max(width, minimum), maximum);
 }
 
@@ -122,15 +123,9 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const summaryPills = [
     { label: "Scene", value: activeScene },
     { label: "Step", value: stage.replaceAll("_", " ") },
-    { label: "Concepts", value: String(latestTop3.length) },
-    { label: "Selected", value: sessionPayload?.selected_candidate_id ? "Locked" : "Open" },
-    { label: "Model", value: top3ModelSource },
-    {
-      label: "Usage",
-      value: `${(usageSummary?.by_type?.openai_tokens_total ?? 0).toLocaleString()} tok`
-    }
+    { label: "Top-3", value: String(latestTop3.length) },
+    { label: "Selected", value: sessionPayload?.selected_candidate_id ? "Locked" : "Open" }
   ];
-  const showSummaryActions = sessionReady && activeScene !== "DEFINE";
 
   const pageStyle = useMemo(() => createAuroraPageStyle(), []);
   const [sessionOverviewOpen, setSessionOverviewOpen] = useState(false);
@@ -140,7 +135,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     }
     const storedWidth = window.localStorage.getItem("aurora:dock-width");
     const parsed = Number(storedWidth);
-    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(580, window.innerWidth);
+    const defaultWidth = Math.floor(window.innerWidth * (window.innerWidth >= 1440 ? 0.36 : 0.34));
+    return Number.isFinite(parsed) ? clampDockWidth(parsed, window.innerWidth) : clampDockWidth(defaultWidth, window.innerWidth);
   });
   const [isResizingDock, setIsResizingDock] = useState(false);
   const [defineWaitOverride, setDefineWaitOverride] = useState(false);
@@ -289,12 +285,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   }, []);
 
   const errorPanel = error ? (
-    <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 text-xs text-rose-100">
-      <p>{error}</p>
+    <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 aurora-text-meta text-rose-100">
+      <p className="aurora-text-body text-rose-100">{error}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {canRetry ? (
           <button
-            className="aurora-btn-ghost rounded-full px-3 py-1.5 text-[11px]"
+            className="aurora-btn-ghost rounded-full px-3 py-1.5 aurora-text-label"
             onClick={() => void handleRetryLastAction()}
           >
             Retry
@@ -302,7 +298,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
         ) : null}
         {errorStatus === 401 ? (
           <button
-            className="aurora-btn-primary rounded-full px-3 py-1.5 text-[11px]"
+            className="aurora-btn-primary rounded-full px-3 py-1.5 aurora-text-label"
             onClick={() => setShowSignIn(true)}
           >
             Sign-in
@@ -337,15 +333,15 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
   return (
     <main className="aurora-page min-h-screen px-2.5 py-2 text-slate-100 md:px-3.5 md:py-2.5" style={pageStyle}>
-      <section className="mx-auto max-w-[98rem] space-y-2">
+      <section className="mx-auto max-w-[106rem] space-y-3">
         {sessionReady ? (
-          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3 py-2">
+          <article className="aurora-panel aurora-session-overview rounded-[28px] px-3.5 py-2.5">
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {summaryPills.map((metric) => (
                     <span key={metric.label} className="aurora-session-pill">
-                      <span className="aurora-title-label text-[9px] tracking-[0.2em]">{metric.label}</span>
+                      <span className="aurora-title-label">{metric.label}</span>
                       <strong>{metric.value}</strong>
                     </span>
                   ))}
@@ -353,41 +349,16 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {showSummaryActions && rightPanelViewModel.primaryAction ? (
-                  <button
-                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                    onClick={() => void handleRunGuidedAction(rightPanelViewModel.primaryAction!.id)}
-                    disabled={
-                      busy ||
-                      rightPanelViewModel.primaryAction.disabled ||
-                      !rightPanelViewModel.primaryAction
-                    }
-                    title={rightPanelViewModel.primaryAction.disabledReason}
-                  >
-                    {rightPanelViewModel.primaryAction.label}
-                  </button>
-                ) : null}
-                {showSummaryActions && rightPanelViewModel.secondaryAction ? (
-                  <button
-                    className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                    onClick={() => void handleRunGuidedAction(rightPanelViewModel.secondaryAction!.id)}
-                    disabled={
-                      busy ||
-                      rightPanelViewModel.secondaryAction.disabled ||
-                      !rightPanelViewModel.secondaryAction
-                    }
-                    title={rightPanelViewModel.secondaryAction.disabledReason}
-                  >
-                    {rightPanelViewModel.secondaryAction.label}
-                  </button>
-                ) : null}
+                <span className="aurora-command-chip rounded-full px-3 py-1.5 text-sm font-semibold text-indigo-50">
+                  {rightPanelViewModel.suggestedCommand}
+                </span>
                 <button
-                  className="aurora-chip-soft shrink-0 px-3 text-[10px]"
+                  className="aurora-chip-soft shrink-0 px-3"
                   onClick={() => setSessionOverviewOpen((current) => !current)}
                   type="button"
                   aria-expanded={sessionOverviewOpen}
                 >
-                  {sessionOverviewOpen ? "Hide details" : "Show details"}
+                  {sessionOverviewOpen ? "Hide Detail" : "Show Detail"}
                 </button>
               </div>
             </div>
@@ -399,12 +370,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div className="aurora-surface-soft rounded-[22px] px-4 py-3 sm:col-span-2 xl:col-span-3">
-                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Scene Focus</p>
-                      <p className="mt-2 text-sm text-slate-200">{sceneSummary[activeScene]}</p>
+                      <p className="aurora-title-label">Scene Focus</p>
+                      <p className="aurora-text-body mt-2">{sceneSummary[activeScene]}</p>
                     </div>
                     {sessionMetrics.map((metric) => (
                       <div key={metric.label} className="aurora-surface-soft aurora-stat-card">
-                        <p className="aurora-title-label text-[10px] tracking-[0.24em]">{metric.label}</p>
+                        <p className="aurora-title-label">{metric.label}</p>
                         <span className="aurora-stat-value break-all">{metric.value}</span>
                       </div>
                     ))}
@@ -412,19 +383,19 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                   <div className="space-y-3">
                     <div className="aurora-surface-soft rounded-[22px] px-4 py-3">
-                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Suggested Command</p>
+                      <p className="aurora-title-label">Suggested Command</p>
                       <p className="aurora-command-chip mt-2 rounded-[16px] px-3 py-2 text-sm font-semibold text-indigo-50">
                         {rightPanelViewModel.suggestedCommand}
                       </p>
-                      <p className="mt-2 text-[12px] leading-5 text-slate-300">{rightPanelViewModel.suggestedReason}</p>
+                      <p className="aurora-text-meta mt-2">{rightPanelViewModel.suggestedReason}</p>
                     </div>
 
                     <div className="aurora-surface-soft rounded-[22px] px-4 py-3">
-                      <p className="aurora-title-label text-[10px] tracking-[0.22em]">Flow Usage</p>
+                      <p className="aurora-title-label">Flow Usage</p>
                       <p className="mt-2 text-sm text-slate-100">
                         {(usageSummary?.by_type?.openai_tokens_total ?? 0).toLocaleString()} tokens
                       </p>
-                      <p className="mt-1 text-[12px] text-slate-300">
+                      <p className="aurora-text-meta mt-1">
                         {(usageSummary?.by_type?.openai_text_requests ?? 0).toLocaleString()} text calls ·{" "}
                         {(usageSummary?.by_type?.openai_image_generations ?? 0).toLocaleString()} images
                       </p>
@@ -433,9 +404,9 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 </div>
 
                 {latestFailedJob ? (
-                  <details className="aurora-surface-soft mt-3 rounded-[22px] px-4 py-3 text-xs">
+                  <details className="aurora-surface-soft mt-3 rounded-[22px] px-4 py-3 aurora-text-meta">
                     <summary className="cursor-pointer text-slate-200">Latest failure details ({latestFailedJob.step})</summary>
-                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-slate-300">
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap aurora-text-meta text-slate-300">
                       {latestFailedJob.error}
                     </pre>
                   </details>
@@ -462,7 +433,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                       Share the basics so Aurora can suggest the right direction from the start.
                     </p>
                   </div>
-                  <span className="aurora-status-chip self-start px-3 text-[10px]">Pre-session</span>
+                  <span className="aurora-status-chip self-start px-3 aurora-text-label">Pre-session</span>
                 </div>
 
                 <div className="aurora-console-divider mt-2.5" />
@@ -583,7 +554,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                       Auto pick top 1
                     </label>
                   </div>
-                  <p className="aurora-tip-chip rounded-full px-3.5 py-1.5 text-[11px]">
+                  <p className="aurora-tip-chip rounded-full px-3.5 py-1.5 aurora-text-meta">
                     Queued commands apply at the next stage boundary.
                   </p>
                 </div>
@@ -607,17 +578,37 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                 sessionReady ? "xl:flex xl:flex-col" : ""
               }`}
             >
-              <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
-                  <p className="aurora-title-label text-[10px] tracking-[0.22em]">Current Workspace</p>
+                  <p className="aurora-title-label">Current Workspace</p>
                   <h1 className="aurora-display-title mt-2">{sceneCanvasTitle[activeScene]}</h1>
-                  <p className="mt-2 max-w-2xl text-sm text-slate-300">{sceneSummary[activeScene]}</p>
+                  <p className="aurora-text-body mt-2 max-w-2xl">{sceneSummary[activeScene]}</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
                     {sessionReady ? stage.replaceAll("_", " ") : "Awaiting session"}
                   </span>
+                  {sessionReady && rightPanelViewModel.primaryAction ? (
+                    <button
+                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                      onClick={() => void handleRunGuidedAction(rightPanelViewModel.primaryAction!.id)}
+                      disabled={busy || rightPanelViewModel.primaryAction.disabled || !rightPanelViewModel.primaryAction}
+                      title={rightPanelViewModel.primaryAction.disabledReason}
+                    >
+                      {rightPanelViewModel.primaryAction.label}
+                    </button>
+                  ) : null}
+                  {sessionReady && rightPanelViewModel.secondaryAction ? (
+                    <button
+                      className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                      onClick={() => void handleRunGuidedAction(rightPanelViewModel.secondaryAction!.id)}
+                      disabled={busy || rightPanelViewModel.secondaryAction.disabled || !rightPanelViewModel.secondaryAction}
+                      title={rightPanelViewModel.secondaryAction.disabledReason}
+                    >
+                      {rightPanelViewModel.secondaryAction.label}
+                    </button>
+                  ) : null}
                 </div>
               </header>
 

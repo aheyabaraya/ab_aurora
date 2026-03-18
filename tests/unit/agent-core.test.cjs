@@ -351,3 +351,92 @@ test("proceed action passes approve_build gate and finishes pipeline", async () 
   assert.equal(proceedRun.current_step, "done");
   assert.equal(proceedRun.status, "completed");
 });
+
+test("selected direction revisions are capped at MAX_REVISIONS", async () => {
+  const storage = new MemoryStorageRepository();
+  const session = await storage.createSession({
+    mode: "mode_b",
+    product: "Aurora Direction Engine for Product Teams and Brand Operators",
+    audience: "Founders and design leads",
+    style_keywords: ["bold", "editorial", "futuristic"],
+    auto_continue: true,
+    auto_pick_top1: false
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      idempotency_key: "idem_revision_cap_001"
+    }
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "proceed",
+      idempotency_key: "idem_revision_cap_002"
+    }
+  });
+
+  await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "select_candidate",
+      payload: {
+        candidate_id: "cand_1"
+      },
+      idempotency_key: "idem_revision_cap_003"
+    }
+  });
+
+  const firstRevision = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "revise_constraint",
+      payload: {
+        constraint: "Make it more editorial and slightly calmer."
+      },
+      idempotency_key: "idem_revision_cap_004"
+    }
+  });
+  assert.equal(firstRevision.current_step, "approve_build");
+  assert.match(firstRevision.message, /revision rendered/i);
+
+  const secondRevision = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "generate_followup_asset",
+      payload: {
+        prompt: "Keep composition but reduce contrast."
+      },
+      idempotency_key: "idem_revision_cap_005"
+    }
+  });
+  assert.equal(secondRevision.current_step, "approve_build");
+  assert.match(secondRevision.message, /revision rendered/i);
+
+  const blockedThirdRevision = await runAgentPipeline({
+    storage,
+    request: {
+      session_id: session.id,
+      action: "revise_constraint",
+      payload: {
+        constraint: "One more revision."
+      },
+      idempotency_key: "idem_revision_cap_006"
+    }
+  });
+
+  assert.equal(blockedThirdRevision.current_step, "approve_build");
+  assert.equal(blockedThirdRevision.wait_user, true);
+  assert.match(blockedThirdRevision.message, /Revision limit reached/i);
+
+  const artifacts = await storage.listArtifactsBySession(session.id);
+  const followupAssets = artifacts.filter((artifact) => artifact.kind === "followup_asset");
+  assert.equal(followupAssets.length, 2);
+});

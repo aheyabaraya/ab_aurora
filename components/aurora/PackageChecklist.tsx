@@ -144,6 +144,9 @@ export function PackageChecklist({
       regenerate: "none"
     }
   ];
+  const completeCount = items.filter((item) => item.status === "complete").length;
+  const pendingCount = items.filter((item) => item.status === "pending").length;
+  const failedCount = items.filter((item) => item.status === "failed").length;
 
   return (
     <div className="space-y-4">
@@ -152,6 +155,25 @@ export function PackageChecklist({
           <h2 className="aurora-title-primary text-[clamp(1.3rem,2vw,1.65rem)] leading-[1.08]">
             Collect the deliverables before export.
           </h2>
+          <p className="aurora-text-body mt-2 max-w-3xl text-slate-300">
+            Scan status first, verify summary, then regenerate only what is missing.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="aurora-session-pill">
+              <span className="aurora-title-label">Complete</span>
+              <strong>{completeCount}</strong>
+            </span>
+            <span className="aurora-session-pill">
+              <span className="aurora-title-label">Pending</span>
+              <strong>{pendingCount}</strong>
+            </span>
+            {failedCount > 0 ? (
+              <span className="aurora-session-pill">
+                <span className="aurora-title-label">Failed</span>
+                <strong>{failedCount}</strong>
+              </span>
+            ) : null}
+          </div>
         </div>
         <span className={packReady ? "aurora-chip" : "aurora-chip-soft"}>
           {packReady ? "Ready to Export" : "Preparing Package"}
@@ -160,33 +182,36 @@ export function PackageChecklist({
 
       {items.map((item) => (
         <div key={item.key} className="aurora-panel aurora-package-item">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)_auto] lg:items-center">
             <div className="min-w-0">
               <span className={`aurora-package-status is-${item.status}`}>
                 <span className="aurora-package-status-dot" />
                 {statusLabel(item.status)}
               </span>
-              <p className="aurora-title-primary mt-3 text-lg">{item.label}</p>
-              <p className="mt-2 text-sm text-slate-300">{item.preview}</p>
+              <p className="aurora-title-primary mt-2 text-[1.05rem]">{item.label}</p>
             </div>
 
-            {item.key === "export_zip" ? (
-              <button
-        className="aurora-btn-cta rounded-full px-5 py-2 text-xs font-semibold"
-                onClick={onExportZip}
-                disabled={!packReady || busy}
-              >
-                Export Pack
-              </button>
-            ) : (
-              <button
-                className="aurora-btn-secondary rounded-full px-5 py-2 text-xs font-semibold"
-                onClick={item.regenerate === "top3" ? onRegenerateTop3 : onRegenerateOutputs}
-                disabled={busy}
-              >
-                Regenerate This
-              </button>
-            )}
+            <p className="aurora-text-body min-w-0 text-slate-300">{item.preview}</p>
+
+            <div className="flex items-center lg:justify-end">
+              {item.key === "export_zip" ? (
+                <button
+                  className="aurora-btn-cta rounded-full px-5 py-2 text-sm font-semibold"
+                  onClick={onExportZip}
+                  disabled={!packReady || busy}
+                >
+                  Export Pack
+                </button>
+              ) : (
+                <button
+                  className="aurora-btn-secondary rounded-full px-5 py-2 text-sm font-semibold"
+                  onClick={item.regenerate === "top3" ? onRegenerateTop3 : onRegenerateOutputs}
+                  disabled={busy}
+                >
+                  Regenerate This
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}

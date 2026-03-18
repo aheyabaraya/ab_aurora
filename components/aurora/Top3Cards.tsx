@@ -134,101 +134,50 @@ export function Top3Cards({
                 </div>
               </button>
 
-              <div className="space-y-3 p-4">
+              <div className="space-y-3.5 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="aurora-title-label text-[10px] tracking-[0.22em]">Concept Bundle</p>
-                    <h3 className="aurora-title-primary mt-2 text-[1.14rem] leading-tight">{candidate.naming.recommended}</h3>
-                    <p className="mt-1.5 text-sm text-slate-300">{candidate.moodboard.title}</p>
+                  <div className="min-w-0">
+                    <p className="aurora-title-label">Concept Bundle</p>
+                    <h3 className="aurora-title-primary mt-2 text-[1.16rem] leading-tight">{candidate.naming.recommended}</h3>
+                    <p className="aurora-text-meta mt-1.5 text-slate-300">{candidate.moodboard.title}</p>
                   </div>
                   <span className={selected ? "aurora-chip" : "aurora-chip-soft"}>{selected ? "Selected" : "Open"}</span>
                 </div>
 
-                <div className="aurora-surface-soft rounded-[18px] p-3">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Story</p>
-                  <p className="mt-2 text-sm text-slate-100">{story.premise || candidate.narrative_summary}</p>
-                  <p className="mt-2 line-clamp-3 text-xs text-slate-300">{story.asset_rationale}</p>
-                </div>
-
-                <div className="space-y-2">
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">Supporting Assets</p>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">3-up bundle</p>
+                    <p className="aurora-title-label">Premise</p>
+                    <p className="aurora-text-label text-slate-400">Quick Scan</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {supportingAssets.map((supportingAsset) => {
-                      const supportingPreview = {
-                        src: supportingAsset.image_url || candidate.image_url || asset.image,
-                        alt: `${candidate.naming.recommended} ${supportingAsset.title}`,
-                        title: `${candidate.naming.recommended} / ${supportingAsset.title}`,
-                        subtitle: supportingAsset.prompt
-                      } satisfies ImagePreviewPayload;
+                  <p className="aurora-text-body mt-2 text-slate-100">{story.premise || candidate.narrative_summary}</p>
 
-                      return (
-                        <button
-                          key={supportingAsset.id}
-                          className="aurora-surface-soft group overflow-hidden rounded-[16px] border border-white/8 bg-transparent p-0 text-left"
-                          onClick={() => onPreviewImage?.(supportingPreview)}
-                          type="button"
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="aurora-title-label">Palette</p>
+                    <p className="aurora-text-meta">Top colors</p>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {colors.length > 0 ? (
+                      colors.map((color) => (
+                        <span
+                          key={color}
+                          className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-sm text-slate-200"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={supportingAsset.image_url || candidate.image_url || asset.image}
-                            alt={supportingPreview.alt}
-                            className="aspect-square w-full object-cover transition duration-200 group-hover:scale-[1.02]"
-                          />
-                          <div className="px-2.5 py-2">
-                            <p className="line-clamp-1 text-[11px] font-semibold text-slate-100">{supportingAsset.title}</p>
-                            <p className="line-clamp-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">
-                              {supportingAsset.kind}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          <span className="aurora-color-dot" style={{ backgroundColor: color, color }} />
+                          {color}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="aurora-text-meta text-slate-400">Palette is still being refined.</span>
+                    )}
                   </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-                  <div className="aurora-surface-soft rounded-[18px] p-3">
-                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">Palette</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {colors.length > 0 ? (
-                        colors.map((color) => (
-                          <span
-                            key={color}
-                            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-200"
-                          >
-                            <span className="aurora-color-dot" style={{ backgroundColor: color, color }} />
-                            {color}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-400">Palette is still being refined.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="aurora-surface-soft rounded-[18px] p-3">
-                    <p className="aurora-title-label text-[10px] tracking-[0.2em]">UI Plan</p>
-                    <p className="mt-2 line-clamp-2 text-sm text-slate-200">{candidate.ui_plan.headline}</p>
-                    <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                      CTA {candidate.ui_plan.cta}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="aurora-surface-soft rounded-[18px] p-3">
-                  <p className="aurora-title-label text-[10px] tracking-[0.2em]">Narrative Summary</p>
-                  <p className="mt-2 line-clamp-3 text-sm text-slate-200">{story.narrative || candidate.narrative_summary}</p>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <p className="line-clamp-2 text-[11px] text-slate-400">
+                  <p className="aurora-text-meta line-clamp-2 text-slate-400">
                     {preferChatCommands ? `You can also use /pick ${candidate.rank}.` : candidate.rationale}
                   </p>
                   <button
-                    className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                       selected ? "aurora-btn-command text-amber-50" : "aurora-btn-secondary"
                     }`}
                     onClick={() => onSelect(candidate.id)}
@@ -237,6 +186,73 @@ export function Top3Cards({
                     {selected ? "Selected Direction" : "Select Direction"}
                   </button>
                 </div>
+
+                <details className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                    <div>
+                      <p className="aurora-title-label">Supporting Detail</p>
+                      <p className="aurora-text-meta mt-1">Story expansion, 3-up assets, and UI plan.</p>
+                    </div>
+                    <span className="aurora-chip-soft px-3">Expand</span>
+                  </summary>
+
+                  <div className="mt-3 space-y-3">
+                    <div className="aurora-surface rounded-[18px] p-3">
+                      <p className="aurora-title-label">Narrative Summary</p>
+                      <p className="aurora-text-body mt-2 text-slate-200">{story.narrative || candidate.narrative_summary}</p>
+                      <p className="aurora-text-meta mt-2 text-slate-300">{story.asset_rationale}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="aurora-title-label">Supporting Assets</p>
+                        <p className="aurora-text-meta">3-up bundle</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {supportingAssets.map((supportingAsset) => {
+                          const supportingPreview = {
+                            src: supportingAsset.image_url || candidate.image_url || asset.image,
+                            alt: `${candidate.naming.recommended} ${supportingAsset.title}`,
+                            title: `${candidate.naming.recommended} / ${supportingAsset.title}`,
+                            subtitle: supportingAsset.prompt
+                          } satisfies ImagePreviewPayload;
+
+                          return (
+                            <button
+                              key={supportingAsset.id}
+                              className="aurora-surface-soft group overflow-hidden rounded-[16px] border border-white/8 bg-transparent p-0 text-left"
+                              onClick={() => onPreviewImage?.(supportingPreview)}
+                              type="button"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={supportingAsset.image_url || candidate.image_url || asset.image}
+                                alt={supportingPreview.alt}
+                                className="aspect-square w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                              />
+                              <div className="px-2.5 py-2">
+                                <p className="line-clamp-1 text-sm font-semibold text-slate-100">{supportingAsset.title}</p>
+                                <p className="line-clamp-1 aurora-text-label text-slate-400">{supportingAsset.kind}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+                      <div className="aurora-surface rounded-[18px] p-3">
+                        <p className="aurora-title-label">UI Plan</p>
+                        <p className="aurora-text-body mt-2 text-slate-200">{candidate.ui_plan.headline}</p>
+                        <p className="aurora-text-meta mt-2 text-slate-400">CTA {candidate.ui_plan.cta}</p>
+                      </div>
+                      <div className="aurora-surface rounded-[18px] p-3">
+                        <p className="aurora-title-label">Story Support</p>
+                        <p className="aurora-text-body mt-2 text-slate-200">{candidate.rationale}</p>
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </div>
             </article>
           );
@@ -244,15 +260,15 @@ export function Top3Cards({
       </div>
 
       {buildRequired ? (
-        <div className="aurora-panel rounded-[26px] border-amber-200/36 bg-amber-300/6 p-4 text-sm text-amber-100">
-          <p className="aurora-title-label text-[10px] tracking-[0.22em]">Build Confirmation</p>
-          <p className="mt-2 text-sm text-amber-50/90">
+        <div className="aurora-panel rounded-[26px] border-amber-200/36 bg-amber-300/6 p-4 text-amber-100">
+          <p className="aurora-title-label">Build Confirmation</p>
+          <p className="aurora-text-body mt-2 text-amber-50/90">
             {preferChatCommands
               ? "Auto pick is off. Use /build in chat to confirm approve_build once."
               : "Auto pick is off. Confirm once to run approve_build and move to package."}
           </p>
           <button
-            className="aurora-btn-cta mt-4 rounded-full px-5 py-2 text-xs font-semibold disabled:opacity-60"
+            className="aurora-btn-cta mt-4 rounded-full px-5 py-2 text-sm font-semibold disabled:opacity-60"
             onClick={onConfirmBuild}
             disabled={busy}
           >

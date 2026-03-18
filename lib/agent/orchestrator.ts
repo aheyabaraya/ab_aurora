@@ -398,6 +398,15 @@ async function createSelectedRevision(
   return "Selected direction revision rendered.";
 }
 
+async function getFollowupRevisionCount(storage: StorageRepository, sessionId: string): Promise<number> {
+  const allArtifacts = await storage.listArtifactsBySession(sessionId);
+  return allArtifacts.filter((artifact) => artifact.kind === "followup_asset").length;
+}
+
+function buildRevisionLimitMessage(input: { used: number; max: number }): string {
+  return `Revision limit reached (${input.used}/${input.max}). Finalize with /build, then /export.`;
+}
+
 async function applyAction(
   session: SessionRecord,
   storage: StorageRepository,
@@ -439,6 +448,23 @@ async function applyAction(
     const constraint = typeof constraintFromPayload === "string" ? constraintFromPayload.trim() : "";
     if (constraint.length === 0) {
       return { session, consumed: true, message: "Direction note is empty. No refinement applied." };
+    }
+    if (session.selected_candidate_id) {
+      const usedRevisions = await getFollowupRevisionCount(storage, session.id);
+      if (usedRevisions >= env.MAX_REVISIONS) {
+        const cappedSession = await storage.updateSession(session.id, {
+          current_step: "approve_build",
+          status: "wait_user"
+        });
+        return {
+          session: cappedSession,
+          consumed: true,
+          message: buildRevisionLimitMessage({
+            used: usedRevisions,
+            max: env.MAX_REVISIONS
+          })
+        };
+      }
     }
 
     if (!session.draft_spec) {
@@ -593,6 +619,21 @@ async function applyAction(
         message: "Select a direction before requesting revision renders."
       };
     }
+    const usedRevisions = await getFollowupRevisionCount(storage, session.id);
+    if (usedRevisions >= env.MAX_REVISIONS) {
+      const cappedSession = await storage.updateSession(session.id, {
+        current_step: "approve_build",
+        status: "wait_user"
+      });
+      return {
+        session: cappedSession,
+        consumed: true,
+        message: buildRevisionLimitMessage({
+          used: usedRevisions,
+          max: env.MAX_REVISIONS
+        })
+      };
+    }
 
     const prompt = typeof payload?.prompt === "string" ? payload.prompt.trim() : "Refine the selected direction.";
     const assetType =
@@ -630,6 +671,13 @@ async function applyAction(
     }
 
     const message = await createSelectedRevision(storage, artifacts, session, prompt, assetType);
+    if (message === "Selected direction revision rendered.") {
+      session = await storage.updateSession(session.id, {
+        revision_count: session.revision_count + 1,
+        current_step: "approve_build",
+        status: "wait_user"
+      });
+    }
     return { session, consumed: true, message };
   }
 
