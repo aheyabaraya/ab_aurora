@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
   AGENT_STEPS,
+  type AgentStep,
   type ArtifactRecord,
   type ChatEntry,
   type CommandExecutionResult,
@@ -16,9 +17,15 @@ import {
   type RuntimeGoalSnapshot,
   type Scene,
   type SessionPayload,
+  type StageActivity,
   resolveSceneFromStep
 } from "./types";
 import { resolveGuidedActionViewModel } from "./guided-actions";
+import {
+  blocksRequestedRun,
+  buildProcessingStageMessage,
+  resolveStageActivity
+} from "./stage-activity";
 import {
   buildSlashHelpText,
   parseSlashCommand,
@@ -142,7 +149,7 @@ type SendChatAndSyncInput = {
   requestJson: RequestJsonFn;
   setRuntimeGoalId: (goalId: string) => void;
   refreshRuntimeGoal: (goalId: string) => Promise<void>;
-  refreshSession: (sessionId: string) => Promise<void>;
+  refreshSession: (sessionId: string) => Promise<unknown>;
 };
 
 export async function sendChatAndSync(input: SendChatAndSyncInput): Promise<ChatApiResponse> {
@@ -470,7 +477,7 @@ function normalizeActionErrorMessage(
   const normalized = rawMessage.trim();
 
   if (/active job already exists for session/i.test(normalized)) {
-    return "Aurora is already processing this session. Wait for the current job to finish, then continue.";
+    return `${buildProcessingStageMessage(context.currentStep ?? null, context.currentStep)} Wait for the current job to finish, then continue.`;
   }
 
   if (/Invalid run-step payload/i.test(normalized) || /Invalid runtime step payload/i.test(normalized)) {
@@ -505,9 +512,57 @@ type RunStepRequestDecision =
       kind: "blocked";
       message: string;
       subtitle?: string;
+      needsRefresh?: boolean;
     };
 
-function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: boolean): RunStepRequestDecision {
+function inferRequestedRunStep(payload: SessionPayload | null): AgentStep | null {
+  if (!payload) {
+    return null;
+  }
+
+  const currentStep = payload.session.current_step;
+  const hasDirection = Boolean(payload.session.draft_spec?.direction);
+  const top3Count = payload.latest_top3?.length ?? 0;
+  const hasSelection = Boolean(payload.selected_candidate_id);
+
+  if (
+    currentStep === "interview_collect" ||
+    currentStep === "intent_gate" ||
+    currentStep === "spec_draft" ||
+    (currentStep === "brand_narrative" && !hasDirection)
+  ) {
+    return "interview_collect";
+  }
+
+  if (currentStep === "brand_narrative") {
+    return "candidates_generate";
+  }
+
+  if (currentStep === "top3_select") {
+    if (top3Count === 0) {
+      return "candidates_generate";
+    }
+    if (hasSelection) {
+      return "approve_build";
+    }
+    return null;
+  }
+
+  if (currentStep === "approve_build") {
+    return "approve_build";
+  }
+
+  if (currentStep === "package" || currentStep === "done") {
+    return "package";
+  }
+
+  return null;
+}
+
+export function resolveRunStepDecision(
+  payload: SessionPayload | null,
+  activity: StageActivity
+): RunStepRequestDecision {
   if (!payload) {
     return {
       kind: "blocked",
@@ -517,16 +572,25 @@ function resolveRunStepDecision(payload: SessionPayload | null, hasActiveJob: bo
   }
 
   const currentStep = payload.session.current_step;
-  const status = payload.session.status;
   const hasDirection = Boolean(payload.session.draft_spec?.direction);
   const directionClarity = getDirectionClarityFromPayload(payload);
   const top3Count = payload.latest_top3?.length ?? 0;
   const hasSelection = Boolean(payload.selected_candidate_id);
+  const requestedStep = inferRequestedRunStep(payload);
 
-  if (status === "running" || hasActiveJob) {
+  if (activity.needsRefresh) {
     return {
       kind: "blocked",
-      message: "Aurora is already processing the current stage. Wait for the active job to finish.",
+      message: activity.message,
+      subtitle: "stage syncing",
+      needsRefresh: true
+    };
+  }
+
+  if (blocksRequestedRun(activity.activeStep, requestedStep)) {
+    return {
+      kind: "blocked",
+      message: activity.message || buildProcessingStageMessage(activity.activeStep, currentStep),
       subtitle: "stage running"
     };
   }
@@ -805,6 +869,7 @@ export function useAuroraController() {
       ]);
       setSessionPayload(session);
       setJobsPayload(jobs);
+      return { session, jobs };
     },
     [requestJson]
   );
@@ -858,9 +923,16 @@ export function useAuroraController() {
     return resolveSceneFromStep(sessionPayload?.session.current_step);
   }, [sessionPayload?.session.current_step]);
 
+  const stageActivity = useMemo(() => {
+    return resolveStageActivity({
+      sessionPayload,
+      jobsPayload
+    });
+  }, [jobsPayload, sessionPayload]);
+
   const hasActiveJob = useMemo(() => {
-    return (jobsPayload?.jobs ?? []).some((job) => job.status === "pending" || job.status === "running");
-  }, [jobsPayload?.jobs]);
+    return stageActivity.state === "active";
+  }, [stageActivity.state]);
 
   const latestFailedJob = useMemo(() => {
     return [...(jobsPayload?.jobs ?? [])]
@@ -869,8 +941,8 @@ export function useAuroraController() {
   }, [jobsPayload?.jobs]);
 
   const shouldQueueIntervention = useMemo(() => {
-    return sessionPayload?.session.status === "running" && hasActiveJob;
-  }, [hasActiveJob, sessionPayload?.session.status]);
+    return stageActivity.shouldQueue;
+  }, [stageActivity.shouldQueue]);
 
   const styleKeywordList = useMemo(() => {
     return styleKeywords
@@ -1165,7 +1237,25 @@ export function useAuroraController() {
       return;
     }
 
-    const decision = resolveRunStepDecision(sessionPayload, hasActiveJob);
+    let activePayload = sessionPayload;
+    let activeActivity = stageActivity;
+    let decision = resolveRunStepDecision(activePayload, activeActivity);
+
+    if (decision.kind === "blocked" && decision.needsRefresh) {
+      try {
+        const refreshed = await refreshSession(sessionId);
+        activePayload = refreshed.session;
+        activeActivity = resolveStageActivity({
+          sessionPayload: refreshed.session,
+          jobsPayload: refreshed.jobs
+        });
+        decision = resolveRunStepDecision(activePayload, activeActivity);
+      } catch (refreshError) {
+        handleActionError(refreshError);
+        return;
+      }
+    }
+
     if (decision.kind === "blocked") {
       appendTimelineMessage({
         content: decision.message,
@@ -1223,13 +1313,13 @@ export function useAuroraController() {
   }, [
     appendTimelineMessage,
     handleActionError,
-    hasActiveJob,
-    refreshRuntimeGoal,
     refreshSession,
+    refreshRuntimeGoal,
     requestJson,
     runWithRecovery,
     sessionId,
-    sessionPayload
+    sessionPayload,
+    stageActivity
   ]);
 
   const handleSelectCandidate = useCallback(
@@ -2239,7 +2329,7 @@ export function useAuroraController() {
       buildConfirmRequired,
       runtimeGoalId,
       packReady,
-      shouldQueueIntervention,
+      stageActivity,
       canStartSession,
       defineReadyForConcepts,
       defineFollowupQuestion
@@ -2262,7 +2352,7 @@ export function useAuroraController() {
     sessionPayload?.session.status,
     sceneTransition?.scene,
     sceneTransition?.stage,
-    shouldQueueIntervention,
+    stageActivity,
     top3ModelSource
   ]);
 

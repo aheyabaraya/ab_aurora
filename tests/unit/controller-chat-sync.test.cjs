@@ -9,8 +9,10 @@ const {
   inferChatSceneTransition,
   getCommandExecutionMeta,
   resolveStructuredChatCommandId,
+  resolveRunStepDecision,
   sendChatAndSync
 } = require("../../.tmp-tests/components/aurora/useAuroraController.js");
+const { resolveStageActivity } = require("../../.tmp-tests/components/aurora/stage-activity.js");
 
 test("sendChatAndSync runs chat, refreshes runtime goal, and refreshes session", async () => {
   const calls = {
@@ -158,4 +160,118 @@ test("buildPostChatGuide adapts next-step copy to the user's message intent", ()
     buildPostChatGuide("top3_select", "tone을 더 차분하게 바꿔줘"),
     "Revision steer sent. Next: Aurora will adjust the concept field. Compare the updated bundles, then choose one route."
   );
+});
+
+test("stale running define state allows generate after refresh path", () => {
+  const payload = {
+    session: {
+      current_step: "brand_narrative",
+      status: "running",
+      draft_spec: {
+        direction: {
+          clarity: {
+            ready_for_concepts: true,
+            summary: "Direction is clear enough.",
+            missing_inputs: [],
+            followup_questions: [],
+            score: 5
+          }
+        }
+      }
+    },
+    latest_top3: [],
+    selected_candidate_id: null
+  };
+
+  const staleActivity = resolveStageActivity({
+    sessionPayload: payload,
+    jobsPayload: { jobs: [] }
+  });
+  const staleDecision = resolveRunStepDecision(payload, staleActivity);
+  assert.equal(staleDecision.kind, "blocked");
+  assert.equal(staleDecision.needsRefresh, true);
+
+  const refreshedActivity = resolveStageActivity({
+    sessionPayload: {
+      ...payload,
+      session: {
+        ...payload.session,
+        status: "wait_user"
+      }
+    },
+    jobsPayload: { jobs: [] }
+  });
+  const refreshedDecision = resolveRunStepDecision(
+    {
+      ...payload,
+      session: {
+        ...payload.session,
+        status: "wait_user"
+      }
+    },
+    refreshedActivity
+  );
+  assert.equal(refreshedDecision.kind, "ready");
+  assert.equal(refreshedDecision.body.step, "candidates_generate");
+});
+
+test("active jobs block run-step with stage-specific copy", () => {
+  const candidatesPayload = {
+    session: {
+      current_step: "brand_narrative",
+      status: "wait_user",
+      draft_spec: {
+        direction: {
+          clarity: {
+            ready_for_concepts: true,
+            summary: "Direction is clear enough.",
+            missing_inputs: [],
+            followup_questions: [],
+            score: 5
+          }
+        }
+      }
+    },
+    latest_top3: [],
+    selected_candidate_id: null
+  };
+
+  const candidatesActivity = resolveStageActivity({
+    sessionPayload: candidatesPayload,
+    jobsPayload: {
+      jobs: [{ id: "job_1", step: "candidates_generate", status: "running", error: null, created_at: new Date().toISOString() }]
+    }
+  });
+  const candidatesDecision = resolveRunStepDecision(candidatesPayload, candidatesActivity);
+  assert.equal(candidatesDecision.kind, "blocked");
+  assert.equal(candidatesDecision.message.includes("3 concept bundles"), true);
+
+  const buildPayload = {
+    session: {
+      current_step: "approve_build",
+      status: "wait_user",
+      draft_spec: {
+        direction: {
+          clarity: {
+            ready_for_concepts: true,
+            summary: "Direction is clear enough.",
+            missing_inputs: [],
+            followup_questions: [],
+            score: 5
+          }
+        }
+      }
+    },
+    latest_top3: [{ id: "cand_1" }],
+    selected_candidate_id: "cand_1"
+  };
+  const buildActivity = resolveStageActivity({
+    sessionPayload: buildPayload,
+    jobsPayload: {
+      jobs: [{ id: "job_2", step: "approve_build", status: "running", error: null, created_at: new Date().toISOString() }]
+    }
+  });
+  const buildDecision = resolveRunStepDecision(buildPayload, buildActivity);
+  assert.equal(buildDecision.kind, "blocked");
+  assert.equal(buildDecision.message.includes("building the final outputs"), true);
 });

@@ -5,6 +5,15 @@ const assert = require("node:assert/strict");
 
 const { resolveGuidedActionViewModel } = require("../../.tmp-tests/components/aurora/guided-actions.js");
 
+const idleActivity = {
+  state: "idle",
+  canRun: true,
+  shouldQueue: false,
+  activeStep: null,
+  message: "",
+  needsRefresh: false
+};
+
 test("build confirmation state pins Build as primary action", () => {
   const model = resolveGuidedActionViewModel({
     sessionId: "sess_1",
@@ -16,7 +25,7 @@ test("build confirmation state pins Build as primary action", () => {
     buildConfirmRequired: true,
     runtimeGoalId: "goal_1",
     packReady: false,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: true,
     defineReadyForConcepts: true,
     defineFollowupQuestion: null
@@ -38,7 +47,14 @@ test("running define with active job shows queue hint", () => {
     buildConfirmRequired: false,
     runtimeGoalId: null,
     packReady: false,
-    shouldQueueIntervention: true,
+    stageActivity: {
+      state: "active",
+      canRun: false,
+      shouldQueue: true,
+      activeStep: "spec_draft",
+      message: "Aurora is drafting the working direction for this brief.",
+      needsRefresh: false
+    },
     canStartSession: true,
     defineReadyForConcepts: false,
     defineFollowupQuestion: "Who is the highest-priority audience for this first brand direction?"
@@ -60,7 +76,7 @@ test("start session is disabled when setup input is invalid", () => {
     buildConfirmRequired: false,
     runtimeGoalId: null,
     packReady: false,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: false,
     defineReadyForConcepts: false,
     defineFollowupQuestion: null
@@ -82,7 +98,7 @@ test("package scene sets export as primary and disables until pack is ready", ()
     buildConfirmRequired: false,
     runtimeGoalId: "goal_1",
     packReady: false,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: true,
     defineReadyForConcepts: true,
     defineFollowupQuestion: null
@@ -97,7 +113,7 @@ test("package scene sets export as primary and disables until pack is ready", ()
     buildConfirmRequired: false,
     runtimeGoalId: "goal_1",
     packReady: true,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: true,
     defineReadyForConcepts: true,
     defineFollowupQuestion: null
@@ -120,7 +136,7 @@ test("explore selection state points user to pick instead of continuing run", ()
     buildConfirmRequired: false,
     runtimeGoalId: null,
     packReady: false,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: true,
     defineReadyForConcepts: true,
     defineFollowupQuestion: null
@@ -142,7 +158,7 @@ test("decide scene without locked selection does not expose Build prematurely", 
     buildConfirmRequired: false,
     runtimeGoalId: null,
     packReady: false,
-    shouldQueueIntervention: false,
+    stageActivity: idleActivity,
     canStartSession: true,
     defineReadyForConcepts: true,
     defineFollowupQuestion: null
@@ -152,4 +168,32 @@ test("decide scene without locked selection does not expose Build prematurely", 
   assert.equal(model.secondaryAction, null);
   assert.equal(model.suggestedCommand, "Choose one concept");
   assert.equal(model.hint.includes("Build"), true);
+});
+
+test("define ready state surfaces refresh guidance when running is stale", () => {
+  const model = resolveGuidedActionViewModel({
+    sessionId: "sess_1",
+    status: "running",
+    currentScene: "DEFINE",
+    currentStep: "brand_narrative",
+    top3Count: 0,
+    selectedCandidateId: null,
+    buildConfirmRequired: false,
+    runtimeGoalId: null,
+    packReady: false,
+    stageActivity: {
+      state: "stale_running",
+      canRun: false,
+      shouldQueue: false,
+      activeStep: "brand_narrative",
+      message: "Aurora is re-syncing this stage. One refresh check will run before the next action.",
+      needsRefresh: true
+    },
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
+  });
+
+  assert.equal(model.suggestedCommand, "Wait for the refresh check");
+  assert.equal(model.hint.includes("re-syncing"), true);
 });

@@ -847,7 +847,7 @@ body::after {
 
 .aurora-define-hero-media {
   position: relative;
-  height: clamp(220px, 32vw, 320px);
+  height: clamp(180px, 24vw, 260px);
   background-size: cover;
   background-position: center;
 }
@@ -1116,7 +1116,7 @@ body::after {
   }
 
   .aurora-define-hero-media {
-    height: clamp(220px, 52vw, 300px);
+    height: clamp(180px, 44vw, 240px);
   }
 }
 

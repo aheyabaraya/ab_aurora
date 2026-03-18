@@ -385,29 +385,118 @@ export function DefineScene({
   return (
     <div className="space-y-4">
       {ready && direction ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.02fr)_minmax(22rem,0.98fr)]">
-          <div className="aurora-panel rounded-[26px] border border-indigo-200/22 bg-slate-950/45 px-4 py-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-3xl">
-                <p className="aurora-title-label">Next Action</p>
-                <h3 className="aurora-title-primary mt-2 text-[1.18rem]">{nextActionTitle}</h3>
-                <p className="aurora-text-body mt-2 text-slate-200">{nextActionSummary}</p>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.16fr)_minmax(20.5rem,0.84fr)]">
+          <div className="space-y-4">
+            <div className="aurora-panel rounded-[28px] p-4 md:p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="max-w-3xl">
+                  <p className="aurora-title-label">At A Glance</p>
+                  <h3 className="aurora-title-primary mt-2 text-[1.16rem]">Working direction</h3>
+                  <p className="aurora-text-body mt-3 text-slate-100">{direction.brief_summary}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>{clarity?.score ?? 3}/5 clarity</span>
+                  <button
+                    className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                    type="button"
+                    onClick={() => setOpenPanel("snapshot")}
+                  >
+                    Open Snapshot
+                  </button>
+                </div>
               </div>
-              <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>
-                {readyForConcepts ? "Ready for EXPLORE" : "Brief update required"}
-              </span>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {directionSnapshotCards.map((card) => (
+                  <div key={card.label} className="aurora-surface-soft rounded-[20px] p-3.5">
+                    <p className="aurora-title-label">{card.label}</p>
+                    <p className="aurora-text-meta mt-2 text-slate-200">{card.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.14fr)_minmax(0,0.86fr)]">
-              <div className="aurora-surface-soft rounded-[22px] p-4">
-                <p className="aurora-title-label">{readyForConcepts ? "What Aurora Will Use" : "What Aurora Still Needs"}</p>
-                <p className="aurora-text-body mt-2 text-slate-100">
-                  {readyForConcepts ? bundleDefault : (clarity?.missing_inputs ?? []).join(", ") || "A clearer brief signal"}
-                </p>
-                <p className="aurora-text-meta mt-3 text-slate-300">{nextQuestion}</p>
+            <div className="aurora-panel rounded-[28px] p-4 md:p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="max-w-3xl">
+                  <p className="aurora-title-label">Current Focus</p>
+                  <h3 className="aurora-title-primary mt-2 text-[1.16rem]">
+                    {readyForConcepts ? "Direction is ready for concept generation." : "More input is still required."}
+                  </h3>
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    {readyForConcepts
+                      ? "Keep the working direction, focus, and first image question aligned before generating concepts."
+                      : "Tighten the missing brief signal first so the first concept pass lands closer to intent."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {focusPanels
+                    .filter((panel) => panel.id !== "snapshot")
+                    .map((panel) => (
+                      <button
+                        key={panel.id}
+                        className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
+                        type="button"
+                        onClick={() => setOpenPanel(panel.id)}
+                      >
+                        {panel.label}
+                      </button>
+                    ))}
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <p className="aurora-title-label">Bundle Focus</p>
+                  <p className="aurora-text-body mt-2 text-slate-100">{bundleDefault}</p>
+                </div>
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <p className="aurora-title-label">Chat Steer</p>
+                  <p className="aurora-text-body mt-2 text-slate-100">{nextQuestion}</p>
+                </div>
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <p className="aurora-title-label">Direction Clarity</p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    {clarity?.summary ?? "Aurora will evaluate whether this brief is clear enough to generate concepts."}
+                  </p>
+                </div>
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <p className="aurora-title-label">{readyForConcepts ? "Default Bundle Rationale" : "Missing Signal"}</p>
+                  {readyForConcepts ? (
+                    <p className="aurora-text-meta mt-2 text-slate-300">
+                      {assetIntent?.rationale ??
+                        "Aurora will balance hero, environment, and prop support unless you redirect it in chat."}
+                    </p>
+                  ) : (
+                    <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? ["A clearer brief signal"])}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="aurora-panel rounded-[26px] border border-indigo-200/22 bg-slate-950/45 px-4 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="max-w-3xl">
+                  <p className="aurora-title-label">Next Action</p>
+                  <h3 className="aurora-title-primary mt-2 text-[1.18rem]">{nextActionTitle}</h3>
+                  <p className="aurora-text-body mt-2 text-slate-200">{nextActionSummary}</p>
+                </div>
+                <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>
+                  {readyForConcepts ? "Ready for EXPLORE" : "Brief update required"}
+                </span>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                <div className="aurora-surface-soft rounded-[22px] p-4">
+                  <p className="aurora-title-label">{readyForConcepts ? "What Aurora Will Use" : "What Aurora Still Needs"}</p>
+                  <p className="aurora-text-body mt-2 text-slate-100">
+                    {readyForConcepts ? bundleDefault : (clarity?.missing_inputs ?? []).join(", ") || "A clearer brief signal"}
+                  </p>
+                  <p className="aurora-text-meta mt-3 text-slate-300">{nextQuestion}</p>
+                </div>
+
                 <div className="aurora-surface-soft rounded-[22px] p-4">
                   <div className="flex items-center justify-between gap-2">
                     <p className="aurora-title-label">Action Status</p>
@@ -442,67 +531,58 @@ export function DefineScene({
                     </p>
                   )}
                 </div>
-
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <div className="flex flex-wrap gap-2">
-                    {focusPanels.map((panel) => (
-                      <button
-                        key={panel.id}
-                        className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
-                        type="button"
-                        onClick={() => setOpenPanel(panel.id)}
-                      >
-                        {panel.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
+
+              <details
+                className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3"
+                open={guideOpen}
+                onToggle={(event) => setGuideOpen(event.currentTarget.open)}
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                  <div>
+                    <p className="aurora-title-label">Guide</p>
+                    <p className="aurora-text-meta mt-1 text-slate-400">Open when you need context, checks, or recovery help.</p>
+                  </div>
+                  <span className="aurora-chip-soft px-3">Toggle</span>
+                </summary>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {guideSections.map((section) => (
+                    <div key={section.label} className="aurora-surface-soft rounded-[20px] p-3.5">
+                      <p className="aurora-title-label">{section.label}</p>
+                      <p className="aurora-text-meta mt-2 text-slate-300">{section.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
             </div>
 
-            <details
-              className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3"
-              open={guideOpen}
-              onToggle={(event) => setGuideOpen(event.currentTarget.open)}
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <div>
-                  <p className="aurora-title-label">Guide</p>
-                  <p className="aurora-text-meta mt-1 text-slate-400">Open when you need context, checks, or recovery help.</p>
+            <div className="aurora-panel rounded-[26px] p-4">
+              <p className="aurora-title-label">Quick</p>
+              <div className="mt-3 space-y-3">
+                <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                  <p className="aurora-title-label">Direction Clarity</p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    {clarity?.summary ?? "Aurora will evaluate whether this brief is clear enough to generate concepts."}
+                  </p>
                 </div>
-                <span className="aurora-chip-soft px-3">Toggle</span>
-              </summary>
-
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                {guideSections.map((section) => (
-                  <div key={section.label} className="aurora-surface-soft rounded-[20px] p-3.5">
-                    <p className="aurora-title-label">{section.label}</p>
-                    <p className="aurora-text-meta mt-2 text-slate-300">{section.body}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                    <p className="aurora-title-label">Default Bundle</p>
+                    <p className="aurora-text-meta mt-2 text-slate-300">{bundleDefault}</p>
                   </div>
-                ))}
-              </div>
-            </details>
-          </div>
-
-          <div className="aurora-panel rounded-[26px] p-4">
-            <p className="aurora-title-label">Quick Read</p>
-            <div className="mt-3 space-y-3">
-              <div className="aurora-surface-soft rounded-[22px] p-4">
-                <p className="aurora-title-label">Direction Clarity</p>
-                <p className="aurora-text-meta mt-2 text-slate-300">
-                  {clarity?.summary ?? "Aurora will evaluate whether this brief is clear enough to generate concepts."}
-                </p>
-              </div>
-              <div className="aurora-surface-soft rounded-[22px] p-4">
-                <p className="aurora-title-label">Default Bundle</p>
-                <p className="aurora-text-meta mt-2 text-slate-300">{bundleDefault}</p>
-              </div>
-              {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Still Missing</p>
-                  <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
+                  <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                    <p className="aurora-title-label">{readyForConcepts ? "Current Question" : "Need Answer"}</p>
+                    <p className="aurora-text-meta mt-2 text-slate-300">{nextQuestion}</p>
+                  </div>
                 </div>
-              ) : null}
+                {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
+                  <div className="aurora-surface-soft rounded-[20px] p-3.5">
+                    <p className="aurora-title-label">Still Missing</p>
+                    <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -518,14 +598,14 @@ export function DefineScene({
           <div className="aurora-define-hero-overlay">
             <div className="max-w-3xl">
               <p className="aurora-title-label">Define Inputs</p>
-              <h2 className="aurora-title-primary mt-3 text-[clamp(1.48rem,2.4vw,1.96rem)] leading-[1.04]">
+              <h2 className="aurora-title-primary mt-3 text-[clamp(1.34rem,2.2vw,1.82rem)] leading-[1.05]">
                 Aurora is shaping the first direction from your brief.
               </h2>
-              <p className="mt-3 max-w-2xl text-sm text-slate-100">{stageSummary(stage)}</p>
+              <p className="mt-3 max-w-2xl text-[13px] text-slate-100">{stageSummary(stage)}</p>
             </div>
 
             {primaryBriefCards.length > 0 ? (
-              <div className="aurora-define-brief-grid">
+              <div className="aurora-define-brief-grid md:grid-cols-2 xl:grid-cols-4">
                 {primaryBriefCards.map((card) => (
                   <div key={card.label} className="aurora-define-brief-card">
                     <p className="aurora-title-label">{card.label}</p>
@@ -559,12 +639,12 @@ export function DefineScene({
 
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <h2 className="aurora-title-primary mt-3 text-[clamp(1.32rem,2.1vw,1.72rem)] leading-[1.08]">
+                <h2 className="aurora-title-primary mt-3 text-[clamp(1.2rem,2vw,1.58rem)] leading-[1.08]">
                   {readyForConcepts
                     ? "Align the direction before Aurora explores concepts."
                     : "Lock the brief details before Aurora explores concepts."}
                 </h2>
-                <p className="mt-3 max-w-2xl text-sm text-slate-100">
+                <p className="mt-3 max-w-2xl text-[13px] text-slate-100">
                   {readyForConcepts
                     ? "Review the short snapshot below, expand only the sections you need, then steer Aurora in chat before concept generation."
                     : "Aurora is still collecting the missing answers that make the first concept bundle strong on the first pass."}
@@ -598,93 +678,12 @@ export function DefineScene({
         </div>
       </div>
 
-      {ready && direction ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-          <div className="aurora-panel rounded-[28px] p-4 md:p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-3xl">
-                <p className="aurora-title-label">At A Glance</p>
-                <h3 className="aurora-title-primary mt-2 text-[1.12rem]">Working direction</h3>
-                <p className="aurora-text-body mt-3 text-slate-100">{direction.brief_summary}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>{clarity?.score ?? 3}/5 clarity</span>
-                <button
-                  className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
-                  type="button"
-                  onClick={() => setOpenPanel("snapshot")}
-                >
-                  Open Snapshot
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {directionSnapshotCards.map((card) => (
-                <div key={card.label} className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">{card.label}</p>
-                  <p className="aurora-text-meta mt-2 text-slate-200">{card.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="aurora-panel rounded-[28px] p-4 md:p-5">
-              <p className="aurora-title-label">Current Focus</p>
-              <h3 className="aurora-title-primary mt-2 text-[1.12rem]">
-                {readyForConcepts ? "Direction is ready for concept generation." : "More input is still required."}
-              </h3>
-
-              <div className="mt-3 space-y-3">
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Chat Steer</p>
-                  <p className="aurora-text-meta mt-2 text-slate-300">{nextQuestion}</p>
-                </div>
-
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Open Detail</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
-                      type="button"
-                      onClick={() => setOpenPanel("mechanics")}
-                    >
-                      Mechanism
-                    </button>
-                    <button
-                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
-                      type="button"
-                      onClick={() => setOpenPanel("supporting")}
-                    >
-                      Supporting Detail
-                    </button>
-                    <button
-                      className="aurora-btn-secondary rounded-full px-3 py-1.5 text-sm font-semibold"
-                      type="button"
-                      onClick={() => setOpenPanel("prompt")}
-                    >
-                      Prompt Seed
-                    </button>
-                  </div>
-                </div>
-
-                {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
-                  <div className="aurora-surface-soft rounded-[22px] p-4">
-                    <p className="aurora-title-label">Still Missing</p>
-                    <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
+      {!ready ? (
         <div className="aurora-panel rounded-[28px] p-4 text-sm text-slate-300">
           Aurora is preparing the first direction snapshot from the brief. Once ready, this canvas will show the
           creative narrative, visual principles, and the first image question.
         </div>
-      )}
+      ) : null}
 
       {ready && openPanel && openPanelTitle ? (
         <div

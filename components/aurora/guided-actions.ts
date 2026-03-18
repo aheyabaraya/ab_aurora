@@ -1,4 +1,4 @@
-import type { RightPanelViewModel, Scene } from "./types";
+import type { RightPanelViewModel, Scene, StageActivity } from "./types";
 
 type ResolveGuidedActionInput = {
   sessionId: string | null;
@@ -10,7 +10,7 @@ type ResolveGuidedActionInput = {
   buildConfirmRequired: boolean;
   runtimeGoalId: string | null;
   packReady: boolean;
-  shouldQueueIntervention: boolean;
+  stageActivity: StageActivity;
   canStartSession: boolean;
   defineReadyForConcepts: boolean;
   defineFollowupQuestion: string | null;
@@ -84,9 +84,13 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
         id: "run_step",
         label: "Generate 3 Concepts"
       };
-      model.hint = "현재 direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성합니다.";
+      model.hint = input.stageActivity.shouldQueue
+        ? input.stageActivity.message
+        : "현재 direction을 기준으로 primary concept image + supporting asset bundle 3개를 생성합니다.";
       model.suggestedCommand = "Generate 3 concepts";
-      model.suggestedReason = "후보 3개가 아직 생성되지 않았습니다.";
+      model.suggestedReason = input.stageActivity.shouldQueue
+        ? "현재 작업이 끝나면 같은 단계에서 바로 다시 진행할 수 있습니다."
+        : "후보 3개가 아직 생성되지 않았습니다.";
       return model;
     }
 
@@ -156,10 +160,14 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
   };
   model.secondaryAction = null;
 
-  if (input.shouldQueueIntervention) {
-    model.hint = "현재 작업 중입니다. Chat 입력은 다음 stage에서 반영됩니다.";
+  if (input.stageActivity.shouldQueue) {
+    model.hint = input.stageActivity.message || "현재 작업 중입니다. Chat 입력은 다음 stage에서 반영됩니다.";
     model.suggestedCommand = "Send one short steer in chat";
     model.suggestedReason = "수정 지시는 자연어로 보내면 queued로 안전하게 적재됩니다.";
+  } else if (input.stageActivity.needsRefresh) {
+    model.hint = input.stageActivity.message;
+    model.suggestedCommand = "Wait for the refresh check";
+    model.suggestedReason = "Aurora가 stale running 상태를 먼저 정리한 뒤 다음 액션을 엽니다.";
   } else {
     model.hint = "Direction을 정리한 뒤 concept generation으로 넘어가세요.";
     model.suggestedCommand = "Generate 3 concepts";

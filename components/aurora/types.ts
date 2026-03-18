@@ -169,7 +169,19 @@ export type JobsPayload = {
     status: string;
     error: string | null;
     created_at: string;
+    updated_at?: string;
   }>;
+};
+
+export type StageActivityState = "idle" | "active" | "stale_running";
+
+export type StageActivity = {
+  state: StageActivityState;
+  canRun: boolean;
+  shouldQueue: boolean;
+  activeStep: string | null;
+  message: string;
+  needsRefresh: boolean;
 };
 
 export type RuntimeGoalSnapshot = {
