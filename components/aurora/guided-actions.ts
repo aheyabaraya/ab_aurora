@@ -90,17 +90,13 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
       return model;
     }
 
-    model.primaryAction = {
-      id: "run_step",
-      label: "Continue to Decide"
-    };
     model.secondaryAction = {
       id: "regenerate_top3",
       label: "Regenerate 3 Concepts"
     };
-    model.hint = "후보가 준비되었습니다. 다음 씬으로 진행하세요.";
-    model.suggestedCommand = "/run";
-    model.suggestedReason = "EXPLORE에서 DECIDE로 진행합니다.";
+    model.hint = "후보가 준비되었습니다. 좌측 카드에서 하나를 선택해 direction을 잠그세요.";
+    model.suggestedCommand = "/pick 1";
+    model.suggestedReason = "EXPLORE에서 후보 하나를 선택하면 DECIDE로 넘어갑니다.";
     return model;
   }
 
@@ -116,18 +112,18 @@ export function resolveGuidedActionViewModel(input: ResolveGuidedActionInput): R
       return model;
     }
 
-    if (!input.selectedCandidateId && input.currentStep === "top3_select") {
-      model.primaryAction = {
-        id: "pick_1",
-        label: "Choose #1"
-      };
-      model.secondaryAction = {
-        id: "pick_2",
-        label: "Choose #2"
-      };
-      model.hint = "후보를 선택해 direction을 잠그세요.";
+    if (!input.selectedCandidateId) {
+      model.primaryAction = null;
+      model.secondaryAction = null;
+      model.hint =
+        input.currentStep === "approve_build"
+          ? "선택한 direction을 잠그는 중입니다. 잠시 후 Build가 열립니다. 오래 유지되면 좌측에서 다시 선택하세요."
+          : "후보를 먼저 하나 선택해 direction을 잠그세요.";
       model.suggestedCommand = "/pick 1";
-      model.suggestedReason = "후보 선택 대기 상태입니다.";
+      model.suggestedReason =
+        input.currentStep === "approve_build"
+          ? "선택 반영이 지연될 때만 다시 선택하면 됩니다."
+          : "후보 선택이 완료되면 Build 단계로 넘어갑니다.";
       return model;
     }
 

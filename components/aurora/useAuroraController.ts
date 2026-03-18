@@ -14,6 +14,7 @@ import {
   type QuickActionId,
   type RightPanelViewModel,
   type RuntimeGoalSnapshot,
+  type Scene,
   type SessionPayload,
   resolveSceneFromStep
 } from "./types";
@@ -225,7 +226,7 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
       return `- /pick ${index + 1}: ${candidate.naming.recommended} (${candidate.narrative_summary.slice(0, 52)})`;
     });
     optionLines.push("- 자연어로 수정 지시: 선택 전에는 3개 concept bundle이 함께 다시 정리됩니다.");
-    return `DECIDE 선택 단계입니다.\n${optionLines.join("\n")}`;
+    return `EXPLORE 선택 단계입니다.\n${optionLines.join("\n")}`;
   }
 
   if (stage === "approve_build") {
@@ -241,6 +242,86 @@ function buildStageGuideMessage(stage: string, payload: SessionPayload | null): 
   }
 
   return "다음 단계 진행은 /run 을 사용하고, 방향 수정은 채팅에 자연어로 바로 적어주세요.";
+}
+
+function buildPostCommandGuide(commandId: string, stage: string | null | undefined): string {
+  if (commandId === "run_step" && stage === "brand_narrative") {
+    return "Next: wait for EXPLORE to finish rendering 3 bundles, then use /pick 1, /pick 2, or /pick 3.";
+  }
+  if (commandId === "run_step" && stage === "top3_select") {
+    return "Next: Aurora is moving into build. Review the locked route, then wait for PACKAGE outputs.";
+  }
+  if (commandId === "confirm_build") {
+    return "Next: wait for PACKAGE outputs to finish, then use /export when the pack is ready.";
+  }
+  if (commandId === "regenerate_top3") {
+    return "Next: compare the refreshed bundles in EXPLORE and pick the strongest route.";
+  }
+  if (commandId === "regenerate_outputs") {
+    return "Next: review the refreshed PACKAGE outputs and export when the pack is ready.";
+  }
+  if (commandId === "pick_1" || commandId === "pick_2" || commandId === "pick_3") {
+    return "Next: review the locked direction in DECIDE, then use /build when you are ready.";
+  }
+  if (commandId === "export_zip") {
+    return "Next: check the exported pack and return to PACKAGE only if another regeneration is needed.";
+  }
+  return "Next: watch the updated scene state on the left canvas and follow the primary action when it appears.";
+}
+
+function buildPostChatGuide(stage: string | null | undefined): string {
+  if (stage === "brand_narrative") {
+    return "Steer sent. Next: Aurora will respond here, and the DEFINE timer resets so you can decide to resume or generate.";
+  }
+  if (stage === "top3_select" || stage === "approve_build") {
+    return "Steer sent. Next: review the updated direction on the left, then continue with the next primary action.";
+  }
+  if (stage === "package" || stage === "done") {
+    return "Request sent. Next: review PACKAGE updates here and export when the pack is ready.";
+  }
+  return "Request sent. Next: watch the scene update on the left canvas.";
+}
+
+type StructuredChatCommandId = "pick_1" | "pick_2" | "pick_3" | "regenerate_top3";
+
+function normalizeStructuredChatCommand(input: string): string {
+  return input.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function resolveStructuredChatCommandId(message: string): StructuredChatCommandId | null {
+  const normalized = normalizeStructuredChatCommand(message);
+  if (normalized === "pick 1") {
+    return "pick_1";
+  }
+  if (normalized === "pick 2") {
+    return "pick_2";
+  }
+  if (normalized === "pick 3") {
+    return "pick_3";
+  }
+  if (normalized === "rerun candidates") {
+    return "regenerate_top3";
+  }
+  return null;
+}
+
+export function inferChatSceneTransition(message: string): { scene: Scene; stage: string; message: string } | null {
+  const commandId = resolveStructuredChatCommandId(message);
+  if (commandId === "regenerate_top3") {
+    return {
+      scene: "EXPLORE",
+      stage: "candidates_generate",
+      message: "Generating 3 concept bundles from the current direction."
+    };
+  }
+  if (commandId === "pick_1" || commandId === "pick_2" || commandId === "pick_3") {
+    return {
+      scene: "DECIDE",
+      stage: "approve_build",
+      message: "Locking the selected direction and preparing build approval."
+    };
+  }
+  return null;
 }
 
 function summarizeFailureForTimeline(stage: string, errorMessage: string): string {
@@ -450,6 +531,12 @@ type StartSessionResult = {
   message?: string;
 };
 
+type SceneTransitionState = {
+  scene: Scene;
+  stage: string;
+  message: string;
+};
+
 export function useAuroraController() {
   const authBypassEnabled =
     process.env.NODE_ENV === "test"
@@ -471,6 +558,7 @@ export function useAuroraController() {
   const [jobsPayload, setJobsPayload] = useState<JobsPayload | null>(null);
   const [runtimeGoalId, setRuntimeGoalId] = useState<string | null>(null);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<RuntimeGoalSnapshot | null>(null);
+  const [sceneTransition, setSceneTransition] = useState<SceneTransitionState | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1013,7 +1101,24 @@ export function useAuroraController() {
       await refreshSession(sessionId);
     };
 
+    if (decision.body.step === "candidates_generate") {
+      setSceneTransition({
+        scene: "EXPLORE",
+        stage: "candidates_generate",
+        message: "Generating 3 concept bundles from the current direction."
+      });
+    } else if (decision.body.step === "approve_build") {
+      setSceneTransition({
+        scene: "PACKAGE",
+        stage: "package",
+        message: "Building final outputs and preparing the package."
+      });
+    } else {
+      setSceneTransition(null);
+    }
+
     await runWithRecovery(run, run);
+    setSceneTransition(null);
   }, [
     appendTimelineMessage,
     handleActionError,
@@ -1056,7 +1161,13 @@ export function useAuroraController() {
         await refreshSession(sessionId);
       };
 
+      setSceneTransition({
+        scene: "DECIDE",
+        stage: "approve_build",
+        message: "Locking the selected direction and preparing build approval."
+      });
       await runWithRecovery(run, run);
+      setSceneTransition(null);
     },
     [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]
   );
@@ -1088,7 +1199,13 @@ export function useAuroraController() {
       await refreshSession(sessionId);
     };
 
+    setSceneTransition({
+      scene: "PACKAGE",
+      stage: "package",
+      message: "Building final outputs and preparing the package."
+    });
     await runWithRecovery(run, run);
+    setSceneTransition(null);
   }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
 
   const handleStartRuntimeGoal = useCallback(async () => {
@@ -1174,12 +1291,20 @@ export function useAuroraController() {
         return null;
       }
 
+      const pendingTransition = inferChatSceneTransition(trimmed);
+      if (pendingTransition) {
+        setSceneTransition(pendingTransition);
+      }
+
       let response: ChatApiResponse | null = null;
       const run = async () => {
         response = await sendChatImmediate(trimmed);
       };
 
       const success = await runWithRecovery(run, run);
+      if (pendingTransition) {
+        setSceneTransition(null);
+      }
       return success ? response : null;
     },
     [appendQueuedCommand, runWithRecovery, sendChatImmediate, sessionId, shouldQueueIntervention]
@@ -1282,7 +1407,13 @@ export function useAuroraController() {
       await refreshSession(sessionId);
     };
 
+    setSceneTransition({
+      scene: "PACKAGE",
+      stage: "package",
+      message: "Refreshing package outputs."
+    });
     await runWithRecovery(run, run);
+    setSceneTransition(null);
   }, [refreshRuntimeGoal, refreshSession, requestJson, runWithRecovery, sessionId]);
 
   const handleUpdateDefineBrief = useCallback(
@@ -1473,10 +1604,14 @@ export function useAuroraController() {
             message
           };
         }
+        const structuredChatCommandId = resolveStructuredChatCommandId(trimmed);
         const response = await handleSendChat(trimmed);
         return {
           accepted: true,
           kind: "chat",
+          message: structuredChatCommandId
+            ? buildPostCommandGuide(structuredChatCommandId, sessionPayload?.session.current_step)
+            : buildPostChatGuide(sessionPayload?.session.current_step),
           ...getCommandExecutionMeta(response)
         };
       }
@@ -1518,7 +1653,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: product = ${parsedSetup.value}`
+            message: `Setup updated: product = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
           };
         }
 
@@ -1530,7 +1665,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: audience = ${parsedSetup.value}`
+            message: `Setup updated: audience = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
           };
         }
 
@@ -1542,7 +1677,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: first deliverable = ${parsedSetup.value}`
+            message: `Setup updated: first deliverable = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
           };
         }
 
@@ -1554,7 +1689,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: `Setup updated: style keywords = ${parsedSetup.value}`
+            message: `Setup updated: style keywords = ${parsedSetup.value}\nNext: continue filling the brief or use /start when ready.`
           };
         }
 
@@ -1575,7 +1710,7 @@ export function useAuroraController() {
             accepted: true,
             kind: "slash",
             commandId: "setup_brief",
-            message: "Setup updated: design direction note saved."
+            message: "Setup updated: design direction note saved.\nNext: continue filling the brief or use /start when ready."
           };
         }
 
@@ -1596,7 +1731,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: "setup_brief",
-          message: `Setup updated: q0 = ${q0Score}`
+          message: `Setup updated: q0 = ${q0Score}\nNext: continue filling the brief or use /start when ready.`
         };
       }
 
@@ -1691,8 +1826,20 @@ export function useAuroraController() {
         };
       } else if (parsed.id === "run_step") {
         await handleRunStep();
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "confirm_build") {
         await handleConfirmBuild();
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "pick_1" || parsed.id === "pick_2" || parsed.id === "pick_3") {
         const pickCommand = parsed.id === "pick_1" ? "pick 1" : parsed.id === "pick_2" ? "pick 2" : "pick 3";
         const response = await handleSendChat(pickCommand);
@@ -1700,6 +1847,7 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step),
           ...getCommandExecutionMeta(response)
         };
       } else if (parsed.id === "regenerate_top3") {
@@ -1708,20 +1856,57 @@ export function useAuroraController() {
           accepted: true,
           kind: "slash",
           commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step),
           ...getCommandExecutionMeta(response)
         };
       } else if (parsed.id === "regenerate_outputs") {
         await handleRegenerateOutputs();
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "export_zip") {
         await handleExportZip();
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "tone_editorial") {
         await handleSendRevise("Make it more editorial while keeping current brand premise.");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostChatGuide(sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "tone_less_futuristic") {
         await handleSendRevise("Reduce futuristic accents and keep a calmer premium tone.");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostChatGuide(sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "tone_calmer") {
         await handleSendRevise("Make the direction calmer and quieter.");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostChatGuide(sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "tone_ritual") {
         await handleSendRevise("Increase ritual mood while preserving readability and restraint.");
+        return {
+          accepted: true,
+          kind: "slash",
+          commandId: parsed.id,
+          message: buildPostChatGuide(sessionPayload?.session.current_step)
+        };
       } else if (parsed.id === "start_runtime_goal") {
         await handleStartRuntimeGoal();
       } else if (parsed.id === "runtime_step") {
@@ -1749,7 +1934,8 @@ export function useAuroraController() {
       return {
         accepted: true,
         kind: "slash",
-        commandId: parsed.id
+        commandId: parsed.id,
+        message: buildPostCommandGuide(parsed.id, sessionPayload?.session.current_step)
       };
     },
     [
@@ -1908,9 +2094,8 @@ export function useAuroraController() {
     return merged;
   }, [sessionPayload?.recent_artifacts, sessionPayload?.recent_messages, stageMessages]);
 
-  const buildConfirmRequired = Boolean(sessionPayload?.selected_candidate_id) &&
-    (sessionPayload?.session.current_step === "approve_build" ||
-      sessionPayload?.session.current_step === "top3_select");
+  const buildConfirmRequired =
+    Boolean(sessionPayload?.selected_candidate_id) && sessionPayload?.session.current_step === "approve_build";
 
   const top3ModelSource = useMemo<ModelSource>(() => {
     const top3Artifact = (sessionPayload?.recent_artifacts ?? [])
@@ -1939,13 +2124,15 @@ export function useAuroraController() {
   const defineDirectionClarity = useMemo(() => getDirectionClarityFromPayload(sessionPayload), [sessionPayload]);
   const defineReadyForConcepts = defineDirectionClarity?.ready_for_concepts !== false;
   const defineFollowupQuestion = defineDirectionClarity?.followup_questions?.[0] ?? null;
+  const uiScene = sceneTransition?.scene ?? currentScene;
+  const uiStep = sceneTransition?.stage ?? sessionPayload?.session.current_step ?? "interview_collect";
 
   const rightPanelViewModel = useMemo<RightPanelViewModel>(() => {
     const resolved = resolveGuidedActionViewModel({
       sessionId,
       status: sessionPayload?.session.status ?? "idle",
-      currentScene,
-      currentStep: sessionPayload?.session.current_step ?? "interview_collect",
+      currentScene: uiScene,
+      currentStep: uiStep,
       top3Count: sessionPayload?.latest_top3?.length ?? 0,
       selectedCandidateId: sessionPayload?.selected_candidate_id ?? null,
       buildConfirmRequired,
@@ -1963,7 +2150,6 @@ export function useAuroraController() {
   }, [
     buildConfirmRequired,
     canStartSession,
-    currentScene,
     defineFollowupQuestion,
     defineReadyForConcepts,
     packReady,
@@ -1973,6 +2159,8 @@ export function useAuroraController() {
     sessionPayload?.selected_candidate_id,
     sessionPayload?.session.current_step,
     sessionPayload?.session.status,
+    sceneTransition?.scene,
+    sceneTransition?.stage,
     shouldQueueIntervention,
     top3ModelSource
   ]);
@@ -2019,6 +2207,7 @@ export function useAuroraController() {
     shouldQueueIntervention,
     queuedCommands,
     chatEntries,
+    sceneTransition,
     buildConfirmRequired,
     top3ModelSource,
     rightPanelViewModel,

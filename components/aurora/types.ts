@@ -24,7 +24,7 @@ export const STAGE_TO_SCENE: Record<AgentStep, Scene> = {
   spec_draft: "DEFINE",
   brand_narrative: "DEFINE",
   candidates_generate: "EXPLORE",
-  top3_select: "DECIDE",
+  top3_select: "EXPLORE",
   approve_build: "DECIDE",
   package: "PACKAGE",
   done: "PACKAGE"

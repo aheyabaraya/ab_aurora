@@ -30,6 +30,7 @@ type DefineSceneProps = {
     secondsRemaining: number | null;
     onGenerate?: () => void;
     onWait?: () => void;
+    onResume?: () => void;
   } | null;
 };
 
@@ -37,6 +38,8 @@ type BriefCard = {
   label: string;
   value: string;
 };
+
+type DefineFocusPanelId = "snapshot" | "mechanics" | "supporting" | "prompt";
 
 function stageSummary(stage: string): string {
   if (stage === "interview_collect" || stage === "intent_gate") {
@@ -175,6 +178,7 @@ export function DefineScene({
   busy = false,
   autoAdvance = null
 }: DefineSceneProps) {
+  const [openPanel, setOpenPanel] = useState<DefineFocusPanelId | null>(null);
   const ready = Boolean(direction);
   const assetIntent = direction?.asset_intent;
   const clarity = direction?.clarity;
@@ -255,57 +259,135 @@ export function DefineScene({
   const briefEditorKey = `${brief?.product ?? ""}::${brief?.audience ?? ""}::${brief?.firstDeliverable ?? ""}::${
     brief?.styleKeywords.join("|") ?? ""
   }::${brief?.constraint ?? ""}::${brief?.q0IntentConfidence ?? ""}`;
+  const focusPanels: Array<{ id: DefineFocusPanelId; label: string; summary: string }> = ready
+    ? [
+        {
+          id: "snapshot",
+          label: "Direction Snapshot",
+          summary: direction?.brief_summary ?? "Open the working direction Aurora synthesized from the brief."
+        },
+        {
+          id: "mechanics",
+          label: "Mechanism",
+          summary: clarity?.summary ?? "Check readiness, missing inputs, and the default bundle Aurora will use next."
+        },
+        {
+          id: "supporting",
+          label: "Supporting Detail",
+          summary: direction?.narrative_summary ?? "Open narrative detail, voice principles, anti-goals, and visual rules."
+        },
+        {
+          id: "prompt",
+          label: "Prompt Seed",
+          summary: direction?.prompt_seed ?? "Open the prompt seed and priority order for concept generation."
+        }
+      ]
+    : [];
+  const openPanelTitle =
+    openPanel === "snapshot"
+      ? "Direction Snapshot"
+      : openPanel === "mechanics"
+        ? "Direction Mechanics"
+        : openPanel === "supporting"
+          ? "Supporting Detail"
+          : openPanel === "prompt"
+            ? "Prompt Seed"
+            : null;
 
   return (
     <div className="space-y-4">
       {ready && readyForConcepts && autoAdvance ? (
         <div className="aurora-panel rounded-[26px] border border-indigo-200/24 bg-slate-950/48 px-4 py-4 xl:sticky xl:top-4 xl:z-10">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] xl:items-center">
+            <div className="min-w-0 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="aurora-chip px-3 aurora-text-label">Define Hold</span>
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-slate-300">
-                  {autoAdvance.waiting ? "Paused" : autoAdvance.enabled ? "Auto advance armed" : "Manual continue"}
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 aurora-text-meta text-slate-300">
+                  {autoAdvance.waiting ? "Paused" : autoAdvance.enabled ? "Auto timer active" : "Manual continue"}
                 </span>
               </div>
-              <h3 className="aurora-title-primary mt-3 text-[1.18rem] leading-[1.12]">
+              <h3 className="aurora-title-primary text-[1.08rem] leading-[1.12]">Concept generation control</h3>
+              <p className="aurora-text-body max-w-3xl text-slate-200">
                 {autoAdvance.waiting
-                  ? "DEFINE is paused until you choose the next move."
+                  ? "Hold is active. Send one more steer in chat, then choose whether to resume the timer or generate immediately."
                   : autoAdvance.enabled
-                    ? `Concept generation starts in ${formatCountdown(autoAdvance.secondsRemaining)} unless you interrupt it.`
-                    : "DEFINE stays open until you continue manually."}
-              </h3>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-200">
-                {autoAdvance.waiting
-                  ? "Use chat to steer the first bundle, then continue when the direction feels right."
-                  : autoAdvance.enabled
-                    ? `Aurora will use ${bundleDefault.toLowerCase()} if no further steer arrives before the timer ends.`
-                    : "Auto advance is off. Review the direction, give one more steer in chat if needed, then continue when ready."}
+                    ? `Aurora will use ${bundleDefault.toLowerCase()} unless you add another steer before the timer ends.`
+                    : "Auto advance is off. Review the direction, steer in chat if needed, then generate manually."}
               </p>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="aurora-surface-soft rounded-[20px] p-3">
+                  <p className="aurora-title-label">What To Do Now</p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    {autoAdvance.waiting
+                      ? "1. Send a steer in chat. 2. Resume timer or Generate Now."
+                      : "Review the working direction, then either Hold or let the timer continue."}
+                  </p>
+                </div>
+                <div className="aurora-surface-soft rounded-[20px] p-3">
+                  <p className="aurora-title-label">Chat Behavior</p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    Sending a chat steer resets the DEFINE countdown to 01:00 so you have time to react.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-[20px] border border-white/12 bg-white/[0.05] px-4 py-3 text-center sm:min-w-[124px]">
+            <div className="flex shrink-0 flex-col gap-3">
+              <div className="rounded-[20px] border border-white/12 bg-white/[0.05] px-4 py-3 text-center">
                 <p className="aurora-title-label">Countdown</p>
-                <p className="mt-1 text-lg font-semibold text-slate-50">
+                <p className="mt-1 text-[1.35rem] font-semibold leading-none text-slate-50">
                   {autoAdvance.waiting || !autoAdvance.enabled ? "Hold" : formatCountdown(autoAdvance.secondsRemaining)}
                 </p>
+                <p className="aurora-text-meta mt-2 text-slate-400">
+                  {autoAdvance.waiting ? "Paused until resume" : "Only the timer value updates."}
+                </p>
               </div>
+
               <div className="flex flex-wrap gap-2">
-                <button
-                  className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
-                  onClick={() => autoAdvance.onGenerate?.()}
-                  type="button"
-                >
-                  Generate Concepts
-                </button>
-                <button
-                  className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
-                  onClick={() => autoAdvance.onWait?.()}
-                  type="button"
-                >
-                  Hold Here
-                </button>
+                {autoAdvance.waiting ? (
+                  <>
+                    <button
+                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
+                      onClick={() => autoAdvance.onResume?.()}
+                      type="button"
+                    >
+                      Resume Timer
+                    </button>
+                    <button
+                      className="aurora-btn-secondary rounded-full px-4 py-2 text-sm font-semibold"
+                      onClick={() => autoAdvance.onGenerate?.()}
+                      type="button"
+                    >
+                      Generate Now
+                    </button>
+                  </>
+                ) : autoAdvance.enabled ? (
+                  <>
+                    <button
+                      className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
+                      onClick={() => autoAdvance.onWait?.()}
+                      type="button"
+                    >
+                      Hold
+                    </button>
+                    <button
+                      className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
+                      onClick={() => autoAdvance.onGenerate?.()}
+                      type="button"
+                    >
+                      Generate Now
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold"
+                    onClick={() => autoAdvance.onGenerate?.()}
+                    type="button"
+                  >
+                    Generate Now
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -351,6 +433,24 @@ export function DefineScene({
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {ready && focusPanels.length > 0 ? (
+        <div className="grid gap-3 xl:grid-cols-4">
+          {focusPanels.map((panel) => (
+            <div key={panel.id} className="aurora-panel rounded-[24px] p-4">
+              <p className="aurora-title-label">{panel.label}</p>
+              <p className="aurora-text-meta mt-2 line-clamp-3 text-slate-300">{panel.summary}</p>
+              <button
+                className="aurora-btn-secondary mt-3 rounded-full px-4 py-2 text-sm font-semibold"
+                type="button"
+                onClick={() => setOpenPanel(panel.id)}
+              >
+                Open Panel
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
 
@@ -445,125 +545,63 @@ export function DefineScene({
       </div>
 
       {ready && direction ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.16fr)_minmax(0,0.84fr)]">
-          <div className="space-y-4">
-            <div className="aurora-panel rounded-[28px] p-4 md:p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="max-w-3xl">
-                  <p className="aurora-title-label">Direction Snapshot</p>
-                  <h3 className="aurora-title-primary mt-2 text-[1.2rem]">The direction in one pass.</h3>
-                  <p className="mt-3 text-[15px] leading-7 text-slate-100">{direction.brief_summary}</p>
-                </div>
-                <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>
-                  {clarity?.score ?? 3}/5 clarity
-                </span>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+          <div className="aurora-panel rounded-[28px] p-4 md:p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-3xl">
+                <p className="aurora-title-label">At A Glance</p>
+                <h3 className="aurora-title-primary mt-2 text-[1.12rem]">Working direction</h3>
+                <p className="aurora-text-body mt-3 text-slate-100">{direction.brief_summary}</p>
               </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {directionSnapshotCards.map((card) => (
-                  <div key={card.label} className="aurora-surface-soft rounded-[22px] p-4">
-                    <p className="aurora-title-label">{card.label}</p>
-                    <p className="aurora-text-body mt-2 text-slate-200">{card.value}</p>
-                  </div>
-                ))}
-              </div>
+              <span className={readyForConcepts ? "aurora-chip" : "aurora-chip-soft"}>{clarity?.score ?? 3}/5 clarity</span>
             </div>
 
-            <details className="aurora-panel rounded-[26px] p-4 md:p-5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <div>
-                  <p className="aurora-title-label">Supporting Detail</p>
-                  <p className="aurora-text-meta mt-1 text-slate-200">Narrative and principle lists stay available without crowding the main view.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {directionSnapshotCards.map((card) => (
+                <div key={card.label} className="aurora-surface-soft rounded-[22px] p-4">
+                  <p className="aurora-title-label">{card.label}</p>
+                  <p className="aurora-text-meta mt-2 text-slate-200">{card.value}</p>
                 </div>
-                <span className="aurora-chip-soft px-3 aurora-text-label">Expand</span>
-              </summary>
-
-              <div className="mt-4 space-y-4">
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Narrative Summary</p>
-                  <p className="aurora-text-body mt-2 text-slate-200">{direction.narrative_summary}</p>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  {principleSections.map((section) => (
-                    <div key={section.label} className="aurora-surface-soft rounded-[22px] p-4">
-                      <p className="aurora-title-label">{section.label}</p>
-                      <div className="mt-3">{renderTagList(section.items)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </details>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-4">
             <div className="aurora-panel rounded-[28px] p-4 md:p-5">
-              <p className="aurora-title-label">Direction Mechanics</p>
-              <h3 className="aurora-title-primary mt-2 text-[1.14rem]">
-                {readyForConcepts ? "Keep this route aligned with the brief." : "Track what still blocks concept generation."}
+              <p className="aurora-title-label">Readiness</p>
+              <h3 className="aurora-title-primary mt-2 text-[1.12rem]">
+                {readyForConcepts ? "Ready to move into EXPLORE." : "More input is still required."}
               </h3>
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3 space-y-3">
                 <div className="aurora-surface-soft rounded-[22px] p-4">
                   <p className="aurora-title-label">Direction Clarity</p>
-                  <p className="aurora-text-body mt-2 text-slate-200">
-                    {clarity?.summary ??
-                      "Aurora will decide if the brief is specific enough before moving into concept generation."}
+                  <p className="aurora-text-meta mt-2 text-slate-300">
+                    {clarity?.summary ?? "Aurora will decide if the brief is specific enough before moving into concept generation."}
                   </p>
                 </div>
 
                 <div className="aurora-surface-soft rounded-[22px] p-4">
                   <p className="aurora-title-label">Default Bundle</p>
-                  <p className="aurora-text-body mt-2 text-slate-200">{bundleDefault}</p>
-                  <p className="aurora-text-meta mt-2 text-slate-400">
-                    {assetIntent?.rationale ??
-                      "Aurora will balance hero, environment, and prop support unless you redirect it in chat."}
-                  </p>
+                  <p className="aurora-text-meta mt-2 text-slate-300">{bundleDefault}</p>
                 </div>
-              </div>
 
-              {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
-                <div className="aurora-surface-soft mt-3 rounded-[22px] p-4">
-                  <p className="aurora-title-label">Still Missing</p>
-                  <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
-                </div>
-              ) : null}
-
-              {!readyForConcepts && followupQuestions.length > 1 ? (
-                <div className="aurora-surface-soft mt-3 rounded-[22px] p-4">
-                  <p className="aurora-title-label">Remaining Questions</p>
-                  <div className="mt-3 grid gap-2">
-                    {followupQuestions.slice(1).map((question) => (
-                      <div key={question} className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 aurora-text-body text-slate-200">
-                        {question}
-                      </div>
-                    ))}
+                {!readyForConcepts && (clarity?.missing_inputs?.length ?? 0) > 0 ? (
+                  <div className="aurora-surface-soft rounded-[22px] p-4">
+                    <p className="aurora-title-label">Still Missing</p>
+                    <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
 
-            <details className="aurora-panel rounded-[26px] p-4 md:p-5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <div>
-                  <p className="aurora-title-label">Prompt Seed</p>
-                  <p className="aurora-text-meta mt-1 text-slate-200">Keep the detailed generation rationale nearby, not in the primary scan path.</p>
-                </div>
-                <span className="aurora-chip-soft px-3 aurora-text-label">Expand</span>
-              </summary>
-
-              <div className="mt-4 space-y-3">
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Prompt Seed</p>
-                  <p className="aurora-text-body mt-2 text-slate-200">{direction.prompt_seed}</p>
-                </div>
-
-                <div className="aurora-surface-soft rounded-[22px] p-4">
-                  <p className="aurora-title-label">Priority Order</p>
-                  <div className="mt-3">{renderTagList(assetIntent?.priority_order ?? ["portrait", "background", "prop"])}</div>
-                </div>
-              </div>
-            </details>
+            <div className="aurora-surface-soft rounded-[24px] p-4">
+              <p className="aurora-title-label">Detailed Panels</p>
+              <p className="aurora-text-meta mt-2 text-slate-300">
+                Open the panels above to inspect Direction Snapshot, Mechanism, Supporting Detail, and Prompt Seed without
+                losing your place in DEFINE.
+              </p>
+            </div>
           </div>
         </div>
       ) : (
@@ -572,6 +610,117 @@ export function DefineScene({
           creative narrative, visual principles, and the first image question.
         </div>
       )}
+
+      {ready && openPanel && openPanelTitle ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/78 px-4 py-6">
+          <div className="aurora-panel max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[30px]">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div className="min-w-0">
+                <p className="aurora-title-label">Define Detail</p>
+                <h3 className="aurora-title-primary mt-2 text-[1.2rem]">{openPanelTitle}</h3>
+              </div>
+              <button
+                className="aurora-btn-ghost rounded-full px-4 py-2 text-sm"
+                type="button"
+                onClick={() => setOpenPanel(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[calc(88vh-5.5rem)] overflow-auto px-5 py-5">
+              {openPanel === "snapshot" ? (
+                <div className="space-y-4">
+                  <div className="aurora-surface-soft rounded-[22px] p-4">
+                    <p className="aurora-title-label">Direction Summary</p>
+                    <p className="aurora-text-body mt-2 text-slate-100">{direction?.brief_summary ?? ""}</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {directionSnapshotCards.map((card) => (
+                      <div key={card.label} className="aurora-surface-soft rounded-[22px] p-4">
+                        <p className="aurora-title-label">{card.label}</p>
+                        <p className="aurora-text-body mt-2 text-slate-200">{card.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {openPanel === "mechanics" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="aurora-surface-soft rounded-[22px] p-4">
+                      <p className="aurora-title-label">Direction Clarity</p>
+                      <p className="aurora-text-body mt-2 text-slate-200">
+                        {clarity?.summary ??
+                          "Aurora will decide if the brief is specific enough before moving into concept generation."}
+                      </p>
+                    </div>
+                    <div className="aurora-surface-soft rounded-[22px] p-4">
+                      <p className="aurora-title-label">Default Bundle</p>
+                      <p className="aurora-text-body mt-2 text-slate-200">{bundleDefault}</p>
+                      <p className="aurora-text-meta mt-2 text-slate-400">
+                        {assetIntent?.rationale ??
+                          "Aurora will balance hero, environment, and prop support unless you redirect it in chat."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(clarity?.missing_inputs?.length ?? 0) > 0 ? (
+                    <div className="aurora-surface-soft rounded-[22px] p-4">
+                      <p className="aurora-title-label">Still Missing</p>
+                      <div className="mt-3">{renderTagList(clarity?.missing_inputs ?? [])}</div>
+                    </div>
+                  ) : null}
+
+                  {followupQuestions.length > 0 ? (
+                    <div className="aurora-surface-soft rounded-[22px] p-4">
+                      <p className="aurora-title-label">Follow-up Questions</p>
+                      <div className="mt-3 grid gap-2">
+                        {followupQuestions.map((question) => (
+                          <div key={question} className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 aurora-text-body text-slate-200">
+                            {question}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {openPanel === "supporting" ? (
+                <div className="space-y-4">
+                  <div className="aurora-surface-soft rounded-[22px] p-4">
+                    <p className="aurora-title-label">Narrative Summary</p>
+                    <p className="aurora-text-body mt-2 text-slate-200">{direction?.narrative_summary ?? ""}</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {principleSections.map((section) => (
+                      <div key={section.label} className="aurora-surface-soft rounded-[22px] p-4">
+                        <p className="aurora-title-label">{section.label}</p>
+                        <div className="mt-3">{renderTagList(section.items)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {openPanel === "prompt" ? (
+                <div className="space-y-4">
+                  <div className="aurora-surface-soft rounded-[22px] p-4">
+                    <p className="aurora-title-label">Prompt Seed</p>
+                    <p className="aurora-text-body mt-2 text-slate-200">{direction?.prompt_seed ?? ""}</p>
+                  </div>
+                  <div className="aurora-surface-soft rounded-[22px] p-4">
+                    <p className="aurora-title-label">Priority Order</p>
+                    <div className="mt-3">{renderTagList(assetIntent?.priority_order ?? ["portrait", "background", "prop"])}</div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -108,3 +108,48 @@ test("package scene sets export as primary and disables until pack is ready", ()
   assert.equal(pending.suggestedCommand, "/export");
   assert.equal(ready.primaryAction?.disabled, false);
 });
+
+test("explore selection state points user to pick instead of continuing run", () => {
+  const model = resolveGuidedActionViewModel({
+    sessionId: "sess_1",
+    status: "wait_user",
+    currentScene: "EXPLORE",
+    currentStep: "top3_select",
+    top3Count: 3,
+    selectedCandidateId: null,
+    buildConfirmRequired: false,
+    runtimeGoalId: null,
+    packReady: false,
+    shouldQueueIntervention: false,
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
+  });
+
+  assert.equal(model.primaryAction, null);
+  assert.equal(model.secondaryAction?.id, "regenerate_top3");
+  assert.equal(model.suggestedCommand, "/pick 1");
+});
+
+test("decide scene without locked selection does not expose Build prematurely", () => {
+  const model = resolveGuidedActionViewModel({
+    sessionId: "sess_1",
+    status: "wait_user",
+    currentScene: "DECIDE",
+    currentStep: "approve_build",
+    top3Count: 3,
+    selectedCandidateId: null,
+    buildConfirmRequired: false,
+    runtimeGoalId: null,
+    packReady: false,
+    shouldQueueIntervention: false,
+    canStartSession: true,
+    defineReadyForConcepts: true,
+    defineFollowupQuestion: null
+  });
+
+  assert.equal(model.primaryAction, null);
+  assert.equal(model.secondaryAction, null);
+  assert.equal(model.suggestedCommand, "/pick 1");
+  assert.equal(model.hint.includes("Build"), true);
+});

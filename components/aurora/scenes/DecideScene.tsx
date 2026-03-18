@@ -75,6 +75,7 @@ export function DecideScene({
   onSelect,
   onConfirmBuild
 }: DecideSceneProps) {
+  const hasLockedSelection = Boolean(selectedCandidateId);
   const focusCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0] ?? null;
   const comparisonCandidates = focusCandidate
     ? candidates.filter((candidate) => candidate.id !== focusCandidate.id)
@@ -161,12 +162,12 @@ export function DecideScene({
           <div className="space-y-4 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="aurora-title-label">Selected Direction</p>
+                <p className="aurora-title-label">{hasLockedSelection ? "Selected Direction" : "Current Focus"}</p>
                 <h3 className="aurora-title-primary mt-2 text-[1.35rem] leading-tight">{focusCandidate.naming.recommended}</h3>
                 <p className="aurora-text-meta mt-2 text-slate-300">{focusCandidate.moodboard.title}</p>
               </div>
               <span className={selectedCandidateId === focusCandidate.id ? "aurora-chip" : "aurora-chip-soft"}>
-                {selectedCandidateId === focusCandidate.id ? "Selected" : "Open"}
+                {selectedCandidateId === focusCandidate.id ? "Selected" : hasLockedSelection ? "Open" : "Not Locked"}
               </span>
             </div>
 
@@ -255,7 +256,7 @@ export function DecideScene({
                 onClick={() => onSelect(focusCandidate.id)}
                 disabled={busy}
               >
-                {selectedCandidateId === focusCandidate.id ? "Selected" : "Select This"}
+                {selectedCandidateId === focusCandidate.id ? "Selected" : hasLockedSelection ? "Switch to This" : "Lock Direction"}
               </button>
               <button
                 className="aurora-btn-cta rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
@@ -273,6 +274,10 @@ export function DecideScene({
             ) : buildRequired ? (
               <p className="aurora-text-meta mt-3 text-amber-100">
                 Build is ready. Confirm once to generate final outputs.
+              </p>
+            ) : !hasLockedSelection ? (
+              <p className="aurora-text-meta mt-3 text-slate-300">
+                Choose This to lock one direction first. Build opens after the selection is saved.
               </p>
             ) : (
               <p className="aurora-text-meta mt-3 text-slate-300">Build already confirmed. You can still review alternatives below.</p>

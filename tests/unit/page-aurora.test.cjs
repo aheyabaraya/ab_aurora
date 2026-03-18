@@ -16,7 +16,7 @@ test("resolveSceneFromStep maps each known stage to the expected scene", () => {
   assert.equal(auroraTypes.resolveSceneFromStep("spec_draft"), "DEFINE");
   assert.equal(auroraTypes.resolveSceneFromStep("brand_narrative"), "DEFINE");
   assert.equal(auroraTypes.resolveSceneFromStep("candidates_generate"), "EXPLORE");
-  assert.equal(auroraTypes.resolveSceneFromStep("top3_select"), "DECIDE");
+  assert.equal(auroraTypes.resolveSceneFromStep("top3_select"), "EXPLORE");
   assert.equal(auroraTypes.resolveSceneFromStep("approve_build"), "DECIDE");
   assert.equal(auroraTypes.resolveSceneFromStep("package"), "PACKAGE");
   assert.equal(auroraTypes.resolveSceneFromStep("done"), "PACKAGE");

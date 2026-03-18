@@ -4,7 +4,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  inferChatSceneTransition,
   getCommandExecutionMeta,
+  resolveStructuredChatCommandId,
   sendChatAndSync
 } = require("../../.tmp-tests/components/aurora/useAuroraController.js");
 
@@ -111,4 +113,25 @@ test("getCommandExecutionMeta maps assistant source and rate-limited flags", () 
     assistantSource: undefined,
     rateLimited: undefined
   });
+});
+
+test("resolveStructuredChatCommandId recognizes guided chat commands", () => {
+  assert.equal(resolveStructuredChatCommandId("pick 1"), "pick_1");
+  assert.equal(resolveStructuredChatCommandId("  PICK   2 "), "pick_2");
+  assert.equal(resolveStructuredChatCommandId("rerun candidates"), "regenerate_top3");
+  assert.equal(resolveStructuredChatCommandId("make it calmer"), null);
+});
+
+test("inferChatSceneTransition mirrors structured chat flow transitions", () => {
+  assert.deepEqual(inferChatSceneTransition("pick 3"), {
+    scene: "DECIDE",
+    stage: "approve_build",
+    message: "Locking the selected direction and preparing build approval."
+  });
+  assert.deepEqual(inferChatSceneTransition("rerun candidates"), {
+    scene: "EXPLORE",
+    stage: "candidates_generate",
+    message: "Generating 3 concept bundles from the current direction."
+  });
+  assert.equal(inferChatSceneTransition("freeform feedback"), null);
 });

@@ -61,6 +61,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     queuedCommands,
     latestFailedJob,
     shouldQueueIntervention,
+    sceneTransition,
     buildConfirmRequired,
     rightPanelViewModel,
     top3ModelSource,
@@ -81,8 +82,8 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
   const sessionReady = Boolean(sessionId);
   const stage = sessionPayload?.session.current_step ?? "interview_collect";
-  const activeScene = sessionReady ? currentScene : "DEFINE";
-  const activeStage = sessionReady ? stage : "interview_collect";
+  const activeScene = sessionReady ? sceneTransition?.scene ?? currentScene : "DEFINE";
+  const activeStage = sessionReady ? sceneTransition?.stage ?? stage : "interview_collect";
   const usageSummary = sessionPayload?.usage_summary ?? null;
   const latestTop3 = sessionPayload?.latest_top3 ?? [];
   const narrativeArtifact = useMemo(() => {
@@ -115,14 +116,14 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const sessionMetrics = [
     { label: "Session", value: sessionPayload?.session.id ?? sessionId ?? "Pending" },
     { label: "Scene", value: activeScene },
-    { label: "Step", value: stage.replaceAll("_", " ") },
+    { label: "Step", value: activeStage.replaceAll("_", " ") },
     { label: "Top-3", value: String(latestTop3.length) },
     { label: "Selected", value: sessionPayload?.selected_candidate_id ?? "None" },
     { label: "Q0", value: sessionPayload?.session.intent_confidence?.toString() ?? "Unrated" }
   ];
   const summaryPills = [
     { label: "Scene", value: activeScene },
-    { label: "Step", value: stage.replaceAll("_", " ") },
+    { label: "Step", value: activeStage.replaceAll("_", " ") },
     { label: "Top-3", value: String(latestTop3.length) },
     { label: "Selected", value: sessionPayload?.selected_candidate_id ? "Locked" : "Open" }
   ];
@@ -144,6 +145,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
   const [defineAutoRemainingSeconds, setDefineAutoRemainingSeconds] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<ImagePreviewPayload | null>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const lastDefineUserEntryIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -283,6 +285,40 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
     setDefineAutoDeadline(null);
     setDefineAutoRemainingSeconds(null);
   }, []);
+
+  const handleResumeDefineAutoAdvance = useCallback(() => {
+    setDefineWaitOverride(false);
+    setDefineAutoDeadline(Date.now() + 60_000);
+    setDefineAutoRemainingSeconds(60);
+  }, []);
+
+  useEffect(() => {
+    const latestUserEntry = [...chatEntries].reverse().find((entry) => entry.type === "user");
+    const latestUserEntryId = latestUserEntry?.id ?? null;
+
+    if (!latestUserEntryId) {
+      lastDefineUserEntryIdRef.current = null;
+      return;
+    }
+
+    if (lastDefineUserEntryIdRef.current === null) {
+      lastDefineUserEntryIdRef.current = latestUserEntryId;
+      return;
+    }
+
+    if (lastDefineUserEntryIdRef.current === latestUserEntryId) {
+      return;
+    }
+
+    lastDefineUserEntryIdRef.current = latestUserEntryId;
+
+    if (!defineAutoEligible || !autoContinue || defineWaitOverride) {
+      return;
+    }
+
+    setDefineAutoDeadline(Date.now() + 60_000);
+    setDefineAutoRemainingSeconds(60);
+  }, [autoContinue, chatEntries, defineAutoEligible, defineWaitOverride]);
 
   const errorPanel = error ? (
     <div className="mt-4 rounded-[22px] border border-rose-300/35 bg-rose-500/10 p-3 aurora-text-meta text-rose-100">
@@ -587,7 +623,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={sessionReady ? "aurora-chip" : "aurora-chip-soft"}>
-                    {sessionReady ? stage.replaceAll("_", " ") : "Awaiting session"}
+                    {sessionReady ? activeStage.replaceAll("_", " ") : "Awaiting session"}
                   </span>
                   {sessionReady && rightPanelViewModel.primaryAction ? (
                     <button
@@ -619,6 +655,12 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               <div className="aurora-console-divider mt-5" />
 
               <div className="mt-5">
+                {sceneTransition ? (
+                  <div className="aurora-surface-soft mb-4 rounded-[22px] px-4 py-3">
+                    <p className="aurora-title-label">Scene Transition</p>
+                    <p className="aurora-text-body mt-2">{sceneTransition.message}</p>
+                  </div>
+                ) : null}
                 <SceneRouter scene={activeScene} stage={activeStage}>
                   {activeScene === "DEFINE" ? (
                       <DefineScene
@@ -641,14 +683,15 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                               waiting: defineWaitOverride,
                               secondsRemaining: defineAutoRemainingSeconds,
                               onGenerate: () => void handleRunGuidedAction("run_step"),
-                              onWait: handlePauseDefineAutoAdvance
+                              onWait: handlePauseDefineAutoAdvance,
+                              onResume: handleResumeDefineAutoAdvance
                             }
                           : null
                       }
                     />
                   ) : null}
 
-                  {sessionReady && currentScene === "EXPLORE" ? (
+                  {sessionReady && activeScene === "EXPLORE" ? (
                     <ExploreScene
                       candidates={latestTop3}
                       selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
@@ -660,7 +703,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     />
                   ) : null}
 
-                  {sessionReady && currentScene === "DECIDE" ? (
+                  {sessionReady && activeScene === "DECIDE" ? (
                     <DecideScene
                       candidates={latestTop3}
                       selectedCandidateId={sessionPayload?.selected_candidate_id ?? null}
@@ -673,10 +716,10 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
                     />
                   ) : null}
 
-                  {sessionReady && currentScene === "PACKAGE" ? (
+                  {sessionReady && activeScene === "PACKAGE" ? (
                     <PackageScene
                       artifacts={sessionPayload?.recent_artifacts ?? []}
-                      currentStep={stage}
+                      currentStep={activeStage}
                       finalSpec={(sessionPayload?.session.final_spec ?? null) as Record<string, unknown> | null}
                       busy={busy}
                       onRegenerateOutputs={() => void handleRegenerateOutputs()}
@@ -711,7 +754,7 @@ export function GuidedConsole({ controller }: GuidedConsoleProps) {
               sessionReady={sessionReady}
               guided
               defaultTab="chat"
-              showArtifactsTab={sessionReady && currentScene === "PACKAGE"}
+              showArtifactsTab={sessionReady && activeScene === "PACKAGE"}
               status={sessionReady ? rightPanelViewModel.status : "idle"}
               modelSource={rightPanelViewModel.modelSource}
               usageSummary={sessionPayload?.usage_summary ?? null}
